@@ -1,0 +1,215 @@
+export interface LocalityItem {
+  name: string;
+  city: string;
+  state: string;
+  category: 'mumbai_west' | 'mumbai_south' | 'mumbai_central_east' | 'thane_navi' | 'delhi_ncr' | 'bengaluru' | 'hyderabad' | 'pune' | 'other_metros';
+  categoryLabel: string;
+  lat: number;
+  lng: number;
+}
+
+export interface RegionCategory {
+  id: string;
+  label: string;
+  count: number;
+}
+
+export const REGIONAL_CATEGORIES: RegionCategory[] = [
+  { id: 'mumbai_west', label: 'Mumbai West', count: 30 },
+  { id: 'mumbai_south', label: 'Mumbai South', count: 22 },
+  { id: 'mumbai_central_east', label: 'Central Suburbs', count: 13 },
+  { id: 'thane_navi', label: 'Thane & Navi Mumbai', count: 17 },
+  { id: 'delhi_ncr', label: 'Delhi NCR', count: 21 },
+  { id: 'bengaluru', label: 'Bengaluru', count: 19 },
+  { id: 'pune', label: 'Pune', count: 14 },
+  { id: 'hyderabad', label: 'Hyderabad', count: 11 },
+  { id: 'other_metros', label: 'Other Metros', count: 17 },
+];
+
+export const ALL_INDIA_LOCALITIES: LocalityItem[] = [
+  // --- Mumbai Western Suburbs ---
+  { name: 'Andheri West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1351, lng: 72.8290 },
+  { name: 'Andheri East', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1136, lng: 72.8697 },
+  { name: 'Lokhandwala', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1415, lng: 72.8265 },
+  { name: 'Versova', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1319, lng: 72.8140 },
+  { name: 'DN Nagar', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1255, lng: 72.8260 },
+  { name: 'Veera Desai', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1380, lng: 72.8320 },
+  { name: 'Juhu', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1075, lng: 72.8263 },
+  { name: 'Bandra West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.0596, lng: 72.8295 },
+  { name: 'Bandra East', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.0610, lng: 72.8510 },
+  { name: 'Bandra Kurla Complex (BKC)', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.0660, lng: 72.8685 },
+  { name: 'Khar West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.0688, lng: 72.8344 },
+  { name: 'Santacruz West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.0831, lng: 72.8348 },
+  { name: 'Santacruz East', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.0820, lng: 72.8520 },
+  { name: 'Kalina', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.0750, lng: 72.8630 },
+  { name: 'Vile Parle West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1020, lng: 72.8390 },
+  { name: 'Vile Parle East', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.0980, lng: 72.8520 },
+  { name: 'Jogeshwari', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1415, lng: 72.8480 },
+  { name: 'Goregaon West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1620, lng: 72.8420 },
+  { name: 'Goregaon East (Film City)', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1627, lng: 72.8837 },
+  { name: 'Malad West (Mindspace)', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1860, lng: 72.8354 },
+  { name: 'Malad East', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.1860, lng: 72.8560 },
+  { name: 'Kandivali West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.2050, lng: 72.8380 },
+  { name: 'Kandivali East (Thakur Village)', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.2080, lng: 72.8710 },
+  { name: 'Borivali West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.2307, lng: 72.8467 },
+  { name: 'Borivali East', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.2307, lng: 72.8667 },
+  { name: 'Dahisar', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.2575, lng: 72.8634 },
+  { name: 'Mira Road', city: 'Thane', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.2812, lng: 72.8561 },
+  { name: 'Bhayandar', city: 'Thane', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.3000, lng: 72.8500 },
+  { name: 'Vasai', city: 'Palghar', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.3919, lng: 72.8397 },
+  { name: 'Virar', city: 'Palghar', state: 'Maharashtra', category: 'mumbai_west', categoryLabel: 'Mumbai West', lat: 19.4700, lng: 72.8000 },
+
+  // --- Mumbai South ---
+  { name: 'Fort', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9338, lng: 72.8354 },
+  { name: 'Churchgate', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9322, lng: 72.8264 },
+  { name: 'Nariman Point', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9256, lng: 72.8242 },
+  { name: 'Colaba', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9067, lng: 72.8147 },
+  { name: 'Cuffe Parade', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9150, lng: 72.8180 },
+  { name: 'Marine Drive / Lines', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9430, lng: 72.8230 },
+  { name: 'CST / CSMT', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9401, lng: 72.8354 },
+  { name: 'Ballard Estate', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9357, lng: 72.8417 },
+  { name: 'Malabar Hill', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9548, lng: 72.7985 },
+  { name: 'Girgaon / Charni Road', city: 'South Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9557, lng: 72.8193 },
+  { name: 'Lower Parel', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0028, lng: 72.8295 },
+  { name: 'Worli', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0166, lng: 72.8167 },
+  { name: 'Prabhadevi', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0160, lng: 72.8295 },
+  { name: 'Dadar West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0178, lng: 72.8478 },
+  { name: 'Dadar East', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0185, lng: 72.8520 },
+  { name: 'Shivaji Park', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0269, lng: 72.8385 },
+  { name: 'Parel', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9950, lng: 72.8390 },
+  { name: 'Byculla / Mumbai Central', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9750, lng: 72.8300 },
+  { name: 'Mahalaxmi / Haji Ali', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 18.9827, lng: 72.8244 },
+  { name: 'Matunga', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0270, lng: 72.8553 },
+  { name: 'Wadala', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0170, lng: 72.8580 },
+  { name: 'Mahim', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_south', categoryLabel: 'Mumbai South', lat: 19.0416, lng: 72.8417 },
+
+  // --- Mumbai Central Suburbs ---
+  { name: 'Powai (Hiranandani)', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.1176, lng: 72.9060 },
+  { name: 'Ghatkopar West', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.0880, lng: 72.9050 },
+  { name: 'Ghatkopar East', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.0860, lng: 72.9150 },
+  { name: 'Vidyavihar', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.0798, lng: 72.8973 },
+  { name: 'Vikhroli (Godrej One)', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.1111, lng: 72.9277 },
+  { name: 'Kanjurmarg', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.1300, lng: 72.9300 },
+  { name: 'Bhandup', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.1450, lng: 72.9370 },
+  { name: 'Mulund', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.1726, lng: 72.9565 },
+  { name: 'Kurla', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.0726, lng: 72.8845 },
+  { name: 'Chembur', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.0522, lng: 72.8994 },
+  { name: 'Sion', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.0434, lng: 72.8634 },
+  { name: 'Marol / Saki Naka', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.1190, lng: 72.8830 },
+  { name: 'SEEPZ / MIDC', city: 'Mumbai', state: 'Maharashtra', category: 'mumbai_central_east', categoryLabel: 'Central Suburbs', lat: 19.1238, lng: 72.8755 },
+
+  // --- Thane & Navi Mumbai ---
+  { name: 'Thane West', city: 'Thane', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.2000, lng: 72.9700 },
+  { name: 'Thane East', city: 'Thane', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.1850, lng: 72.9800 },
+  { name: 'Majiwada', city: 'Thane', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.2150, lng: 72.9850 },
+  { name: 'Ghodbunder Road', city: 'Thane', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.2600, lng: 72.9300 },
+  { name: 'Wagle Estate', city: 'Thane', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.1950, lng: 72.9550 },
+  { name: 'Vashi', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.0771, lng: 72.9986 },
+  { name: 'Sanpada', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.0650, lng: 73.0100 },
+  { name: 'Nerul', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.0330, lng: 73.0166 },
+  { name: 'Seawoods', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.0200, lng: 73.0180 },
+  { name: 'CBD Belapur', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.0178, lng: 73.0400 },
+  { name: 'Kharghar', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.0434, lng: 73.0673 },
+  { name: 'Panvel', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 18.9894, lng: 73.1175 },
+  { name: 'Airoli (Mindspace)', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.1579, lng: 72.9986 },
+  { name: 'Ghansoli (RCP)', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.1250, lng: 73.0080 },
+  { name: 'Mahape (MBP)', city: 'Navi Mumbai', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.1084, lng: 73.0118 },
+  { name: 'Kalyan', city: 'Thane District', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.2403, lng: 73.1305 },
+  { name: 'Dombivli', city: 'Thane District', state: 'Maharashtra', category: 'thane_navi', categoryLabel: 'Thane & Navi Mumbai', lat: 19.2183, lng: 73.0867 },
+
+  // --- Delhi NCR ---
+  { name: 'DLF Cyber City', city: 'Gurugram', state: 'Haryana', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.4950, lng: 77.0890 },
+  { name: 'Cyber Hub', city: 'Gurugram', state: 'Haryana', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.4930, lng: 77.0880 },
+  { name: 'Golf Course Road', city: 'Gurugram', state: 'Haryana', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.4416, lng: 77.0973 },
+  { name: 'Golf Course Ext Rd', city: 'Gurugram', state: 'Haryana', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.4100, lng: 77.0800 },
+  { name: 'Udyog Vihar', city: 'Gurugram', state: 'Haryana', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5020, lng: 77.0820 },
+  { name: 'Sohna Road', city: 'Gurugram', state: 'Haryana', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.4000, lng: 77.0400 },
+  { name: 'Sector 62', city: 'Noida', state: 'Uttar Pradesh', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5355, lng: 77.3910 },
+  { name: 'Sector 63', city: 'Noida', state: 'Uttar Pradesh', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.6250, lng: 77.3800 },
+  { name: 'Sector 125 Expressway', city: 'Noida', state: 'Uttar Pradesh', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5428, lng: 77.3344 },
+  { name: 'Sector 135', city: 'Noida', state: 'Uttar Pradesh', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5000, lng: 77.3900 },
+  { name: 'Sector 142', city: 'Noida', state: 'Uttar Pradesh', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.4950, lng: 77.4100 },
+  { name: 'Greater Noida', city: 'Noida', state: 'Uttar Pradesh', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.4744, lng: 77.5040 },
+  { name: 'Connaught Place', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.6315, lng: 77.2167 },
+  { name: 'Barakhamba Road', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.6280, lng: 77.2250 },
+  { name: 'Nehru Place', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5492, lng: 77.2533 },
+  { name: 'Okhla Industrial Area', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5312, lng: 77.2713 },
+  { name: 'Saket', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5244, lng: 77.2177 },
+  { name: 'Jasola', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5350, lng: 77.2850 },
+  { name: 'Aerocity', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5500, lng: 77.1200 },
+  { name: 'Rohini', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.7150, lng: 77.1100 },
+  { name: 'Dwarka', city: 'Delhi', state: 'Delhi', category: 'delhi_ncr', categoryLabel: 'Delhi NCR', lat: 28.5820, lng: 77.0500 },
+
+  // --- Bengaluru ---
+  { name: 'Whitefield', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9698, lng: 77.7500 },
+  { name: 'ITPL', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9850, lng: 77.7320 },
+  { name: 'Bellandur / Outer Ring Road', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9279, lng: 77.6871 },
+  { name: 'Ecospace Business Park', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9240, lng: 77.6830 },
+  { name: 'Embassy TechVillage', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9290, lng: 77.6910 },
+  { name: 'Koramangala', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9352, lng: 77.6245 },
+  { name: 'HSR Layout', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9121, lng: 77.6446 },
+  { name: 'Indiranagar', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
+  { name: 'Electronic City Phase 1 & 2', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.8399, lng: 77.6770 },
+  { name: 'Marathahalli', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9550, lng: 77.7000 },
+  { name: 'BTM Layout', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9160, lng: 77.6100 },
+  { name: 'Jayanagar', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9300, lng: 77.5800 },
+  { name: 'JP Nagar', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9050, lng: 77.5850 },
+  { name: 'Manyata Tech Park', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 13.0450, lng: 77.6200 },
+  { name: 'Hebbal', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 13.0350, lng: 77.5970 },
+  { name: 'Domlur', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9600, lng: 77.6450 },
+  { name: 'MG Road', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9750, lng: 77.6100 },
+  { name: 'Sarjapur Road', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 12.9100, lng: 77.7000 },
+  { name: 'Yelahanka', city: 'Bengaluru', state: 'Karnataka', category: 'bengaluru', categoryLabel: 'Bengaluru', lat: 13.1000, lng: 77.5950 },
+
+  // --- Hyderabad ---
+  { name: 'HITEC City', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4474, lng: 78.3762 },
+  { name: 'Madhapur', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4483, lng: 78.3915 },
+  { name: 'Gachibowli', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4401, lng: 78.3489 },
+  { name: 'Financial District', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4170, lng: 78.3420 },
+  { name: 'Nanakramguda', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4200, lng: 78.3450 },
+  { name: 'Kondapur', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4699, lng: 78.3578 },
+  { name: 'Raidurg', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4380, lng: 78.3780 },
+  { name: 'Jubilee Hills', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4325, lng: 78.4071 },
+  { name: 'Banjara Hills', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4156, lng: 78.4350 },
+  { name: 'Begumpet', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4447, lng: 78.4664 },
+  { name: 'Kukatpally', city: 'Hyderabad', state: 'Telangana', category: 'hyderabad', categoryLabel: 'Hyderabad', lat: 17.4850, lng: 78.4050 },
+
+  // --- Pune ---
+  { name: 'Hinjewadi Phase 1, 2, 3', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5912, lng: 73.7389 },
+  { name: 'Magarpatta Cybercity', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5158, lng: 73.9272 },
+  { name: 'Kharadi (EON Free Zone)', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5529, lng: 73.9525 },
+  { name: 'Viman Nagar', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5679, lng: 73.9143 },
+  { name: 'Kalyani Nagar', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5470, lng: 73.9030 },
+  { name: 'Koregaon Park', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5360, lng: 73.8940 },
+  { name: 'Yerwada', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5550, lng: 73.8850 },
+  { name: 'Baner', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5590, lng: 73.7868 },
+  { name: 'Balewadi High Street', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5750, lng: 73.7750 },
+  { name: 'Aundh', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5580, lng: 73.8050 },
+  { name: 'Wakad', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5980, lng: 73.7650 },
+  { name: 'Kothrud', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5074, lng: 73.8077 },
+  { name: 'Shivaji Nagar', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.5314, lng: 73.8446 },
+  { name: 'Pimpri-Chinchwad', city: 'Pune', state: 'Maharashtra', category: 'pune', categoryLabel: 'Pune', lat: 18.6280, lng: 73.8000 },
+
+  // --- Other Metros (Chennai, Kolkata, Gujarat, Tier-2) ---
+  { name: 'OMR (Thoraipakkam)', city: 'Chennai', state: 'Tamil Nadu', category: 'other_metros', categoryLabel: 'Other Metros', lat: 12.9382, lng: 80.2337 },
+  { name: 'Taramani / TIDEL Park', city: 'Chennai', state: 'Tamil Nadu', category: 'other_metros', categoryLabel: 'Other Metros', lat: 12.9880, lng: 80.2450 },
+  { name: 'Perungudi', city: 'Chennai', state: 'Tamil Nadu', category: 'other_metros', categoryLabel: 'Other Metros', lat: 12.9650, lng: 80.2430 },
+  { name: 'Guindy Tech Zone', city: 'Chennai', state: 'Tamil Nadu', category: 'other_metros', categoryLabel: 'Other Metros', lat: 13.0067, lng: 80.2024 },
+  { name: 'T. Nagar', city: 'Chennai', state: 'Tamil Nadu', category: 'other_metros', categoryLabel: 'Other Metros', lat: 13.0418, lng: 80.2341 },
+  { name: 'Salt Lake Sector V', city: 'Kolkata', state: 'West Bengal', category: 'other_metros', categoryLabel: 'Other Metros', lat: 22.5804, lng: 88.4378 },
+  { name: 'New Town Action Area', city: 'Kolkata', state: 'West Bengal', category: 'other_metros', categoryLabel: 'Other Metros', lat: 22.5867, lng: 88.4795 },
+  { name: 'Park Street', city: 'Kolkata', state: 'West Bengal', category: 'other_metros', categoryLabel: 'Other Metros', lat: 22.5510, lng: 88.3530 },
+  { name: 'GIFT City', city: 'Gandhinagar', state: 'Gujarat', category: 'other_metros', categoryLabel: 'Other Metros', lat: 23.1600, lng: 72.6800 },
+  { name: 'SG Highway', city: 'Ahmedabad', state: 'Gujarat', category: 'other_metros', categoryLabel: 'Other Metros', lat: 23.0400, lng: 72.5100 },
+  { name: 'Prahlad Nagar', city: 'Ahmedabad', state: 'Gujarat', category: 'other_metros', categoryLabel: 'Other Metros', lat: 23.0120, lng: 72.5110 },
+  { name: 'Vijay Nagar', city: 'Indore', state: 'Madhya Pradesh', category: 'other_metros', categoryLabel: 'Other Metros', lat: 22.7533, lng: 75.8937 },
+  { name: 'Gomti Nagar', city: 'Lucknow', state: 'Uttar Pradesh', category: 'other_metros', categoryLabel: 'Other Metros', lat: 26.8500, lng: 80.9920 },
+  { name: 'InfoCity', city: 'Bhubaneswar', state: 'Odisha', category: 'other_metros', categoryLabel: 'Other Metros', lat: 20.3540, lng: 85.8170 },
+  { name: 'IT Park', city: 'Chandigarh', state: 'Chandigarh', category: 'other_metros', categoryLabel: 'Other Metros', lat: 30.7250, lng: 76.8450 },
+  { name: 'Infopark (Kakkanad)', city: 'Kochi', state: 'Kerala', category: 'other_metros', categoryLabel: 'Other Metros', lat: 10.0100, lng: 76.3600 },
+  { name: 'Technopark', city: 'Trivandrum', state: 'Kerala', category: 'other_metros', categoryLabel: 'Other Metros', lat: 8.5580, lng: 76.8810 },
+];
+
+export const MUMBAI_NEIGHBORHOODS = ALL_INDIA_LOCALITIES.filter((l) =>
+  ['mumbai_west', 'mumbai_south', 'mumbai_central_east', 'thane_navi'].includes(l.category)
+);

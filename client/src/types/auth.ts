@@ -1,0 +1,28 @@
+export type UserRole = 'student' | 'recruiter' | 'admin';
+
+export interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  emailVerified: boolean;
+  company?: string;
+  website?: string;
+  location?: string;
+  description?: string;
+  phone?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token: string;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message: string;
+  data?: T;
+  errors?: any;
+}

@@ -1,0 +1,48 @@
+import { api } from './api';
+import { ApiResponse, AuthResponse, User, UserRole } from '../types/auth';
+
+export interface LoginParams {
+  email: string;
+  password: string;
+  role?: UserRole;
+  rememberMe?: boolean;
+}
+
+export interface RegisterParams {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}
+
+export const authService = {
+  login: async (params: LoginParams): Promise<ApiResponse<AuthResponse>> => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', params);
+    return response.data;
+  },
+
+  register: async (params: RegisterParams): Promise<ApiResponse<AuthResponse>> => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/register', params);
+    return response.data;
+  },
+
+  getMe: async (): Promise<ApiResponse<{ user: User }>> => {
+    const response = await api.get<ApiResponse<{ user: User }>>('/auth/me');
+    return response.data;
+  },
+
+  forgotPassword: async (email: string): Promise<ApiResponse<{ resetToken: string; resetUrl?: string }>> => {
+    const response = await api.post<ApiResponse<{ resetToken: string; resetUrl?: string }>>('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (token: string, password: string): Promise<ApiResponse> => {
+    const response = await api.post<ApiResponse>('/auth/reset-password', { token, password });
+    return response.data;
+  },
+
+  logout: async (): Promise<ApiResponse> => {
+    const response = await api.post<ApiResponse>('/auth/logout');
+    return response.data;
+  },
+};

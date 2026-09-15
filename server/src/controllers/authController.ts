@@ -1,0 +1,160 @@
+import { Request, Response } from 'express';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { sendSuccess, sendError } from '../utils/apiResponse.js';
+import { AuthService } from '../services/authService.js';
+import { AuthenticatedRequest } from '../types/index.js';
+import { User } from '../models/User.js';
+
+export const register = asyncHandler(async (req: Request, res: Response) => {
+  const { name, email, password, role } = req.body;
+
+  try {
+    const { user, token } = await AuthService.registerUser({
+      name,
+      email,
+      password,
+      role,
+    });
+
+    // Set cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    sendSuccess(res, 'Registration successful', { user, token }, 201);
+  } catch (error: any) {
+    sendError(res, error.message || 'Registration failed', null, 400);
+  }
+});
+
+export const login = asyncHandler(async (req: Request, res: Response) => {
+  const { email, password, role, rememberMe } = req.body;
+
+  try {
+    const { user, token } = await AuthService.loginUser({
+      email,
+      password,
+      role,
+      rememberMe: Boolean(rememberMe),
+    });
+
+    const maxAge = rememberMe
+      ? 7 * 24 * 60 * 60 * 1000
+      : 24 * 60 * 60 * 1000;
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge,
+    });
+
+    sendSuccess(res, 'Login successful', { user, token });
+  } catch (error: any) {
+    sendError(res, error.message || 'Authentication failed', null, 401);
+  }
+});
+
+export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    sendError(res, 'Not authenticated', null, 401);
+    return;
+  }
+  sendSuccess(res, 'Current user profile fetched successfully', { user: req.user });
+});
+
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  try {
+    const { resetToken } = await AuthService.forgotPassword(email);
+
+    sendSuccess(res, 'Password reset token generated successfully.', {
+      resetToken,
+      resetUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`,
+    });
+  } catch (error: any) {
+    sendError(res, error.message || 'Error requesting password reset', null, 400);
+  }
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { token, password } = req.body;
+
+  try {
+    await AuthService.resetPassword(token, password);
+    sendSuccess(res, 'Password has been reset successfully. You can now login with your new password.');
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to reset password', null, 400);
+  }
+});
+
+export const logout = asyncHandler(async (req: Request, res: Response) => {
+  res.cookie('token', '', {
+    httpOnly: true,
+    expires: new Date(0),
+  });
+  sendSuccess(res, 'Logged out successfully');
+});
+
+export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    sendError(res, 'Not authenticated', null, 401);
+    return;
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    sendError(res, 'User not found', null, 404);
+    return;
+  }
+
+  const { name, phone, company, website, location, description } = req.body;
+  if (name !== undefined) user.name = name.trim();
+  if (phone !== undefined) user.phone = phone.trim();
+  if (company !== undefined) user.company = company.trim();
+  if (website !== undefined) user.website = website.trim();
+  if (location !== undefined) user.location = location.trim();
+  if (description !== undefined) user.description = description.trim();
+
+  await user.save();
+  sendSuccess(res, 'Profile updated successfully', { user });
+});
+
+export const updatePassword = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    sendError(res, 'Not authenticated', null, 401);
+    return;
+  }
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    sendError(res, 'Both current and new passwords are required', null, 400);
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    sendError(res, 'New password must be at least 6 characters', null, 400);
+    return;
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    sendError(res, 'User not found', null, 404);
+    return;
+  }
+
+  const isMatch = await user.matchPassword(currentPassword);
+  if (!isMatch) {
+    sendError(res, 'Current password is incorrect', null, 400);
+    return;
+  }
+
+  user.setPassword(newPassword);
+  await user.save();
+  sendSuccess(res, 'Password changed successfully');
+});
+
