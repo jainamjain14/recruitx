@@ -72,12 +72,12 @@ const calculateDistanceBetween = (lat1: number, lon1: number, lat2: number, lon2
 
 export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
   companies,
-  userLat = 19.1351,
-  userLng = 72.8290,
-  userCity = 'Andheri West, Mumbai',
+  userLat,
+  userLng,
+  userCity = 'Location not set',
   deviceLat,
   deviceLng,
-  deviceCity = 'Andheri West, Mumbai',
+  deviceCity = 'Location not set',
   locationMode = 'gps',
   hasGpsPermission = false,
   onRequestLocation,
@@ -127,12 +127,13 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
       leafletMapRef.current = null;
     }
 
-    const liveLat = deviceLat ?? userLat;
-    const liveLng = deviceLng ?? userLng;
+    const hasUserLoc = (deviceLat !== undefined && deviceLng !== undefined) || (userLat !== undefined && userLng !== undefined);
+    const liveLat = deviceLat ?? userLat ?? 20.5937;
+    const liveLng = deviceLng ?? userLng ?? 78.9629;
 
     const map = L.map(mapContainerRef.current, {
       center: [liveLat, liveLng],
-      zoom: 12,
+      zoom: hasUserLoc ? 12 : 5,
       zoomControl: true,
     });
 
@@ -150,54 +151,58 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
       }
     });
 
-    // 1. Plot Live User Marker (Draggable high-visibility pulsing Blue Pin)
-    const userIcon = L.divIcon({
-      className: 'custom-live-user-marker',
-      html: `
-        <div style="position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:34px;cursor:grab;">
-          <span style="position:absolute;width:34px;height:34px;border-radius:50%;background:#3b82f6;opacity:0.45;animation:ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-          <span style="position:relative;width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.5);"></span>
-          <span style="position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:800;background:#0f172a;color:#ffffff;padding:2px 6px;border-radius:4px;box-shadow:0 2px 5px rgba(0,0,0,0.3);border:1px solid #334155;">
-            📍 You (Drag Me)
-          </span>
+    const bounds: [number, number][] = [];
+
+    // 1. Plot Live User Marker if user location is set
+    if (hasUserLoc) {
+      const userIcon = L.divIcon({
+        className: 'custom-live-user-marker',
+        html: `
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:34px;cursor:grab;">
+            <span style="position:absolute;width:34px;height:34px;border-radius:50%;background:#3b82f6;opacity:0.45;animation:ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+            <span style="position:relative;width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.5);"></span>
+            <span style="position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:800;background:#0f172a;color:#ffffff;padding:2px 6px;border-radius:4px;box-shadow:0 2px 5px rgba(0,0,0,0.3);border:1px solid #334155;">
+              📍 You (Drag Me)
+            </span>
+          </div>
+        `,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+      });
+
+      const userMarker = L.marker([liveLat, liveLng], {
+        icon: userIcon,
+        zIndexOffset: 1000,
+        draggable: true,
+      }).addTo(map);
+
+      userMarker.on('dragend', (e: any) => {
+        const pos = e.target.getLatLng();
+        if (onLocationChange) {
+          onLocationChange(pos.lat, pos.lng);
+        }
+      });
+
+      userMarker.bindPopup(`
+        <div style="font-family:sans-serif;padding:3px;font-size:11px;">
+          <div style="font-weight:bold;color:#2563eb;font-size:12px;">📍 Your Live Location Pin</div>
+          <div style="color:#1e293b;margin-top:2px;">${deviceCity || userCity}</div>
+          <div style="color:#64748b;font-size:10px;margin-top:2px;">${liveLat.toFixed(4)}°N, ${liveLng.toFixed(4)}°E</div>
+          <div style="color:#059669;font-size:9.5px;font-weight:bold;margin-top:4px;">💡 Drag this pin or click anywhere to adjust your exact location!</div>
         </div>
-      `,
-      iconSize: [34, 34],
-      iconAnchor: [17, 17],
-    });
+      `);
 
-    const userMarker = L.marker([liveLat, liveLng], {
-      icon: userIcon,
-      zIndexOffset: 1000,
-      draggable: true,
-    }).addTo(map);
+      // Radius circle showing precision accuracy
+      L.circle([liveLat, liveLng], {
+        radius: 350,
+        color: '#3b82f6',
+        fillColor: '#93c5fd',
+        fillOpacity: 0.18,
+        weight: 1.5,
+      }).addTo(map);
 
-    userMarker.on('dragend', (e: any) => {
-      const pos = e.target.getLatLng();
-      if (onLocationChange) {
-        onLocationChange(pos.lat, pos.lng);
-      }
-    });
-
-    userMarker.bindPopup(`
-      <div style="font-family:sans-serif;padding:3px;font-size:11px;">
-        <div style="font-weight:bold;color:#2563eb;font-size:12px;">📍 Your Live Location Pin</div>
-        <div style="color:#1e293b;margin-top:2px;">${deviceCity || userCity}</div>
-        <div style="color:#64748b;font-size:10px;margin-top:2px;">${liveLat.toFixed(4)}°N, ${liveLng.toFixed(4)}°E</div>
-        <div style="color:#059669;font-size:9.5px;font-weight:bold;margin-top:4px;">💡 Drag this pin or click anywhere to adjust your exact location!</div>
-      </div>
-    `);
-
-    // Radius circle showing precision accuracy
-    L.circle([liveLat, liveLng], {
-      radius: 350,
-      color: '#3b82f6',
-      fillColor: '#93c5fd',
-      fillOpacity: 0.18,
-      weight: 1.5,
-    }).addTo(map);
-
-    const bounds: [number, number][] = [[liveLat, liveLng]];
+      bounds.push([liveLat, liveLng]);
+    }
 
     // 2. Plot Company Markers
     companies.forEach((comp) => {
@@ -231,21 +236,21 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
           <div style="color:#64748b;margin-top:2px;">📍 ${comp.location}</div>
           <div style="font-weight:bold;color:#1e293b;margin-top:3px;">💰 ${comp.salary}</div>
           <div style="color:#2563eb;font-weight:600;margin-top:2px;">
-            Distance: ~${calculateDistanceBetween(liveLat, liveLng, comp.lat, comp.lng)} km
+            Distance: ${hasUserLoc ? `~${calculateDistanceBetween(liveLat, liveLng, comp.lat, comp.lng)} km` : (comp.distanceMiles ? `~${Math.round(comp.distanceMiles)} km` : 'N/A')}
           </div>
         </div>
       `);
     });
 
     // 3. Polyline Distance Vector Connecting User's Live Pin directly to Selected Company
-    if (selectedCompany) {
+    if (hasUserLoc && selectedCompany) {
       const line = L.polyline(
         [[liveLat, liveLng], [selectedCompany.lat, selectedCompany.lng]],
         { color: '#059669', weight: 3.5, dashArray: '6, 8', opacity: 0.9 }
       ).addTo(map);
 
       const distKm = calculateDistanceBetween(liveLat, liveLng, selectedCompany.lat, selectedCompany.lng);
-      line.bindTooltip(`${distKm} km (${deviceCity.split(',')[0]} ➔ ${selectedCompany.company})`, {
+      line.bindTooltip(`${distKm} km (${(deviceCity || 'Your Pin').split(',')[0]} ➔ ${selectedCompany.company})`, {
         permanent: true,
         direction: 'center',
         className: 'bg-emerald-900 text-white font-bold text-[10px] px-2 py-0.5 rounded shadow-md border border-emerald-500',
@@ -255,6 +260,8 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
     // Auto fit bounds comfortably
     if (bounds.length > 1) {
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+    } else if (bounds.length === 1) {
+      map.setView(bounds[0], 12);
     }
 
     return () => {
@@ -269,7 +276,7 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
   const handleCenterOnMe = () => {
     const lat = deviceLat ?? userLat;
     const lng = deviceLng ?? userLng;
-    if (leafletMapRef.current) {
+    if (lat !== undefined && lng !== undefined && leafletMapRef.current) {
       leafletMapRef.current.setView([lat, lng], 14, { animate: true });
     }
   };
@@ -284,13 +291,17 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
     if (selectedCompany && leafletMapRef.current) {
       const liveLat = deviceLat ?? userLat;
       const liveLng = deviceLng ?? userLng;
-      leafletMapRef.current.fitBounds(
-        [
-          [liveLat, liveLng],
-          [selectedCompany.lat, selectedCompany.lng],
-        ],
-        { padding: [60, 60], maxZoom: 14 }
-      );
+      if (liveLat !== undefined && liveLng !== undefined) {
+        leafletMapRef.current.fitBounds(
+          [
+            [liveLat, liveLng],
+            [selectedCompany.lat, selectedCompany.lng],
+          ],
+          { padding: [60, 60], maxZoom: 14 }
+        );
+      } else {
+        leafletMapRef.current.setView([selectedCompany.lat, selectedCompany.lng], 14, { animate: true });
+      }
     }
   };
 
@@ -308,6 +319,7 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
 
   const activeLiveLat = deviceLat ?? userLat;
   const activeLiveLng = deviceLng ?? userLng;
+  const hasActiveLoc = activeLiveLat !== undefined && activeLiveLng !== undefined;
 
   return (
     <div className="space-y-3">
@@ -318,7 +330,7 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
           <span className="text-xs font-bold text-white">Live Job Proximity Map</span>
           {selectedCompany && (
             <span className="text-[11px] text-neutral-400 hidden md:inline">
-              — Selected: <strong className="text-white">{decodeHtmlEntities(selectedCompany.company)}</strong> (~{calculateDistanceBetween(activeLiveLat, activeLiveLng, selectedCompany.lat, selectedCompany.lng)} km away)
+              — Selected: <strong className="text-white">{decodeHtmlEntities(selectedCompany.company)}</strong> {hasActiveLoc ? `(~${calculateDistanceBetween(activeLiveLat, activeLiveLng, selectedCompany.lat, selectedCompany.lng)} km away)` : ''}
             </span>
           )}
         </div>
@@ -400,11 +412,19 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
               className="min-h-[500px] w-full border-0"
               loading="lazy"
               allowFullScreen
-              src={`https://maps.google.com/maps?saddr=${activeLiveLat},${activeLiveLng}&daddr=${
-                selectedCompany
-                  ? encodeURIComponent(`${selectedCompany.company}, ${selectedCompany.location}`)
-                  : `${userLat},${userLng}`
-              }&output=embed`}
+              src={
+                hasActiveLoc
+                  ? `https://maps.google.com/maps?saddr=${activeLiveLat},${activeLiveLng}&daddr=${
+                      selectedCompany
+                        ? encodeURIComponent(`${selectedCompany.company}, ${selectedCompany.location}`)
+                        : `${userLat || 20.5937},${userLng || 78.9629}`
+                    }&output=embed`
+                  : `https://maps.google.com/maps?q=${
+                      selectedCompany
+                        ? encodeURIComponent(`${selectedCompany.company}, ${selectedCompany.location}`)
+                        : 'India'
+                    }&output=embed`
+              }
             />
           )}
 
@@ -427,20 +447,26 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
                   <div>
                     <h4 className="text-xs font-bold text-neutral-900">{decodeHtmlEntities(selectedCompany.title)}</h4>
                     {(() => {
-                      const distFromGps = calculateDistanceBetween(activeLiveLat, activeLiveLng, selectedCompany.lat, selectedCompany.lng);
+                      const distFromGps = hasActiveLoc
+                        ? calculateDistanceBetween(activeLiveLat!, activeLiveLng!, selectedCompany.lat, selectedCompany.lng)
+                        : null;
                       const distFromCenter = Math.round(selectedCompany.distanceMiles ?? 0);
 
                       if (locationMode === 'gps') {
                         return (
                           <p className="text-[11px] font-semibold text-neutral-700 flex flex-wrap items-center gap-1.5">
                             <span>{decodeHtmlEntities(selectedCompany.company)}</span>
-                            <span>•</span>
-                            <span className="text-emerald-700 font-bold flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
-                              {distFromGps <= 1
-                                ? 'Within 1 km of your GPS location'
-                                : `${distFromGps} km from your GPS location`}
-                            </span>
+                            {distFromGps !== null && (
+                              <>
+                                <span>•</span>
+                                <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                  <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  {distFromGps <= 1
+                                    ? 'Within 1 km of your GPS location'
+                                    : `${distFromGps} km from your GPS location`}
+                                </span>
+                              </>
+                            )}
                           </p>
                         );
                       }
@@ -455,23 +481,31 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
                               ? `Within ${userCity.split(',')[0]} center (< 2 km)`
                               : `${distFromCenter} km from ${userCity.split(',')[0]} center`}
                           </span>
-                          <span className="text-[10px] text-neutral-600 font-medium bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200">
-                            • {distFromGps} km from your GPS ({deviceCity.split(',')[0]})
-                          </span>
+                          {distFromGps !== null && (
+                            <span className="text-[10px] text-neutral-600 font-medium bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200">
+                              • {distFromGps} km from your GPS ({(deviceCity || '').split(',')[0]})
+                            </span>
+                          )}
                         </p>
                       );
                     })()}
                     <div className="flex items-center gap-3 pt-0.5">
                       <a
-                        href={`https://www.google.com/maps/dir/?api=1&origin=${activeLiveLat},${activeLiveLng}&destination=${encodeURIComponent(
-                          `${selectedCompany.company}, ${selectedCompany.location}`
-                        )}`}
+                        href={
+                          hasActiveLoc
+                            ? `https://www.google.com/maps/dir/?api=1&origin=${activeLiveLat},${activeLiveLng}&destination=${encodeURIComponent(
+                                `${selectedCompany.company}, ${selectedCompany.location}`
+                              )}`
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                `${selectedCompany.company}, ${selectedCompany.location}`
+                              )}`
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 hover:underline"
                       >
                         <ExternalLink className="w-3 h-3" />
-                        Open Google Maps Turn-by-Turn Route
+                        {hasActiveLoc ? 'Open Google Maps Turn-by-Turn Route' : 'View on Google Maps'}
                       </a>
                     </div>
                   </div>
@@ -516,7 +550,7 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
 
           {companies.map((comp, idx) => {
             const isSelected = selectedCompany?.company === comp.company && selectedCompany?.title === comp.title;
-            const distFromGps = calculateDistanceBetween(activeLiveLat, activeLiveLng, comp.lat, comp.lng);
+            const distFromGps = hasActiveLoc ? calculateDistanceBetween(activeLiveLat!, activeLiveLng!, comp.lat, comp.lng) : null;
             const distFromCenter = Math.round(comp.distanceMiles ?? 0);
             const metroName = userCity.split(',')[0].trim();
 
@@ -561,9 +595,11 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
                       }`}
                     >
                       <MapPin className="w-3 h-3 shrink-0" />
-                      {locationMode === 'gps'
+                      {locationMode === 'gps' && distFromGps !== null
                         ? (distFromGps <= 1 ? 'Within 1 km of your GPS' : `${distFromGps} km from your GPS`)
-                        : (distFromCenter <= 2 ? `Within ${metroName} center` : `${distFromCenter} km from center`)}
+                        : (distFromCenter > 0
+                            ? (distFromCenter <= 2 ? `Within ${metroName} center` : `${distFromCenter} km from center`)
+                            : 'Open opening')}
                     </span>
                     <span className={isSelected ? 'text-neutral-300 font-semibold' : 'text-neutral-700 font-semibold'}>
                       {comp.salary}
@@ -572,7 +608,7 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
 
                   <p className={`text-[10px] ${isSelected ? 'text-neutral-400' : 'text-neutral-500'} flex items-center justify-between`}>
                     <span>📍 {comp.location}</span>
-                    {locationMode === 'metro' && (
+                    {locationMode === 'metro' && distFromGps !== null && (
                       <span className="text-[9.5px] italic text-neutral-400">
                         {distFromGps} km from your GPS
                       </span>

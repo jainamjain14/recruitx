@@ -1,13 +1,24 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authMiddleware.js';
-import { applyForJob, applyDirectCompanyJob, getApplications, updateApplicationStatus } from '../controllers/applicationController.js';
+import { authorize } from '../middleware/roleMiddleware.js';
+import {
+  applyForJob,
+  applyDirectCompanyJob,
+  getApplications,
+  updateApplicationStatus,
+} from '../controllers/applicationController.js';
 
 const router = Router();
 router.use(authenticate);
 
-router.post('/', applyForJob);
-router.post('/apply-direct', applyDirectCompanyJob);
+// Student only: apply for job opportunities
+router.post('/', authorize('student'), applyForJob);
+router.post('/apply-direct', authorize('student'), applyDirectCompanyJob);
+
+// Recruiter & Admin only: review and transition application stage
+router.patch('/:id/status', authorize('recruiter', 'admin'), updateApplicationStatus);
+
+// Shared authenticated application retrieval (scoped per role)
 router.get('/', getApplications);
-router.patch('/:id/status', updateApplicationStatus);
 
 export default router;

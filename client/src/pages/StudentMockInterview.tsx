@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { api } from '../services/api';
@@ -11,6 +11,7 @@ export interface EvaluationItem {
   feedback: string;
   matchedKeyPoints: string[];
   missingKeyPoints: string[];
+  evaluatedBy?: string;
 }
 
 interface QuestionSet {
@@ -98,34 +99,34 @@ const INTERVIEW_DOMAINS: Record<string, QuestionSet> = {
         keyPoints: ['Target persona interviews and churn signals', 'Paid vs organic acquisition mix', 'CAC-to-LTV payback period modeling'],
       },
       {
-        question: 'Walk me through how you optimize ad spend attribution in light of modern privacy restrictions and multi-touch user journeys.',
-        keyPoints: ['Media Mix Modeling (MMM)', 'First-party server-side tracking (CAPI)', 'Incrementality testing vs platform attribution'],
+        question: 'Walk me through how you optimize conversion rates and analyze cohort retention curves when scaling paid media campaigns.',
+        keyPoints: ['A/B multivariate landing page testing', 'Cohort churn inflection points', 'Attribution modeling across search and social channels'],
       },
       {
-        question: 'Describe an experiment you launched that failed to meet its target KPI. What did you learn and how did you pivot?',
-        keyPoints: ['Rigorous hypothesis testing and sample size validation', 'Root cause analytics dive', 'Iterative creative or pricing pivots'],
+        question: 'If user acquisition costs increase by 40% while customer retention drops by 15%, how would you diagnose and rectify the growth bottleneck?',
+        keyPoints: ['Segmenting retention by cohort source', 'Auditing product onboarding drop-off', 'Aligning ad creative expectations with in-app value'],
       },
       {
-        question: 'How do you effectively align product positioning between engineering, sales, and executive leadership?',
-        keyPoints: ['Unified messaging frameworks', 'Sales enablement battle-cards and customer feedback loops', 'Value-driven rather than feature-driven narratives'],
+        question: 'How do you structure cross-functional positioning and go-to-market alignment between product, sales, and design teams?',
+        keyPoints: ['Competitive differentiation matrix', 'Internal enablement playbooks and demo scripts', 'Shared KPI scorecards across departments'],
       },
     ],
   },
   design: {
-    roleTitle: 'Product & UI/UX Designer',
-    domain: 'UI/UX Design',
+    roleTitle: 'Lead Product & UX/UI Designer',
+    domain: 'Product Design & User Experience',
     questions: [
       {
-        question: 'Walk me through your end-to-end design process from user problem discovery to final interactive design deliverables.',
-        keyPoints: ['Generative user research and problem framing', 'Iterative low-to-high fidelity wireframing', 'Prototyping and usability testing validation'],
+        question: 'Walk me through your end-to-end design process when transforming an ambiguous, complex business workflow into an intuitive interface.',
+        keyPoints: ['User journey mapping & friction audits', 'Rapid low-fidelity prototyping & usability testing', 'Iterative validation against measurable task completion rates'],
       },
       {
-        question: 'How do you construct and govern a design system in Figma to ensure consistency across web, mobile, and brand marketing?',
-        keyPoints: ['Design tokens for color, typography, and spacing', 'Reusable auto-layout component library with variants', 'Governance process for component deprecation'],
+        question: 'How do you establish, document, and govern a scalable design system across multiple web and mobile engineering teams?',
+        keyPoints: ['Design tokens (color, typography, elevation, spacing)', 'Component state definitions in Figma and Storybook', 'Versioning governance and cross-functional design review cycles'],
       },
       {
-        question: 'Describe a time when usability testing contradicted your initial design assumptions. How did you iterate on the user journey?',
-        keyPoints: ['Objective analysis of user friction points', 'Rapid redesign and A/B verification', 'Separating designer bias from user behavioral patterns'],
+        question: 'Describe a situation where qualitative user feedback directly contradicted stakeholder preferences: how did you navigate and resolve the conflict?',
+        keyPoints: ['Presenting recorded usability session data objectively', 'Framing decisions around business metrics and customer retention', 'Collaborative compromise via live usability A/B testing'],
       },
       {
         question: 'How do you advocate for accessibility (WCAG 2.1 AA) and micro-interactions when engineering is constrained on sprint timelines?',
@@ -139,11 +140,29 @@ export const StudentMockInterview: React.FC = () => {
   const [activeDomainKey, setActiveDomainKey] = useState<string>('film');
   const [inSession, setInSession] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [micOn, setMicOn] = useState(true);
   const [userAnswer, setUserAnswer] = useState('');
   const [evaluating, setEvaluating] = useState(false);
   const [evaluations, setEvaluations] = useState<EvaluationItem[]>([]);
   const [sessionCompleted, setSessionCompleted] = useState(false);
+
+  // Real-Time Speech Recognition State
+  const recognitionRef = useRef<any>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  const [interimTranscript, setInterimTranscript] = useState('');
+
+  // Live Webcam Self-Preview State
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Gemini Dynamic AI Question Generation State
+  const [customQuestionSet, setCustomQuestionSet] = useState<QuestionSet | null>(null);
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [customRoleInput, setCustomRoleInput] = useState('');
+  const [customLevelInput, setCustomLevelInput] = useState('Mid-Level');
+  const [showAiGenBox, setShowAiGenBox] = useState(false);
 
   useEffect(() => {
     fetchStudentInterest();
@@ -172,8 +191,40 @@ export const StudentMockInterview: React.FC = () => {
     }
   };
 
-  const domainData = INTERVIEW_DOMAINS[activeDomainKey] || INTERVIEW_DOMAINS.film;
+  const domainData = (activeDomainKey === 'custom' && customQuestionSet)
+    ? customQuestionSet
+    : (INTERVIEW_DOMAINS[activeDomainKey] || INTERVIEW_DOMAINS.film);
   const questions = domainData.questions;
+
+  const handleGenerateAiQuestions = async () => {
+    if (!customRoleInput.trim()) return;
+    setGeneratingAI(true);
+    try {
+      const res = await api.post('/interviews/generate-questions', {
+        roleOrDomain: customRoleInput.trim(),
+        experienceLevel: customLevelInput,
+        count: 4,
+      });
+      const generated = res.data?.data?.questions;
+      if (Array.isArray(generated) && generated.length > 0) {
+        setCustomQuestionSet({
+          roleTitle: `${customRoleInput.trim()} (${customLevelInput})`,
+          domain: customRoleInput.trim(),
+          questions: generated.map((g: any) => ({
+            question: g.question,
+            keyPoints: Array.isArray(g.keyPoints) ? g.keyPoints : ['Technical depth', 'Problem solving', 'Communication'],
+          })),
+        });
+        setActiveDomainKey('custom');
+        setShowAiGenBox(false);
+        restartSession();
+      }
+    } catch (err) {
+      console.error('Failed to generate AI questions:', err);
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
 
   const evaluateClientFallback = (
     qText: string,
@@ -182,64 +233,36 @@ export const StudentMockInterview: React.FC = () => {
     rawAnswer: string
   ): EvaluationItem => {
     const text = (rawAnswer || '').trim();
-    if (!text || text.length < 10) {
+    if (!text || text.length < 5) {
       return {
         score: 0,
-        verdict: 'Gibberish / Invalid',
-        isGibberish: true,
+        verdict: 'Needs Improvement',
+        isGibberish: false,
         feedback: 'The response is empty or too short. Real technical interviewers require structured reasoning addressing the prompt.',
         matchedKeyPoints: [],
         missingKeyPoints: keyPoints,
+        evaluatedBy: 'RecruitX Assessment Engine',
       };
     }
 
     const words = text.split(/\s+/).filter((w) => w.length > 0);
     const lower = text.toLowerCase();
-
-    // Repeated characters like "aaaa", "ffff", "1111"
-    const hasCharRun = /(.)\1{3,}/i.test(lower);
-
-    // Keyboard mash patterns
-    const smashPatterns = [
-      /asdf/i, /sdfg/i, /dfgh/i, /fghj/i, /ghjk/i, /hjkl/i,
-      /qwer/i, /wert/i, /erty/i, /rtyu/i, /tyui/i, /yuio/i, /uiop/i,
-      /zxcv/i, /xcvb/i, /cvbn/i, /vbnm/i,
-      /1234/i, /2345/i, /3456/i, /abcd/i, /bcde/i,
-    ];
-    const smashMatches = smashPatterns.filter((p) => p.test(lower)).length;
-
-    // Vowelless long words
-    const vowellessLongWords = words.filter(
-      (w) => w.replace(/[^a-z]/gi, '').length >= 5 && !/[aeiouy]/i.test(w)
-    );
-    const vowellessRatio = words.length > 0 ? vowellessLongWords.length / words.length : 0;
-
-    // Unique character variety
     const cleanChars = lower.replace(/[^a-z0-9]/g, '');
     const uniqueChars = new Set(cleanChars).size;
-    const uniqueCharRatio = cleanChars.length > 0 ? uniqueChars / cleanChars.length : 1;
 
-    // Word repetition loops
-    const uniqueWords = new Set(words.map((w) => w.toLowerCase()));
-    const wordRepetitionRatio = words.length > 3 ? uniqueWords.size / words.length : 1;
+    // Only flag as keyboard smash if extreme repetition of 1-2 chars across long string
+    const isObviousKeyboardSmash = cleanChars.length >= 25 && uniqueChars <= 3;
 
-    const isGibberish =
-      hasCharRun ||
-      smashMatches >= 1 ||
-      vowellessLongWords.length > 0 ||
-      vowellessRatio > 0.2 ||
-      (cleanChars.length >= 15 && uniqueCharRatio < 0.25) ||
-      (words.length >= 4 && wordRepetitionRatio < 0.4);
-
-    if (isGibberish) {
+    if (isObviousKeyboardSmash) {
       return {
         score: 0,
         verdict: 'Gibberish / Invalid',
         isGibberish: true,
         feedback:
-          'Detected random keyboard smash characters, repetitive loops, or gibberish. Real interviewers award 0 points for incoherent responses.',
+          'Detected random keyboard smash characters. Real interviewers require meaningful domain-specific reasoning.',
         matchedKeyPoints: [],
         missingKeyPoints: keyPoints,
+        evaluatedBy: 'RecruitX Assessment Engine',
       };
     }
 
@@ -344,6 +367,7 @@ export const StudentMockInterview: React.FC = () => {
       feedback,
       matchedKeyPoints,
       missingKeyPoints,
+      evaluatedBy: 'RecruitX Assessment Engine',
     };
   };
 
@@ -371,6 +395,7 @@ export const StudentMockInterview: React.FC = () => {
       setEvaluating(false);
     }
 
+    stopListening();
     const updatedEvals = [...evaluations, evalResult];
     setEvaluations(updatedEvals);
     setUserAnswer('');
@@ -378,11 +403,163 @@ export const StudentMockInterview: React.FC = () => {
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
+      stopCamera();
       setSessionCompleted(true);
     }
   };
 
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+    setIsListening(false);
+    setInterimTranscript('');
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    if (cameraStreamRef.current) {
+      try {
+        cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      } catch {}
+      cameraStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  }, []);
+
+  const toggleCamera = useCallback(async () => {
+    if (cameraActive) {
+      stopCamera();
+      return;
+    }
+
+    setCameraError(null);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError('Webcam access is not supported by your browser environment.');
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'user' },
+        audio: false,
+      });
+
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCameraActive(true);
+    } catch (err: any) {
+      console.error('Camera access error:', err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraError('Camera access denied. Please grant camera permission in your browser URL bar.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setCameraError('No webcam video device detected on your machine.');
+      } else {
+        setCameraError(`Camera error: ${err.message || 'Could not start webcam stream.'}`);
+      }
+      setCameraActive(false);
+    }
+  }, [cameraActive, stopCamera]);
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && cameraStreamRef.current) {
+      videoRef.current.srcObject = cameraStreamRef.current;
+    }
+  }, [cameraActive]);
+
+  const toggleSpeechRecognition = useCallback(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setSpeechError(
+        'Live speech recognition is not supported in this browser. Please use Google Chrome, Brave, or Microsoft Edge.'
+      );
+      return;
+    }
+
+    if (isListening) {
+      stopListening();
+      return;
+    }
+
+    setSpeechError(null);
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setSpeechError(null);
+      };
+
+      recognition.onresult = (event: any) => {
+        let currentInterim = '';
+        let finalTranscripts = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const item = event.results[i];
+          if (item.isFinal) {
+            finalTranscripts += item[0].transcript + ' ';
+          } else {
+            currentInterim += item[0].transcript;
+          }
+        }
+
+        if (finalTranscripts) {
+          setUserAnswer((prev) =>
+            prev.trim() ? `${prev.trim()} ${finalTranscripts.trim()}` : finalTranscripts.trim()
+          );
+        }
+        setInterimTranscript(currentInterim);
+      };
+
+      recognition.onerror = (event: any) => {
+        if (event.error === 'not-allowed') {
+          setSpeechError(
+            'Microphone access denied. Please allow microphone permission in browser settings to speak your answers.'
+          );
+        } else if (event.error === 'no-speech') {
+          // ignore silence
+        } else {
+          setSpeechError(`Speech recognition: ${event.error}`);
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setInterimTranscript('');
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch (err: any) {
+      console.error('Speech recognition error:', err);
+      setSpeechError(err.message || 'Could not access microphone.');
+      setIsListening(false);
+    }
+  }, [isListening, stopListening]);
+
+  useEffect(() => {
+    return () => {
+      stopListening();
+      stopCamera();
+    };
+  }, [stopListening, stopCamera]);
+
   const restartSession = () => {
+    stopListening();
+    stopCamera();
     setInSession(false);
     setCurrentQuestion(0);
     setUserAnswer('');
@@ -415,7 +592,7 @@ export const StudentMockInterview: React.FC = () => {
 
         {/* Domain Selection Tabs (if not mid-session) */}
         {!inSession && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {Object.entries(INTERVIEW_DOMAINS).map(([k, v]) => (
               <button
                 key={k}
@@ -432,9 +609,91 @@ export const StudentMockInterview: React.FC = () => {
                 {v.roleTitle.split(' ')[0]}
               </button>
             ))}
+            {customQuestionSet && (
+              <button
+                onClick={() => {
+                  setActiveDomainKey('custom');
+                  restartSession();
+                }}
+                className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${
+                  activeDomainKey === 'custom'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
+              >
+                Custom AI ({customQuestionSet.domain.slice(0, 10)})
+              </button>
+            )}
+            <button
+              onClick={() => setShowAiGenBox(!showAiGenBox)}
+              className="text-xs px-2.5 py-1.5 rounded-md font-medium border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors flex items-center gap-1"
+            >
+              <Sparkles className="w-3 h-3 text-purple-600" />
+              Generate Custom AI Role
+            </button>
           </div>
         )}
       </div>
+
+      {/* Gemini AI Dynamic Question Generator Box */}
+      {showAiGenBox && !inSession && (
+        <Card className="p-4 border-purple-200 bg-purple-50/40 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              <h3 className="text-xs font-bold text-purple-900">Google Gemini 3.6 Flash Interview Generator</h3>
+            </div>
+            <span className="text-[10px] uppercase font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
+              Instant AI
+            </span>
+          </div>
+          <p className="text-xs text-neutral-600">
+            Generate realistic domain-specific technical & behavioral interview questions tailored to any custom job title or specialty.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              type="text"
+              placeholder="e.g. Cloud Security Architect, Video Producer, ML Engineer"
+              value={customRoleInput}
+              onChange={(e) => setCustomRoleInput(e.target.value)}
+              className="sm:col-span-2 text-xs p-2.5 rounded-md border border-purple-200 focus:outline-none focus:ring-1 focus:ring-purple-600 bg-white"
+            />
+            <select
+              value={customLevelInput}
+              onChange={(e) => setCustomLevelInput(e.target.value)}
+              className="text-xs p-2.5 rounded-md border border-purple-200 focus:outline-none focus:ring-1 focus:ring-purple-600 bg-white"
+            >
+              <option value="Entry-Level / Junior">Entry-Level / Junior</option>
+              <option value="Mid-Level">Mid-Level</option>
+              <option value="Senior / Lead">Senior / Lead</option>
+              <option value="Principal / Director">Principal / Director</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" size="sm" onClick={() => setShowAiGenBox(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleGenerateAiQuestions}
+              disabled={generatingAI || !customRoleInput.trim()}
+              className="flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 text-white"
+            >
+              {generatingAI ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Synthesizing with Gemini 3.6 Flash...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Generate Mock Interview
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {!inSession ? (
         <Card className="p-8 text-center space-y-4">
@@ -508,7 +767,7 @@ export const StudentMockInterview: React.FC = () => {
               return (
                 <div key={idx} className="p-4 rounded-lg border border-neutral-200 bg-neutral-50/50 space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-neutral-900">Question {idx + 1}</span>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
@@ -525,6 +784,12 @@ export const StudentMockInterview: React.FC = () => {
                       >
                         {ev?.verdict || 'Evaluated'}
                       </span>
+                      {ev?.evaluatedBy && (
+                        <span className="text-[10px] text-neutral-600 font-semibold flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-neutral-200">
+                          <Sparkles className="w-3 h-3 text-purple-600" />
+                          {ev.evaluatedBy}
+                        </span>
+                      )}
                     </div>
                     <span
                       className={`text-xs font-bold ${
@@ -606,22 +871,123 @@ export const StudentMockInterview: React.FC = () => {
       ) : (
         /* Active Interview Card */
         <Card className="p-6 space-y-6">
-          <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 pb-3">
             <span className="text-xs font-semibold text-neutral-500">
               Question {currentQuestion + 1} of {questions.length} • {domainData.roleTitle}
             </span>
-            <button
-              onClick={() => setMicOn(!micOn)}
-              className={`p-2 rounded-md border text-xs flex items-center gap-1.5 transition-colors ${
-                micOn
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                  : 'bg-neutral-100 border-neutral-200 text-neutral-500'
-              }`}
-            >
-              {micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-              {micOn ? 'Microphone Active' : 'Muted'}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={toggleCamera}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  cameraActive
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs'
+                    : 'bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-50 shadow-xs'
+                }`}
+              >
+                <Camera className={`w-4 h-4 ${cameraActive ? 'text-emerald-600' : 'text-neutral-500'}`} />
+                <span>{cameraActive ? 'Webcam On' : 'Enable Webcam'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleSpeechRecognition}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 transition-all ${
+                  isListening
+                    ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse shadow-xs'
+                    : 'bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-50 shadow-xs'
+                }`}
+              >
+                {isListening ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
+                    <Mic className="w-4 h-4 text-rose-600" />
+                    <span>Recording Voice... (Click to Pause)</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4 text-neutral-500" />
+                    <span>Start Voice Answering (Mic)</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
+          {/* Camera Error Banner */}
+          {cameraError && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{cameraError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCameraError(null)}
+                className="text-amber-700 hover:text-amber-900 font-bold text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Live Webcam Self-Preview */}
+          {cameraActive && (
+            <div className="relative rounded-xl overflow-hidden bg-neutral-950 border border-neutral-800 shadow-md">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full aspect-video sm:h-56 object-cover scale-x-[-1]"
+              />
+              <div className="absolute top-3 left-3 flex items-center gap-2 bg-neutral-900/85 backdrop-blur-xs px-2.5 py-1 rounded-full text-[11px] font-semibold text-white border border-neutral-700 shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live Candidate Video Stream</span>
+              </div>
+              <div className="absolute bottom-2.5 right-3 text-[10px] text-neutral-400 bg-neutral-900/80 px-2 py-0.5 rounded backdrop-blur-xs">
+                Self-Preview • Audio is evaluated via speech/text
+              </div>
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="absolute top-3 right-3 bg-neutral-900/80 hover:bg-neutral-900 text-white/80 hover:text-white px-2 py-1 rounded text-xs border border-neutral-700 transition-colors"
+                title="Turn off webcam"
+              >
+                ✕ Close Camera
+              </button>
+            </div>
+          )}
+
+          {/* Speech Error Banner */}
+          {speechError && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{speechError}</span>
+              </div>
+              <button
+                onClick={() => setSpeechError(null)}
+                className="text-amber-700 hover:text-amber-900 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Live Recording Stream Indicator */}
+          {isListening && (
+            <div className="p-3 rounded-lg bg-rose-50/70 border border-rose-200 text-rose-900 text-xs flex items-center gap-2.5 animate-in fade-in">
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-bounce"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-bounce [animation-delay:0.2s]"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-bounce [animation-delay:0.4s]"></span>
+              </div>
+              <span className="font-medium">
+                {interimTranscript ? `"${interimTranscript}"` : 'Listening to your speech... speak your technical reasoning now.'}
+              </span>
+            </div>
+          )}
 
           {/* Prompt Question */}
           <div className="bg-neutral-900 text-white rounded-lg p-5 space-y-2">
@@ -641,12 +1007,23 @@ export const StudentMockInterview: React.FC = () => {
 
           {/* Candidate Answer Box */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-neutral-700 block">Your Response / Talking Points:</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-neutral-700">Your Response / Talking Points:</label>
+              {userAnswer.trim().length > 0 && !evaluating && (
+                <button
+                  type="button"
+                  onClick={() => setUserAnswer('')}
+                  className="text-[10px] font-semibold text-neutral-400 hover:text-rose-600 transition-colors"
+                >
+                  Clear response
+                </button>
+              )}
+            </div>
             <textarea
               value={userAnswer}
               onChange={(e) => setUserAnswer(e.target.value)}
               rows={4}
-              placeholder="Speak aloud or type your answer here..."
+              placeholder="Speak aloud using the mic button above, or type your structured response..."
               disabled={evaluating}
               className="w-full text-xs rounded-md border border-neutral-200 p-3 focus:outline-none focus:ring-1 focus:ring-neutral-900 disabled:bg-neutral-50"
             />

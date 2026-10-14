@@ -1,17 +1,39 @@
 import { db, Collections } from '../config/firebase.js';
 import { dateFromFirestore, cleanDataForFirestore } from './firestoreHelper.js';
 
+export type NotificationType =
+  | 'application_update'
+  | 'interview_invite'
+  | 'job_alert'
+  | 'job_recommendation'
+  | 'placement_drive'
+  | 'system'
+  | 'maintenance'
+  | 'message';
+
+export type NotificationFormat = 'inbox' | 'banner' | 'modal' | 'toast' | 'slideout';
+export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
+
 export interface INotificationDocument {
   _id: string;
   recipient: any;
   title: string;
   message: string;
-  type: 'application_update' | 'interview_invite' | 'job_alert' | 'system';
+  type: NotificationType;
+  format?: NotificationFormat;
+  priority?: NotificationPriority;
   link?: string;
+  actionText?: string;
+  actionUrl?: string;
+  imageUrl?: string;
+  announcementId?: string;
+  expiresAt?: Date;
   read: boolean;
+  metadata?: any;
   createdAt: Date;
   updatedAt: Date;
   save(): Promise<INotificationDocument>;
+  deleteOne(): Promise<void>;
 }
 
 export class NotificationDoc implements INotificationDocument {
@@ -19,9 +41,17 @@ export class NotificationDoc implements INotificationDocument {
   recipient: any;
   title: string;
   message: string;
-  type: 'application_update' | 'interview_invite' | 'job_alert' | 'system';
+  type: NotificationType;
+  format?: NotificationFormat;
+  priority?: NotificationPriority;
   link?: string;
+  actionText?: string;
+  actionUrl?: string;
+  imageUrl?: string;
+  announcementId?: string;
+  expiresAt?: Date;
   read: boolean;
+  metadata?: any;
   createdAt: Date;
   updatedAt: Date;
 
@@ -31,8 +61,16 @@ export class NotificationDoc implements INotificationDocument {
     this.title = data.title || '';
     this.message = data.message || '';
     this.type = data.type || 'system';
+    this.format = data.format || 'inbox';
+    this.priority = data.priority || 'normal';
     this.link = data.link;
+    this.actionText = data.actionText;
+    this.actionUrl = data.actionUrl || data.link;
+    this.imageUrl = data.imageUrl;
+    this.announcementId = data.announcementId;
+    this.expiresAt = data.expiresAt ? dateFromFirestore(data.expiresAt) : undefined;
     this.read = data.read ?? false;
+    this.metadata = data.metadata;
     this.createdAt = dateFromFirestore(data.createdAt);
     this.updatedAt = dateFromFirestore(data.updatedAt);
   }
@@ -47,14 +85,26 @@ export class NotificationDoc implements INotificationDocument {
       title: this.title,
       message: this.message,
       type: this.type,
+      format: this.format || 'inbox',
+      priority: this.priority || 'normal',
       link: this.link,
+      actionText: this.actionText,
+      actionUrl: this.actionUrl,
+      imageUrl: this.imageUrl,
+      announcementId: this.announcementId,
+      expiresAt: this.expiresAt,
       read: this.read,
+      metadata: this.metadata,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });
 
     await db.collection(Collections.NOTIFICATIONS).doc(this._id).set(dataToSave, { merge: true });
     return this;
+  }
+
+  async deleteOne(): Promise<void> {
+    await db.collection(Collections.NOTIFICATIONS).doc(this._id).delete();
   }
 }
 
@@ -104,9 +154,17 @@ export class Notification {
     recipient: any;
     title: string;
     message: string;
-    type?: 'application_update' | 'interview_invite' | 'job_alert' | 'system';
+    type?: NotificationType;
+    format?: NotificationFormat;
+    priority?: NotificationPriority;
     link?: string;
+    actionText?: string;
+    actionUrl?: string;
+    imageUrl?: string;
+    announcementId?: string;
+    expiresAt?: Date;
     read?: boolean;
+    metadata?: any;
   }): Promise<INotificationDocument> {
     const recipientId = typeof data.recipient === 'object' && data.recipient?._id ? data.recipient._id.toString() : data.recipient.toString();
     const now = new Date();
@@ -116,8 +174,16 @@ export class Notification {
       title: data.title,
       message: data.message,
       type: data.type || 'system',
+      format: data.format || 'inbox',
+      priority: data.priority || 'normal',
       link: data.link || '',
+      actionText: data.actionText || '',
+      actionUrl: data.actionUrl || data.link || '',
+      imageUrl: data.imageUrl || '',
+      announcementId: data.announcementId || '',
+      expiresAt: data.expiresAt || null,
       read: data.read ?? false,
+      metadata: data.metadata || null,
       createdAt: now,
       updatedAt: now,
     });
@@ -138,8 +204,16 @@ export class Notification {
         title: d.title,
         message: d.message,
         type: d.type || 'system',
+        format: d.format || 'inbox',
+        priority: d.priority || 'normal',
         link: d.link || '',
+        actionText: d.actionText || '',
+        actionUrl: d.actionUrl || d.link || '',
+        imageUrl: d.imageUrl || '',
+        announcementId: d.announcementId || '',
+        expiresAt: d.expiresAt || null,
         read: d.read ?? false,
+        metadata: d.metadata || null,
         createdAt: now,
         updatedAt: now,
       });
@@ -171,8 +245,46 @@ export class Notification {
         q = q.where('recipient', '==', recipientId);
       }
 
+      if (filter.read !== undefined) {
+        q = q.where('read', '==', filter.read);
+      }
+
       const snap = await q.get();
       return snap.docs.map((d: any) => new NotificationDoc(d.data(), d.id));
     });
   }
+
+  static async markAllAsRead(recipientId: string): Promise<number> {
+    const snap = await db
+      .collection(Collections.NOTIFICATIONS)
+      .where('recipient', '==', recipientId.toString())
+      .where('read', '==', false)
+      .get();
+
+    if (snap.empty) return 0;
+
+    const batch = db.batch();
+    snap.docs.forEach((doc: any) => {
+      batch.update(doc.ref, { read: true, updatedAt: new Date() });
+    });
+    await batch.commit();
+    return snap.size;
+  }
+
+  static async clearAllForUser(recipientId: string): Promise<number> {
+    const snap = await db
+      .collection(Collections.NOTIFICATIONS)
+      .where('recipient', '==', recipientId.toString())
+      .get();
+
+    if (snap.empty) return 0;
+
+    const batch = db.batch();
+    snap.docs.forEach((doc: any) => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    return snap.size;
+  }
 }
+

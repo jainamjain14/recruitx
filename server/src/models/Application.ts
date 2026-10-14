@@ -13,6 +13,8 @@ export interface IApplicationDocument {
   status: ApplicationStatus;
   coverLetter?: string;
   resumeUrl?: string;
+  rating?: number;
+  internalNotes?: string;
   appliedAt: Date;
   statusHistory: {
     status: ApplicationStatus;
@@ -34,6 +36,8 @@ export class ApplicationDoc implements IApplicationDocument {
   status: ApplicationStatus;
   coverLetter?: string;
   resumeUrl?: string;
+  rating?: number;
+  internalNotes?: string;
   appliedAt: Date;
   statusHistory: {
     status: ApplicationStatus;
@@ -53,6 +57,8 @@ export class ApplicationDoc implements IApplicationDocument {
     this.status = data.status || 'applied';
     this.coverLetter = data.coverLetter || '';
     this.resumeUrl = data.resumeUrl || '';
+    this.rating = data.rating;
+    this.internalNotes = data.internalNotes || '';
     this.appliedAt = dateFromFirestore(data.appliedAt);
     this.statusHistory = Array.isArray(data.statusHistory)
       ? data.statusHistory.map((h: any) => ({
@@ -81,6 +87,8 @@ export class ApplicationDoc implements IApplicationDocument {
       status: this.status,
       coverLetter: this.coverLetter,
       resumeUrl: this.resumeUrl,
+      rating: this.rating !== undefined ? this.rating : null,
+      internalNotes: this.internalNotes || '',
       appliedAt: this.appliedAt,
       statusHistory: this.statusHistory,
       createdAt: this.createdAt,
@@ -155,6 +163,8 @@ export class Application {
     jobTitle?: string;
     coverLetter?: string;
     resumeUrl?: string;
+    rating?: number;
+    internalNotes?: string;
     status?: ApplicationStatus;
     statusHistory?: any[];
   }): Promise<IApplicationDocument> {
@@ -175,6 +185,8 @@ export class Application {
       status,
       coverLetter: data.coverLetter || '',
       resumeUrl: data.resumeUrl || '',
+      rating: data.rating !== undefined ? data.rating : null,
+      internalNotes: data.internalNotes || '',
       appliedAt: now,
       statusHistory,
       createdAt: now,

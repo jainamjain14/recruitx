@@ -13,15 +13,18 @@ export const AdminPlacements: React.FC = () => {
   const [placedApplications, setPlacedApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [accreditation, setAccreditation] = useState<any>(null);
+
   useEffect(() => {
     fetchPlacementData();
   }, []);
 
   const fetchPlacementData = async () => {
     try {
-      const [statsRes, appsRes] = await Promise.allSettled([
+      const [statsRes, appsRes, accRes] = await Promise.allSettled([
         api.get('/admin/stats'),
         api.get('/applications'),
+        api.get('/admin/accreditation-stats'),
       ]);
 
       if (statsRes.status === 'fulfilled' && statsRes.value.data?.data?.stats) {
@@ -31,6 +34,10 @@ export const AdminPlacements: React.FC = () => {
       if (appsRes.status === 'fulfilled' && appsRes.value.data?.data?.applications) {
         const placed = appsRes.value.data.data.applications.filter((a: any) => a.status === 'offered');
         setPlacedApplications(placed);
+      }
+
+      if (accRes.status === 'fulfilled' && accRes.value.data?.data?.accreditation) {
+        setAccreditation(accRes.value.data.data.accreditation);
       }
     } catch (err) {
       console.error('Failed to load placement metrics:', err);
@@ -52,8 +59,8 @@ export const AdminPlacements: React.FC = () => {
           <p className="text-2xl font-bold text-neutral-900">{stats.placedStudents}</p>
         </Card>
         <Card className="p-4 space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Placement Rate</p>
-          <p className="text-2xl font-bold text-neutral-900">{stats.placementRate}%</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Placement Rate</p>
+          <p className="text-2xl font-bold text-emerald-700">{stats.placementRate}%</p>
         </Card>
         <Card className="p-4 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Total Applications</p>
@@ -64,6 +71,27 @@ export const AdminPlacements: React.FC = () => {
           <p className="text-2xl font-bold text-neutral-900">{stats.totalStudents}</p>
         </Card>
       </div>
+
+      {/* Salary & CTC Metrics if available */}
+      {accreditation?.salaryMetrics && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="p-4 bg-neutral-900 text-white space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Highest CTC Offered</span>
+            <p className="text-2xl font-black">{accreditation.salaryMetrics.highestCtc}</p>
+            <p className="text-[10px] text-neutral-400">Super Dream Tier Placement</p>
+          </Card>
+          <Card className="p-4 bg-neutral-900 text-white space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Average Drive Package</span>
+            <p className="text-2xl font-black">{accreditation.salaryMetrics.averageCtc}</p>
+            <p className="text-[10px] text-neutral-400">Across all verified academic departments</p>
+          </Card>
+          <Card className="p-4 bg-neutral-900 text-white space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Median Batch Package</span>
+            <p className="text-2xl font-black">{accreditation.salaryMetrics.medianCtc}</p>
+            <p className="text-[10px] text-neutral-400">Statistical center point of verified hires</p>
+          </Card>
+        </div>
+      )}
 
       {/* Verified Placement Offers List */}
       <Card className="p-0 overflow-hidden">

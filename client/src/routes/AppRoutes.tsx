@@ -14,6 +14,7 @@ import { StudentSkillGap } from '../pages/StudentSkillGap';
 import { StudentRoadmap } from '../pages/StudentRoadmap';
 import { StudentJobs } from '../pages/StudentJobs';
 import { StudentApplications } from '../pages/StudentApplications';
+import { StudentMessages } from '../pages/StudentMessages';
 import { StudentMockInterview } from '../pages/StudentMockInterview';
 import { StudentNotifications } from '../pages/StudentNotifications';
 import { StudentSettings } from '../pages/StudentSettings';
@@ -73,6 +74,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="/student/roadmap" element={<StudentRoadmap />} />
             <Route path="/student/jobs" element={<StudentJobs />} />
             <Route path="/student/applications" element={<StudentApplications />} />
+            <Route path="/student/messages" element={<StudentMessages />} />
             <Route path="/student/mock-interview" element={<StudentMockInterview />} />
             <Route path="/student/notifications" element={<StudentNotifications />} />
             <Route path="/student/settings" element={<StudentSettings />} />

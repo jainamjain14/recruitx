@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -11,16 +12,33 @@ import resumeRoutes from "./routes/resumeRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import interviewRoutes from "./routes/interviewRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
+import courseRoutes from "./routes/courseRoutes.js";
+import { apiLimiter } from "./middleware/rateLimiter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { sendSuccess } from "./utils/apiResponse.js";
 
 const app = express();
 
 /* ======================================================
-   SECURITY
+   SECURITY & HEADERS
 ====================================================== */
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "https:", "blob:"],
+        connectSrc: ["'self'", "ws:", "wss:", "http://localhost:*", "https:"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
 /* ======================================================
    CORS
@@ -45,11 +63,14 @@ app.use(
 
 app.use(morgan("dev"));
 
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json({ limit: "15mb" }));
 
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
 app.use(cookieParser());
+
+// Static file serving for user uploads (resumes, avatars)
+app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
 /* ======================================================
    ROOT ROUTE
@@ -87,8 +108,10 @@ app.get("/api/health", (req, res) => {
 });
 
 /* ======================================================
-   ROUTES
+   ROUTES & RATE LIMITING
 ====================================================== */
+
+app.use("/api", apiLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/protected", protectedRoutes);
@@ -98,19 +121,39 @@ app.use("/api/resume", resumeRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/courses", courseRoutes);
 
 /* ======================================================
-   404 HANDLER
+   STATIC FRONTEND (Production / Docker only)
+   Serves the built React app so Login/Register UI is
+   accessible at http://localhost:5000
 ====================================================== */
 
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route not found: [${req.method}] ${req.originalUrl}`,
-    data: null,
-    errors: null,
+if (process.env.NODE_ENV === "production") {
+  const clientDistPath = path.resolve(process.cwd(), "..", "client", "dist");
+  app.use(express.static(clientDistPath));
+
+  // Catch-all: serve React's index.html for client-side routes
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(clientDistPath, "index.html"));
   });
-});
+}
+
+/* ======================================================
+   404 HANDLER (development only)
+====================================================== */
+
+if (process.env.NODE_ENV !== "production") {
+  app.use((req, res) => {
+    res.status(404).json({
+      success: false,
+      message: `Route not found: [${req.method}] ${req.originalUrl}`,
+      data: null,
+      errors: null,
+    });
+  });
+}
 
 /* ======================================================
    GLOBAL ERROR HANDLER

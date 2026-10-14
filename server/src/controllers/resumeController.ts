@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../types/index.js';
 import { Resume } from '../models/Resume.js';
 import { Job } from '../models/Job.js';
 import { AIService, ParsedResumeData } from '../services/aiService.js';
+import { StorageService } from '../services/storageService.js';
 import { extractTextFromPdfBuffer } from '../utils/pdfExtractor.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 
@@ -11,7 +12,7 @@ export const getResume = async (req: AuthenticatedRequest, res: Response): Promi
     const studentId = req.query.studentId || req.user?._id;
     let resume = await Resume.findOne({ student: studentId });
 
-    if (!resume && req.user?._id.toString() === studentId?.toString()) {
+    if (!resume && req.user && req.user._id.toString() === studentId?.toString()) {
       resume = await Resume.create({
         student: req.user._id,
         headline: '',
@@ -60,11 +61,33 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
 
     const { fileBase64, mimeType, fileName, resumeText } = req.body;
     let extractedText = resumeText || '';
+    let storedResumeUrl: string | undefined;
 
-    if (fileBase64 && !extractedText) {
-      const base64Data = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
-      const pdfBuffer = Buffer.from(base64Data, 'base64');
-      extractedText = extractTextFromPdfBuffer(pdfBuffer);
+    if (fileBase64) {
+      const validation = StorageService.validateUpload(
+        fileBase64,
+        mimeType || 'application/pdf',
+        fileName || 'resume.pdf'
+      );
+
+      if (!validation.valid) {
+        sendError(res, validation.error || 'Invalid file payload', null, 400);
+        return;
+      }
+
+      if (validation.buffer) {
+        const saved = await StorageService.saveFile(
+          req.user._id.toString(),
+          validation.buffer,
+          validation.fileName || 'resume.pdf',
+          'resumes'
+        );
+        storedResumeUrl = saved.fileUrl;
+
+        if (!extractedText && validation.mimeType === 'application/pdf') {
+          extractedText = extractTextFromPdfBuffer(validation.buffer);
+        }
+      }
     }
 
     // Call AIService (Uses Gemini Vision API if GEMINI_API_KEY is in .env, or smart multi-domain parser)
@@ -78,7 +101,12 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
     // Save or update Student Resume profile in DB
     let resume = await Resume.findOne({ student: req.user._id });
     if (!resume) {
-      resume = new Resume({ student: req.user._id, ...parsedData });
+      resume = new Resume({
+        student: req.user._id,
+        resumeUrl: storedResumeUrl,
+        fileName: fileName || 'Uploaded Resume',
+        ...parsedData,
+      });
     } else {
       if (parsedData.headline) resume.headline = parsedData.headline;
       if (parsedData.summary) resume.summary = parsedData.summary;
@@ -86,6 +114,8 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
       if (parsedData.skills && parsedData.skills.length > 0) {
         resume.skills = parsedData.skills;
       }
+      if (storedResumeUrl) resume.resumeUrl = storedResumeUrl;
+      if (fileName) resume.fileName = fileName;
     }
 
     await resume.save();
@@ -118,10 +148,33 @@ export const getSkillGap = async (req: AuthenticatedRequest, res: Response): Pro
     const realJobs = await Job.find({ status: 'active' }).populate('postedBy', 'company name');
 
     // Run AI Skill Gap Engine
-    const analysis = AIService.analyzeSkillGap(resume, realJobs);
+    const analysis = await AIService.analyzeSkillGap(resume, realJobs);
 
     sendSuccess(res, 'Skill gap analysis generated', { analysis });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to analyze skill gap', null, 500);
   }
 };
+
+export const getCareerRoadmap = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const studentId = req.user?._id;
+    let resume = await Resume.findOne({ student: studentId });
+
+    if (!resume) {
+      resume = await Resume.create({
+        student: studentId,
+        headline: '',
+        summary: '',
+        fieldOfInterest: '',
+        skills: [],
+      });
+    }
+
+    const roadmap = await AIService.generateCareerRoadmap(resume);
+    sendSuccess(res, 'Career roadmap generated', { roadmap });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to generate career roadmap', null, 500);
+  }
+};
+

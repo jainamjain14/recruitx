@@ -1,4 +1,4 @@
-import { deriveCompanyHrEmail } from './linkedinService.js';
+import { getVerifiedCompanyHrEmail } from './linkedinService.js';
 
 export interface ApplicationEmailPayload {
   candidateName: string;
@@ -15,16 +15,22 @@ export interface ApplicationEmailPayload {
 export class EmailService {
   /**
    * Automatically dispatches candidate's application and resume package
-   * directly to the company's hiring inbox (e.g. careers@company.com or recruiter's email)
+   * directly to the company's hiring inbox (e.g. verified company email or recruiter's email)
    */
   static async sendApplicationToHR(payload: ApplicationEmailPayload): Promise<boolean> {
     const { candidateName, candidateEmail, jobTitle, companyName, headline, summary, skills, fieldOfInterest, targetHrEmail } = payload;
 
-    // Resolve the destination HR email
-    const resolvedHrEmail = targetHrEmail || deriveCompanyHrEmail(companyName);
+    // Resolve verified HR email
+    const verifiedEmail = getVerifiedCompanyHrEmail(companyName);
+    const resolvedHrEmail = targetHrEmail || verifiedEmail;
 
     // If developer configured an override in .env (for testing/viva/demos), use that destination
     const destinationEmail = process.env.COMPANY_HR_EMAIL_OVERRIDE || resolvedHrEmail;
+
+    if (!destinationEmail) {
+      console.warn(`⚠️ No verified HR email found for company "${companyName}". Application recorded, skipping external email dispatch.`);
+      return false;
+    }
 
     const htmlBody = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 640px; padding: 28px; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
@@ -90,7 +96,7 @@ export class EmailService {
           }),
         });
 
-        const resData = await response.json();
+        const resData: any = await response.json();
 
         if (resData.id) {
           console.log(`✨ Live Resend Email Dispatched to Company HR Inbox (${destinationEmail})! Email ID: ${resData.id}`);

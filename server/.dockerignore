@@ -1,0 +1,9 @@
+
+node_modules
+dist
+.env
+.env.*
+serviceAccountKey.json
+.git
+.gitignore
+npm-debug.log

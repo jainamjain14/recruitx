@@ -72,7 +72,8 @@ export const getJobs = async (req: AuthenticatedRequest, res: Response): Promise
 
 export const getJobById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const job = await Job.findById(req.params.id).populate('recruiter', 'name email');
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const job = await Job.findById(id).populate('recruiter', 'name email');
     if (!job) {
       sendError(res, 'Job not found', null, 404);
       return;
@@ -90,13 +91,13 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
     const resume = await Resume.findOne({ student: studentId });
 
     const { userLat, userLng } = req.query;
-    const lat = userLat ? Number(userLat) : 19.1351;
-    const lng = userLng ? Number(userLng) : 72.8290;
+    const lat = userLat !== undefined && userLat !== '' && !isNaN(Number(userLat)) ? Number(userLat) : undefined;
+    const lng = userLng !== undefined && userLng !== '' && !isNaN(Number(userLng)) ? Number(userLng) : undefined;
 
     const targetDomain = resume?.fieldOfInterest || resume?.headline || 'Marketing & Growth Management';
     const userSkills = (resume?.skills || []).map((s) => s.toLowerCase());
 
-    // 1. Fetch Live LinkedIn Jobs sorted by distance from candidate location
+    // 1. Fetch Live LinkedIn Jobs sorted by distance from candidate location (if coordinates provided)
     const liveLinkedInJobs = await LinkedInService.fetchLiveJobs(targetDomain, lat, lng);
 
     // 2. Compute Per-Company Skill Gap Breakdown for each LinkedIn Job
@@ -119,10 +120,14 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
       };
     });
 
+    if (lat === undefined || lng === undefined) {
+      formattedCompanies.sort((a, b) => b.matchPercentage - a.matchPercentage);
+    }
+
     sendSuccess(res, 'Live LinkedIn vacant jobs fetched with proximity location sorting', {
       targetDomain,
       totalVacantJobs: formattedCompanies.length,
-      userLocation: { lat, lng },
+      userLocation: (lat !== undefined && lng !== undefined) ? { lat, lng } : null,
       companies: formattedCompanies,
     });
   } catch (error: any) {
@@ -132,7 +137,8 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
 
 export const updateJob = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const job = await Job.findById(req.params.id);
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const job = await Job.findById(id);
     if (!job) {
       sendError(res, 'Job not found', null, 404);
       return;
@@ -154,7 +160,8 @@ export const updateJob = async (req: AuthenticatedRequest, res: Response): Promi
 
 export const deleteJob = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const job = await Job.findById(req.params.id);
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const job = await Job.findById(id);
     if (!job) {
       sendError(res, 'Job not found', null, 404);
       return;

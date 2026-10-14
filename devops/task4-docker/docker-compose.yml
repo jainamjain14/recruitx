@@ -1,0 +1,35 @@
+version: '3.8'
+
+# ==============================================================================
+# Task 4: Docker – RecruitX Login/Registration with Firebase Database
+# Demonstrates: Docker image build, container run, live DB connectivity
+# ==============================================================================
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # RecruitX Authentication App (Login + Register UI + API)
+  # ─────────────────────────────────────────────────────────────
+  recruitx-auth:
+    build:
+      context: ../..                            # Project root (contains client/ and server/)
+      dockerfile: devops/task4-docker/Dockerfile.auth
+    image: recruitx-auth:task4               # Named Docker image
+    container_name: recruitx-auth-container
+    restart: unless-stopped
+    ports:
+      - "5001:5000"                           # Expose on http://localhost:5001
+    env_file:
+      - .env.docker                           # Firebase credentials loaded from env file
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - CLIENT_URL=http://localhost:5000      # Frontend served from same container
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "com.recruitx.task=4"
+      - "com.recruitx.description=Login/Registration with Firebase Database Connectivity"

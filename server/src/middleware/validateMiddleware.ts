@@ -87,3 +87,31 @@ export const validateResetPassword = [
     .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
   handleValidationErrors,
 ];
+
+export const validateCreateJob = [
+  body('title')
+    .trim()
+    .notEmpty()
+    .withMessage('Job title is required')
+    .isLength({ min: 3, max: 150 })
+    .withMessage('Job title must be between 3 and 150 characters'),
+  body('description')
+    .trim()
+    .notEmpty()
+    .withMessage('Job description is required')
+    .isLength({ min: 20 })
+    .withMessage('Job description must be at least 20 characters long'),
+  handleValidationErrors,
+];
+
+export const validateSendMessage = [
+  body('recipientId').trim().notEmpty().withMessage('Recipient ID is required'),
+  body('content')
+    .trim()
+    .notEmpty()
+    .withMessage('Message content cannot be empty')
+    .isLength({ max: 2000 })
+    .withMessage('Message cannot exceed 2000 characters'),
+  handleValidationErrors,
+];
+

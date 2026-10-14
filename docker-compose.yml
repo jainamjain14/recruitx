@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  recruitx-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: recruitx-production-app
+    restart: always
+    ports:
+      - "${PORT:-5000}:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:5173}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-RecruitX <noreply@recruitx.com>}
+    volumes:
+      - recruitx_uploads:/app/server/uploads
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  recruitx_uploads:
+    driver: local

@@ -1,12 +1,25 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authMiddleware.js';
-import { scheduleInterview, getInterviews, evaluateMockAnswer } from '../controllers/interviewController.js';
+import { authorize } from '../middleware/roleMiddleware.js';
+import { aiLimiter } from '../middleware/rateLimiter.js';
+import {
+  scheduleInterview,
+  getInterviews,
+  evaluateMockAnswer,
+  generateQuestions,
+} from '../controllers/interviewController.js';
 
 const router = Router();
 router.use(authenticate);
 
-router.post('/', scheduleInterview);
+// Recruiter & Admin only: schedule interview rounds
+router.post('/', authorize('recruiter', 'admin'), scheduleInterview);
+
+// AI-powered mock evaluation & dynamic question synthesis (quota protected)
+router.post('/evaluate-mock', aiLimiter, evaluateMockAnswer);
+router.post('/generate-questions', aiLimiter, generateQuestions);
+
+// Shared authenticated interview schedule viewing
 router.get('/', getInterviews);
-router.post('/evaluate-mock', evaluateMockAnswer);
 
 export default router;

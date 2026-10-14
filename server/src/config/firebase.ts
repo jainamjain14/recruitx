@@ -24,9 +24,15 @@ export const initFirebase = (): Firestore => {
       if (serviceAccountKey.trim().startsWith('{')) {
         credentials = JSON.parse(serviceAccountKey);
       } else {
-        const filePath = path.isAbsolute(serviceAccountKey)
+        let filePath = path.isAbsolute(serviceAccountKey)
           ? serviceAccountKey
           : path.resolve(process.cwd(), serviceAccountKey);
+        if (!fs.existsSync(filePath)) {
+          const altPath = path.resolve(process.cwd(), 'server', serviceAccountKey);
+          if (fs.existsSync(altPath)) {
+            filePath = altPath;
+          }
+        }
         credentials = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       }
       app = initializeApp({
@@ -89,8 +95,12 @@ export const Collections = {
   APPLICATIONS: 'applications',
   INTERVIEWS: 'interviews',
   NOTIFICATIONS: 'notifications',
+  ANNOUNCEMENTS: 'announcements',
   RESUMES: 'resumes',
   MESSAGES: 'messages',
+  ELIGIBILITY_RULES: 'eligibility_rules',
+  AUDIT_LOGS: 'audit_logs',
+  COURSE_COMPLETIONS: 'course_completions',
 } as const;
 
 export { FieldValue, Timestamp };

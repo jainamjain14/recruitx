@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+
+    environment {
+        NODE_ENV = 'production'
+        PORT = '5173'
+        CLIENT_DIR = 'client'
+    }
+
+    stages {
+        stage('1. Checkout Code') {
+            steps {
+                echo '=== Checking out RecruitX Codebase from GitHub ==='
+                // Uses git plugin or local repo
+                checkout scm
+            }
+        }
+
+        stage('2. Install Client Dependencies') {
+            steps {
+                echo '=== Installing Frontend Dependencies ==='
+                bat 'cd client && npm install'
+            }
+        }
+
+        stage('3. Build RecruitX Web Application') {
+            steps {
+                echo '=== Compiling Vite + React + TypeScript Frontend ==='
+                bat 'cd client && npm run build'
+            }
+        }
+
+        stage('4. Run Automated Selenium Tests') {
+            steps {
+                echo '=== Running Selenium UI Verification Tests ==='
+                bat 'python devops/task3-selenium/test_recruitx.py'
+            }
+        }
+
+        stage('5. Deploy & Launch Home Page') {
+            steps {
+                echo '=== Serving RecruitX Home Page on http://localhost:5173 ==='
+                // Serve built static app in background
+                bat 'start /B npx serve -s client/dist -l 5173'
+            }
+        }
+
+        stage('6. Smoke Test / Healthcheck') {
+            steps {
+                echo '=== Verifying Home Page Accessibility ==='
+                bat 'curl -I http://localhost:5173'
+            }
+        }
+    }
+
+    post {
+        always {
+            echo '=== Jenkins Pipeline Run Complete ==='
+        }
+        success {
+            echo 'SUCCESS: RecruitX Home Page is running and verified!'
+        }
+        failure {
+            echo 'FAILURE: Jenkins build failed. Check console output for details.'
+        }
+    }
+}

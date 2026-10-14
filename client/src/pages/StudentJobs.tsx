@@ -136,8 +136,8 @@ export const StudentJobs: React.FC = () => {
   const [gpsPermissionState, setGpsPermissionState] = useState<'granted' | 'prompt' | 'denied' | 'unknown'>('unknown');
   const [locatingGps, setLocatingGps] = useState<boolean>(false);
 
-  // Retrieve cached location or default to Andheri West, Mumbai (19.1351, 72.8290)
-  const getInitialLocation = () => {
+  // Retrieve cached location or null if not yet determined/allowed
+  const getInitialLocation = (): { lat: number; lng: number; city: string } | null => {
     try {
       const savedLat = localStorage.getItem('user_device_lat');
       const savedLng = localStorage.getItem('user_device_lng');
@@ -146,25 +146,25 @@ export const StudentJobs: React.FC = () => {
         const lat = parseFloat(savedLat);
         const lng = parseFloat(savedLng);
         if (!isNaN(lat) && !isNaN(lng)) {
-          return { lat, lng, city: savedCity || 'Andheri West, Mumbai' };
+          return { lat, lng, city: savedCity || 'Saved Location' };
         }
       }
     } catch {}
-    return { lat: 19.1351, lng: 72.8290, city: 'Andheri West, Mumbai' };
+    return null;
   };
 
   const initialLoc = getInitialLocation();
 
   // User's Physical / Device Location
-  const [deviceLat, setDeviceLat] = useState<number>(initialLoc.lat);
-  const [deviceLng, setDeviceLng] = useState<number>(initialLoc.lng);
-  const [deviceCity, setDeviceCity] = useState<string>(initialLoc.city);
+  const [deviceLat, setDeviceLat] = useState<number | null>(initialLoc?.lat ?? null);
+  const [deviceLng, setDeviceLng] = useState<number | null>(initialLoc?.lng ?? null);
+  const [deviceCity, setDeviceCity] = useState<string>(initialLoc?.city || 'Location not set');
 
   // Active Search Center
-  const [userLat, setUserLat] = useState<number>(initialLoc.lat);
-  const [userLng, setUserLng] = useState<number>(initialLoc.lng);
-  const [userCity, setUserCity] = useState<string>(initialLoc.city);
-  const [locationMode, setLocationMode] = useState<'gps' | 'metro'>('gps');
+  const [userLat, setUserLat] = useState<number | null>(initialLoc?.lat ?? null);
+  const [userLng, setUserLng] = useState<number | null>(initialLoc?.lng ?? null);
+  const [userCity, setUserCity] = useState<string>(initialLoc?.city || 'All India (Location not set)');
+  const [locationMode, setLocationMode] = useState<'gps' | 'metro'>(initialLoc ? 'gps' : 'metro');
 
   // Locality Search State
   const [localitySearchText, setLocalitySearchText] = useState('');
@@ -189,7 +189,11 @@ export const StudentJobs: React.FC = () => {
         })
         .catch(() => {});
     }
-    fetchCompanyMatches(initialLoc.lat, initialLoc.lng);
+    if (initialLoc) {
+      fetchCompanyMatches(initialLoc.lat, initialLoc.lng);
+    } else {
+      fetchCompanyMatches();
+    }
     fetchExistingApplications();
   }, []);
 
@@ -280,10 +284,15 @@ export const StudentJobs: React.FC = () => {
     );
   };
 
-  const fetchCompanyMatches = async (lat: number = userLat, lng: number = userLng) => {
+  const fetchCompanyMatches = async (lat?: number | null, lng?: number | null) => {
     setLoading(true);
     try {
-      const res = await api.get(`/jobs/company-matches?userLat=${lat}&userLng=${lng}`);
+      const activeLat = lat !== undefined ? lat : userLat;
+      const activeLng = lng !== undefined ? lng : userLng;
+      const queryParams = (activeLat !== null && activeLng !== null && activeLat !== undefined && activeLng !== undefined)
+        ? `?userLat=${activeLat}&userLng=${activeLng}`
+        : '';
+      const res = await api.get(`/jobs/company-matches${queryParams}`);
       if (res.data?.data) {
         setTargetDomain(res.data.data.targetDomain || 'Marketing & Growth Management');
         setCompanyJobs(res.data.data.companies || []);
@@ -341,9 +350,14 @@ export const StudentJobs: React.FC = () => {
     if (!matchesSearch) return false;
 
     if (filterMode === 'nearby') {
+      if (deviceLat === null || deviceLng === null) {
+        return true;
+      }
       const dist = locationMode === 'gps'
         ? calculateDistance(deviceLat, deviceLng, job.lat, job.lng)
-        : (job.distanceMiles ?? calculateDistance(userLat, userLng, job.lat, job.lng));
+        : (userLat !== null && userLng !== null
+            ? (job.distanceMiles ?? calculateDistance(userLat, userLng, job.lat, job.lng))
+            : (job.distanceMiles ?? 0));
       return dist <= nearbyRadius;
     }
     if (filterMode === 'high_match') return job.matchPercentage >= 70;
@@ -515,10 +529,12 @@ export const StudentJobs: React.FC = () => {
             <Compass className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="text-neutral-300 font-medium">Distance Origin:</span>
             <span className="font-bold text-emerald-400 bg-neutral-800 px-2.5 py-1 rounded border border-neutral-700 flex items-center gap-1.5 shadow-sm">
-              {locationMode === 'gps' ? '🛰️ Live Pinpoint:' : '📍 Metro Center:'} {userCity}
-              <span className="text-[10px] text-neutral-400 font-normal">
-                ({deviceLat.toFixed(3)}°N, {deviceLng.toFixed(3)}°E)
-              </span>
+              {locationMode === 'gps' && deviceLat !== null ? '🛰️ Live Pinpoint:' : '📍 Center:'} {userCity}
+              {deviceLat !== null && deviceLng !== null && (
+                <span className="text-[10px] text-neutral-400 font-normal">
+                  ({deviceLat.toFixed(3)}°N, {deviceLng.toFixed(3)}°E)
+                </span>
+              )}
             </span>
             <button
               type="button"
@@ -709,11 +725,11 @@ export const StudentJobs: React.FC = () => {
         /* Leaflet Interactive Map View with Live Drag Pin */
         <CompanyLocationMap
           companies={filteredJobs}
-          userLat={userLat}
-          userLng={userLng}
+          userLat={userLat ?? undefined}
+          userLng={userLng ?? undefined}
           userCity={userCity}
-          deviceLat={deviceLat}
-          deviceLng={deviceLng}
+          deviceLat={deviceLat ?? undefined}
+          deviceLng={deviceLng ?? undefined}
           deviceCity={deviceCity}
           locationMode={locationMode}
           hasGpsPermission={gpsPermissionState === 'granted'}
@@ -742,10 +758,15 @@ export const StudentJobs: React.FC = () => {
             const isApplied = appliedCompany.includes(companyKey);
             const isApplying = applyingKey === companyKey;
             const distFromActiveCenter = Math.round(job.distanceMiles ?? 0);
-            const distFromDevice = Math.round(calculateDistance(deviceLat, deviceLng, job.lat, job.lng));
+            const distFromDevice = (deviceLat !== null && deviceLng !== null)
+              ? Math.round(calculateDistance(deviceLat, deviceLng, job.lat, job.lng))
+              : null;
             const isNearby = locationMode === 'gps'
-              ? distFromDevice <= nearbyRadius
+              ? (distFromDevice !== null ? distFromDevice <= nearbyRadius : true)
               : distFromActiveCenter <= nearbyRadius;
+            const isDifferentFromDevice = (userLat !== null && userLng !== null && deviceLat !== null && deviceLng !== null)
+              ? calculateDistance(userLat, userLng, deviceLat, deviceLng) > 3
+              : false;
 
             return (
               <Card key={idx} className="p-6 space-y-4 border-neutral-200 hover:border-neutral-300 transition-all">
@@ -770,7 +791,7 @@ export const StudentJobs: React.FC = () => {
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 border border-neutral-200">
                           {job.workMode}
                         </span>
-                        {isNearby && (
+                        {isNearby && distFromDevice !== null && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
                             <MapPin className="w-2.5 h-2.5" /> Nearby (&lt;{nearbyRadius} km)
                           </span>
@@ -781,17 +802,19 @@ export const StudentJobs: React.FC = () => {
                         <span>•</span>
                         <span className="flex items-center gap-1 font-semibold text-emerald-700">
                           <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
-                          {locationMode === 'gps'
+                          {locationMode === 'gps' && distFromDevice !== null
                             ? (distFromDevice <= 1
                                 ? 'Within 1 km of your GPS location'
                                 : `${distFromDevice} km from your GPS location`)
-                            : (distFromActiveCenter <= 2
-                                ? `Within ${userCity.split(',')[0]} center (< 2 km)`
-                                : `${distFromActiveCenter} km from ${userCity.split(',')[0]} center`)}
+                            : (distFromActiveCenter > 0
+                                ? (distFromActiveCenter <= 2
+                                    ? `Within ${userCity.split(',')[0]} center (< 2 km)`
+                                    : `${distFromActiveCenter} km from ${userCity.split(',')[0]} center`)
+                                : '')}
                           <span className="text-neutral-500 font-normal">({job.location})</span>
                         </span>
 
-                        {locationMode === 'metro' && isDifferentFromDevice && (
+                        {locationMode === 'metro' && isDifferentFromDevice && distFromDevice !== null && (
                           <>
                             <span className="text-neutral-300">•</span>
                             <span className="text-[11px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200 flex items-center gap-1">

@@ -1,0 +1,8 @@
+name 'recruitx_env'
+maintainer 'RecruitX DevOps Engineering Team'
+maintainer_email 'devops@recruitx.edu'
+license 'All Rights Reserved'
+description 'Configures prerequisites and runtime environments for RecruitX'
+version '1.0.0'
+supports 'windows'
+supports 'ubuntu'

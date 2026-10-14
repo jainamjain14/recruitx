@@ -20,6 +20,7 @@ export interface IUserDocument {
   createdAt: Date;
   updatedAt: Date;
   matchPassword(enteredPassword: string): Promise<boolean>;
+  setPassword(newPassword: string): void;
   save(): Promise<IUserDocument>;
 }
 
@@ -229,7 +230,11 @@ export class User {
       let q: any = db.collection(Collections.USERS);
 
       if (query.role) {
-        q = q.where('role', '==', query.role);
+        if (typeof query.role === 'object' && Array.isArray(query.role.$in)) {
+          q = q.where('role', 'in', query.role.$in);
+        } else {
+          q = q.where('role', '==', query.role);
+        }
       }
 
       const snap = await q.get();

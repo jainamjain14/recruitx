@@ -29,7 +29,7 @@ export const VERIFIED_COMPANY_HR_EMAILS: { [key: string]: string } = {
   'paytm': 'talent.acquisition@paytm.com',
 };
 
-export function deriveCompanyHrEmail(company: string): string {
+export function getVerifiedCompanyHrEmail(company: string): string | undefined {
   const clean = company.toLowerCase().trim();
   if (VERIFIED_COMPANY_HR_EMAILS[clean]) {
     return VERIFIED_COMPANY_HR_EMAILS[clean];
@@ -39,8 +39,7 @@ export function deriveCompanyHrEmail(company: string): string {
       return email;
     }
   }
-  const slug = clean.replace(/[^a-z0-9]/g, '');
-  return `careers@${slug || 'company'}.com`;
+  return undefined;
 }
 
 export function decodeHtmlEntities(str: string): string {
@@ -736,7 +735,7 @@ const DOMAIN_SALARY_BENCHMARKS: { [key: string]: string } = {
 };
 
 export class LinkedInService {
-  static async fetchLiveJobs(keyword: string, userLat: number = 19.1351, userLng: number = 72.8290): Promise<LiveLinkedInJob[]> {
+  static async fetchLiveJobs(keyword: string, userLat?: number, userLng?: number): Promise<LiveLinkedInJob[]> {
     const cleanKeyword = keyword.replace(/[^\w\s]/gi, '').trim() || 'Marketing Manager';
     const allFetchedJobs: LiveLinkedInJob[] = [];
 
@@ -780,7 +779,10 @@ export class LinkedInService {
     });
 
     const finalJobs = Array.from(uniqueMap.values());
-    finalJobs.sort((a, b) => (a.distanceMiles || 0) - (b.distanceMiles || 0));
+    const hasUserLocation = userLat !== undefined && userLng !== undefined && !isNaN(userLat) && !isNaN(userLng);
+    if (hasUserLocation) {
+      finalJobs.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity));
+    }
 
     return finalJobs;
   }
@@ -788,12 +790,13 @@ export class LinkedInService {
   private static async parseLinkedInHtmlWithRealDetails(
     html: string,
     searchKeyword: string,
-    userLat: number,
-    userLng: number
+    userLat?: number,
+    userLng?: number
   ): Promise<LiveLinkedInJob[]> {
     const jobs: LiveLinkedInJob[] = [];
     const cardRegex = /<li[\s\S]*?<\/li>/gi;
     const cards = html.match(cardRegex) || [];
+    const hasUserLocation = userLat !== undefined && userLng !== undefined && !isNaN(userLat) && !isNaN(userLng);
 
     for (let idx = 0; idx < cards.length; idx++) {
       const card = cards[idx];
@@ -839,7 +842,7 @@ export class LinkedInService {
         const resolvedCoords = resolveCompanyCoordinates(company, location, idx);
         const lat = resolvedCoords.lat;
         const lng = resolvedCoords.lng;
-        const distanceMiles = calculateDistanceKm(userLat, userLng, lat, lng);
+        const distanceMiles = hasUserLocation ? calculateDistanceKm(userLat!, userLng!, lat, lng) : undefined;
 
         jobs.push({
           company,
@@ -854,7 +857,7 @@ export class LinkedInService {
           lat,
           lng,
           distanceMiles,
-          hrEmail: deriveCompanyHrEmail(company),
+          hrEmail: getVerifiedCompanyHrEmail(company) || '',
         });
       }
     }
@@ -1098,7 +1101,7 @@ export class LinkedInService {
     return Array.from(new Set(skills));
   }
 
-  private static generateFallbackLiveJobs(keyword: string, userLat: number, userLng: number): LiveLinkedInJob[] {
+  private static generateFallbackLiveJobs(keyword: string, userLat?: number, userLng?: number): LiveLinkedInJob[] {
     const indianCompanies = [
       // Mumbai - Western Suburbs
       {
@@ -1425,11 +1428,12 @@ export class LinkedInService {
       },
     ];
 
-    return indianCompanies.map((item, idx) => {
+    const hasUserLocation = userLat !== undefined && userLng !== undefined && !isNaN(userLat) && !isNaN(userLng);
+    const jobs = indianCompanies.map((item, idx) => {
       const coords = resolveCompanyCoordinates(item.company, item.location, idx);
       const lat = coords.lat;
       const lng = coords.lng;
-      const distanceMiles = calculateDistanceKm(userLat, userLng, lat, lng);
+      const distanceMiles = hasUserLocation ? calculateDistanceKm(userLat!, userLng!, lat, lng) : undefined;
       return {
         company: item.company,
         logo: item.logo,
@@ -1443,8 +1447,14 @@ export class LinkedInService {
         lat,
         lng,
         distanceMiles,
-        hrEmail: deriveCompanyHrEmail(item.company),
+        hrEmail: getVerifiedCompanyHrEmail(item.company) || '',
       };
-    }).sort((a, b) => a.distanceMiles - b.distanceMiles);
+    });
+
+    if (hasUserLocation) {
+      jobs.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity));
+    }
+
+    return jobs;
   }
 }
