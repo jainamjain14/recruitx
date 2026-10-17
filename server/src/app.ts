@@ -14,6 +14,7 @@ import interviewRoutes from "./routes/interviewRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
+import assessmentRoutes from "./routes/assessmentRoutes.js";
 import { apiLimiter } from "./middleware/rateLimiter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { sendSuccess } from "./utils/apiResponse.js";
@@ -123,6 +124,7 @@ app.use("/api/interviews", interviewRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/courses", courseRoutes);
+app.use("/api/assessments", assessmentRoutes);
 
 /* ======================================================
    STATIC FRONTEND (Production / Docker only)

@@ -302,35 +302,35 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
 
   // ==================== Video, Film & Media ====================
   {
-    id: 'davinci-resolve-video-post-production',
-    title: 'Video Editing & Color Grading Masterclass',
-    provider: 'Coursera Creative Media & Arts',
+    id: 'colorado-foundation-of-video-editing',
+    title: 'The Foundation of Video Editing',
+    provider: 'University of Colorado Boulder',
     domain: 'Video Editing & Post-Production',
-    pricingType: 'both',
-    pricingLabel: 'Free to Audit / Paid Certificate Available',
-    courseraUrl: 'https://www.coursera.org/learn/video-editing',
-    duration: '4-6 Weeks (4 hrs/week)',
+    pricingType: 'free',
+    pricingLabel: '100% Free to Audit',
+    courseraUrl: 'https://www.coursera.org/learn/the-foundation-of-video-editing',
+    duration: '4 Weeks (4 hrs/week)',
     rating: 4.7,
     enrolledCount: '95K+ Learners',
-    level: 'Intermediate',
-    skillsCovered: ['DaVinci Resolve', 'Adobe Premiere Pro', 'After Effects', 'Color Grading', 'Motion Graphics', 'Sound Design'],
-    description: 'Master non-linear editing, narrative pacing, multi-track audio synch, timeline management, and cinematic color correction.',
-    certificateType: 'Both Options',
+    level: 'Beginner',
+    skillsCovered: ['Video Editing', 'Post-Production', 'Adobe Premiere Pro', 'DaVinci Resolve', 'Color Grading', 'Motion Graphics', 'Sound Design'],
+    description: 'Master core formal editing principles, montage techniques, narrative pacing, and non-linear workflows from the University of Colorado Boulder.',
+    certificateType: 'Free Audit Available',
   },
   {
     id: 'scriptwriting-visual-storytelling',
-    title: 'Script Writing: Write a Feature-Length Screenplay for Film or Television',
+    title: 'Write A Feature Length Screenplay for Film or Television',
     provider: 'Michigan State University',
     domain: 'Film & Movie Direction',
     pricingType: 'free',
     pricingLabel: '100% Free to Audit',
-    courseraUrl: 'https://www.coursera.org/learn/script-writing',
+    courseraUrl: 'https://www.coursera.org/learn/write-a-feature-length-screenplay-for-film-or-television',
     duration: '5 Weeks (4 hrs/week)',
     rating: 4.6,
     enrolledCount: '110K+ Learners',
     level: 'Intermediate',
     skillsCovered: ['Screenwriting', 'Film Directing', 'Storyboarding', 'Casting', 'Visual Storytelling'],
-    description: 'Write a complete feature-length screenplay. Learn dramatic structure, character development, visual pacing, and professional formatting.',
+    description: 'Write a complete feature-length screenplay. Learn dramatic structure, character development, visual pacing, and professional formatting from Michigan State University.',
     certificateType: 'Free Audit Available',
   },
 ];
@@ -370,26 +370,39 @@ export class CourseraService {
       const domainMatch =
         course.domain.toLowerCase().includes(lowerRole) ||
         lowerRole.includes(course.domain.toLowerCase()) ||
-        (lowerRole.includes('software') && course.domain.includes('Software')) ||
+        ((lowerRole.includes('software') || lowerRole.includes('engineer') || lowerRole.includes('developer') || lowerRole.includes('computer')) && course.domain.includes('Software')) ||
         (lowerRole.includes('market') && course.domain.includes('Marketing')) ||
         (lowerRole.includes('design') && course.domain.includes('Design')) ||
-        (lowerRole.includes('film') && course.domain.includes('Film')) ||
-        (lowerRole.includes('camera') && course.domain.includes('Cinematography')) ||
-        (lowerRole.includes('data') && course.domain.includes('Intelligence'));
+        ((lowerRole.includes('film') || lowerRole.includes('cinema') || lowerRole.includes('direct')) && course.domain.includes('Film')) ||
+        ((lowerRole.includes('video') || lowerRole.includes('edit')) && course.domain.includes('Video')) ||
+        ((lowerRole.includes('camera') || lowerRole.includes('cinematograph')) && course.domain.includes('Cinematography')) ||
+        ((lowerRole.includes('data') || lowerRole.includes('ai') || lowerRole.includes('machine learning')) && course.domain.includes('Intelligence')) ||
+        ((lowerRole.includes('finance') || lowerRole.includes('account')) && course.domain.includes('Finance'));
 
       let score = matchedMissingSkills.length * 10;
-      if (domainMatch) score += 5;
+      if (domainMatch) {
+        score += 100; // Big bonus for matching user's specific domain
+      } else {
+        score -= 50; // Suppress unrelated domains
+      }
       score += (course.rating || 4.5);
 
       return {
         course,
         matchedMissingSkillsCount: matchedMissingSkills.length,
+        domainMatch,
         score,
       };
     });
 
     // 3. Sort by relevance score descending
     scored.sort((a, b) => b.score - a.score);
+
+    // Filter out completely any non-domain courses if any domain matches exist
+    const domainMatches = scored.filter((s) => s.domainMatch);
+    if (domainMatches.length > 0) {
+      return domainMatches.map((s) => s.course);
+    }
 
     return scored.map((s) => s.course);
   }

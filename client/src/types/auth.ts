@@ -11,6 +11,15 @@ export interface User {
   location?: string;
   description?: string;
   phone?: string;
+  title?: string;
+  profession?: string;
+  github?: string;
+  linkedin?: string;
+  portfolio?: string;
+  experienceLevel?: string;
+  companySize?: string;
+  industry?: string;
+  onboardingCompleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }

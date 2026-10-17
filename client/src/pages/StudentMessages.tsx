@@ -16,6 +16,11 @@ import {
   ShieldCheck,
   User,
   ArrowRight,
+  Calendar,
+  Video,
+  Clock,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 
 interface StudentContact extends ChatContact {
@@ -50,6 +55,15 @@ export const StudentMessages: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Meeting Schedule Modal State
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [meetingTitle, setMeetingTitle] = useState('Online Video Interview');
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingTime, setMeetingTime] = useState('11:00');
+  const [meetingPlatform, setMeetingPlatform] = useState<'google_meet' | 'jitsi' | 'custom'>('google_meet');
+  const [customMeetingUrl, setCustomMeetingUrl] = useState('');
+  const [proposingMeeting, setProposingMeeting] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -323,6 +337,44 @@ export const StudentMessages: React.FC = () => {
     }
   };
 
+  const handleProposeMeeting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedContact || proposingMeeting) return;
+
+    setProposingMeeting(true);
+    try {
+      const scheduledDateTime = meetingDate ? `${meetingDate} at ${meetingTime}` : `Tomorrow at ${meetingTime}`;
+      const roomId = `recruitx-${Math.random().toString(36).substring(2, 9)}`;
+      const meetingLink =
+        meetingPlatform === 'google_meet'
+          ? `https://meet.google.com/${roomId}`
+          : meetingPlatform === 'jitsi'
+          ? `https://meet.jit.si/${roomId}`
+          : customMeetingUrl || `https://meet.google.com/${roomId}`;
+
+      const meetingInfo = {
+        title: meetingTitle || 'Online Technical Interview',
+        scheduledAt: scheduledDateTime,
+        durationMinutes: 45,
+        meetingLink,
+        platform: meetingPlatform === 'google_meet' ? 'Google Meet' : meetingPlatform === 'jitsi' ? 'Jitsi Meet' : 'Online Conference',
+        status: 'proposed' as const,
+      };
+
+      const messageContent = `📅 Interview Meeting Proposed: ${meetingInfo.title} on ${scheduledDateTime}\nJoin Link: ${meetingLink}`;
+      const sentMessage = await messageService.sendMessage(selectedContact._id, messageContent, meetingInfo);
+
+      setMessages((prev) => [...prev, sentMessage]);
+      setShowMeetingModal(false);
+      setMeetingDate('');
+      setCustomMeetingUrl('');
+    } catch (err) {
+      console.error('Failed to propose meeting:', err);
+    } finally {
+      setProposingMeeting(false);
+    }
+  };
+
   const filteredContacts = contacts.filter((c) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -557,15 +609,56 @@ export const StudentMessages: React.FC = () => {
                         key={m._id}
                         className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                       >
-                        <div
-                          className={`max-w-md px-4 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap ${
+                        {m.meetingInfo ? (
+                          <div className={`max-w-sm p-4 rounded-2xl border shadow-sm space-y-2.5 text-xs ${
                             isMe
-                              ? 'bg-neutral-900 text-white rounded-br-xs shadow-xs'
-                              : 'bg-white text-neutral-800 border border-neutral-200 shadow-xs rounded-bl-xs'
-                          }`}
-                        >
-                          {m.content}
-                        </div>
+                              ? 'bg-neutral-900 text-white border-neutral-800'
+                              : 'bg-white text-neutral-900 border-neutral-200'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <div className={`p-1.5 rounded-lg ${isMe ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-800'}`}>
+                                <Video className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="font-bold">{m.meetingInfo.title}</p>
+                                <p className={`text-[10px] ${isMe ? 'text-neutral-400' : 'text-neutral-500'}`}>{m.meetingInfo.platform || 'Online Video Meeting'}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-1 text-[11px] pt-1 border-t border-neutral-700/50">
+                              <p className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                                <span>{m.meetingInfo.scheduledAt}</span>
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Duration: {m.meetingInfo.durationMinutes} mins</span>
+                              </p>
+                            </div>
+                            <a
+                              href={m.meetingInfo.meetingLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`mt-2 w-full py-1.5 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                                isMe
+                                  ? 'bg-white text-neutral-900 hover:bg-neutral-100'
+                                  : 'bg-neutral-900 text-white hover:bg-neutral-800'
+                              }`}
+                            >
+                              <span>Join Online Meeting</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        ) : (
+                          <div
+                            className={`max-w-md px-4 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap ${
+                              isMe
+                                ? 'bg-neutral-900 text-white rounded-br-xs shadow-xs'
+                                : 'bg-white text-neutral-800 border border-neutral-200 shadow-xs rounded-bl-xs'
+                            }`}
+                          >
+                            {m.content}
+                          </div>
+                        )}
                         <div className="flex items-center gap-1 text-[9px] text-neutral-400 mt-1 px-1">
                           <span>{isMe ? 'You' : selectedContact.name}</span>
                           <span>•</span>
@@ -585,6 +678,17 @@ export const StudentMessages: React.FC = () => {
 
               {/* Message Composer (Input Box) - ALWAYS VISIBLE */}
               <div className="p-3 border-t border-neutral-200 bg-white space-y-2">
+                <div className="flex items-center justify-between pb-1">
+                  <span className="text-[11px] font-medium text-neutral-500">Quick Actions:</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMeetingModal(true)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-200 transition-colors"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Propose Interview Meeting</span>
+                  </button>
+                </div>
                 <div className="flex items-end gap-2">
                   <div className="flex-1 relative">
                     <textarea
@@ -649,6 +753,123 @@ export const StudentMessages: React.FC = () => {
           )}
         </Card>
       </div>
+
+      {/* Propose Interview Meeting Dialog */}
+      {showMeetingModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-neutral-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <h3 className="text-sm font-bold text-neutral-900">
+                  Propose Interview Meeting
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMeetingModal(false)}
+                className="text-neutral-400 hover:text-neutral-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleProposeMeeting} className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-semibold text-neutral-700 block mb-1">
+                  Interview Round / Topic
+                </label>
+                <input
+                  type="text"
+                  value={meetingTitle}
+                  onChange={(e) => setMeetingTitle(e.target.value)}
+                  placeholder="e.g. Technical Round 1 / Portfolio Review"
+                  required
+                  className="w-full p-2.5 rounded-lg border border-neutral-300 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-neutral-700 block mb-1">
+                    Proposed Date
+                  </label>
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(e) => setMeetingDate(e.target.value)}
+                    required
+                    className="w-full p-2.5 rounded-lg border border-neutral-300 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-neutral-700 block mb-1">
+                    Proposed Time
+                  </label>
+                  <input
+                    type="time"
+                    value={meetingTime}
+                    onChange={(e) => setMeetingTime(e.target.value)}
+                    required
+                    className="w-full p-2.5 rounded-lg border border-neutral-300 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-neutral-700 block mb-1">
+                  Meeting Platform &amp; Link
+                </label>
+                <select
+                  value={meetingPlatform}
+                  onChange={(e) => setMeetingPlatform(e.target.value as any)}
+                  className="w-full p-2.5 rounded-lg border border-neutral-300 text-xs bg-white mb-2"
+                >
+                  <option value="google_meet">Google Meet (Auto-generated room)</option>
+                  <option value="jitsi">Jitsi Meet (No login required / Open)</option>
+                  <option value="custom">Custom Meeting Link (Zoom, Teams, etc.)</option>
+                </select>
+                {meetingPlatform === 'custom' && (
+                  <input
+                    type="url"
+                    value={customMeetingUrl}
+                    onChange={(e) => setCustomMeetingUrl(e.target.value)}
+                    placeholder="https://zoom.us/j/... or teams link"
+                    required
+                    className="w-full p-2.5 rounded-lg border border-neutral-300 text-xs"
+                  />
+                )}
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-neutral-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMeetingModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={proposingMeeting}
+                  className="flex items-center gap-1.5"
+                >
+                  {proposingMeeting ? (
+                    'Sending Proposal...'
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Send Meeting Invite in Chat</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

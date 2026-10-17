@@ -4,13 +4,22 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
-import { User, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Lock, CheckCircle2, AlertCircle, Zap, ShieldCheck } from 'lucide-react';
 
 export const StudentSettings: React.FC = () => {
   const { user, updateUser } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [email] = useState(user?.email || '');
   const [phone, setPhone] = useState((user as any)?.phone || '');
+  const [profession, setProfession] = useState((user as any)?.profession || '');
+  const [title, setTitle] = useState((user as any)?.title || '');
+  const [location, setLocation] = useState((user as any)?.location || '');
+  const [experienceLevel, setExperienceLevel] = useState((user as any)?.experienceLevel || 'Fresher / Entry-Level');
+  const [github, setGithub] = useState((user as any)?.github || '');
+  const [linkedin, setLinkedin] = useState((user as any)?.linkedin || '');
+  const [portfolio, setPortfolio] = useState((user as any)?.portfolio || '');
+  const [description, setDescription] = useState((user as any)?.description || '');
+
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
 
@@ -25,7 +34,18 @@ export const StudentSettings: React.FC = () => {
     setSavingProfile(true);
     setProfileMsg(null);
     try {
-      const res = await api.put('/auth/profile', { name, phone });
+      const res = await api.put('/auth/profile', {
+        name,
+        phone,
+        profession,
+        title,
+        location,
+        experienceLevel,
+        github,
+        linkedin,
+        portfolio,
+        description,
+      });
       if (res.data?.data?.user) {
         updateUser(res.data.data.user);
       }
@@ -60,34 +80,107 @@ export const StudentSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <div className="border-b border-neutral-200 pb-4">
-        <h1 className="text-xl font-bold text-neutral-900">Account Settings</h1>
-        <p className="text-xs text-neutral-500">Manage your account profile, contact details, and password.</p>
+        <h1 className="text-xl font-bold text-neutral-900">Candidate Profile &amp; Settings</h1>
+        <p className="text-xs text-neutral-500">Manage your recruitment profile, portfolio links, and login security.</p>
       </div>
 
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
           <User className="w-4 h-4 text-neutral-500" />
-          <h2 className="text-sm font-semibold text-neutral-900">Personal Information</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Candidate Information &amp; Links</h2>
         </div>
-        <form onSubmit={handleUpdateProfile} className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-neutral-700 block mb-1">Full Name</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required />
+        <form onSubmit={handleUpdateProfile} className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">Full Name</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">Email Address</label>
+              <Input value={email} disabled className="bg-neutral-50 text-neutral-500" />
+            </div>
           </div>
-          <div>
-            <label className="text-xs font-medium text-neutral-700 block mb-1">Email Address</label>
-            <Input value={email} disabled className="bg-neutral-50" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">Primary Discipline / Profession</label>
+              <select
+                value={profession}
+                onChange={(e) => setProfession(e.target.value)}
+                className="w-full text-xs p-2.5 rounded-lg border border-neutral-300 bg-white"
+              >
+                <option value="">Select your discipline...</option>
+                <option value="Software Engineering">Software Engineering &amp; Web Development</option>
+                <option value="Artificial Intelligence &amp; Data Science">AI, Machine Learning &amp; Data Science</option>
+                <option value="UI/UX &amp; Product Design">UI/UX &amp; Product Design</option>
+                <option value="Product Marketing &amp; Growth Management">Product Marketing &amp; Growth Management</option>
+                <option value="Finance &amp; Accounting">Finance &amp; Corporate Accounting</option>
+                <option value="Video Editing &amp; Post-Production">Video Editing &amp; Post-Production</option>
+                <option value="Film &amp; Movie Direction">Film &amp; Cinema Direction</option>
+                <option value="Cloud Infrastructure &amp; DevOps">Cloud Infrastructure &amp; DevOps</option>
+              </select>
+            </div>
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">Target Role / Title</label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Senior Frontend Engineer" />
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">Contact Phone</label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 9876543210" />
+            </div>
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">Current / Desired Location</label>
+              <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Mumbai, Maharashtra" />
+            </div>
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">Experience Level</label>
+              <select
+                value={experienceLevel}
+                onChange={(e) => setExperienceLevel(e.target.value)}
+                className="w-full text-xs p-2.5 rounded-lg border border-neutral-300 bg-white"
+              >
+                <option value="Fresher / Entry-Level">Fresher / Entry-Level</option>
+                <option value="Junior (1-2 years)">Junior (1-2 years)</option>
+                <option value="Mid-Level (3-5 years)">Mid-Level (3-5 years)</option>
+                <option value="Senior (5+ years)">Senior (5+ years)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">LinkedIn Profile</label>
+              <Input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/in/..." />
+            </div>
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">GitHub Profile</label>
+              <Input value={github} onChange={(e) => setGithub(e.target.value)} placeholder="https://github.com/..." />
+            </div>
+            <div>
+              <label className="font-medium text-neutral-700 block mb-1">Portfolio / Personal Site</label>
+              <Input value={portfolio} onChange={(e) => setPortfolio(e.target.value)} placeholder="https://..." />
+            </div>
+          </div>
+
           <div>
-            <label className="text-xs font-medium text-neutral-700 block mb-1">Contact Phone</label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 9876543210" />
+            <label className="font-medium text-neutral-700 block mb-1">Professional Bio &amp; Summary</label>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief summary of your background, core competencies, and career goals..."
+              className="w-full text-xs p-2.5 rounded-lg border border-neutral-300 focus:outline-none focus:ring-1 focus:ring-neutral-900 resize-none"
+            />
           </div>
 
           <div className="flex items-center gap-3 pt-1">
             <Button type="submit" size="sm" disabled={savingProfile}>
-              {savingProfile ? 'Updating...' : 'Update Profile'}
+              {savingProfile ? 'Updating Profile...' : 'Save Profile Changes'}
             </Button>
             {profileMsg && (
               <span className={`text-xs font-semibold flex items-center gap-1 ${profileMsg.type === 'success' ? 'text-emerald-700' : 'text-red-600'}`}>
@@ -126,6 +219,40 @@ export const StudentSettings: React.FC = () => {
             )}
           </div>
         </form>
+      </Card>
+
+      {/* Automated Job Applications Permission & Preferences */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
+          <Zap className="w-4 h-4 text-amber-500" />
+          <h2 className="text-sm font-semibold text-neutral-900">Automated Job Applications (Auto-Apply)</h2>
+        </div>
+
+        <div className="space-y-3 text-xs">
+          <div className="p-3.5 rounded-lg bg-neutral-50 border border-neutral-200 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-neutral-900">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>User Consent &amp; Permission Status</span>
+            </div>
+            <p className="text-[11.5px] text-neutral-600 leading-relaxed">
+              RecruitX will only automatically apply to companies when you provide active permission and when active job descriptions match your verified skills above your chosen threshold (e.g. 75%+).
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 bg-white">
+            <div>
+              <p className="font-semibold text-neutral-900">Auto-Apply Engine Quick Action</p>
+              <p className="text-[11px] text-neutral-500">Configure parameters or trigger an automated application scan across Indian tech hubs.</p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => window.location.href = '/student/jobs'}
+              className="text-xs shrink-0"
+            >
+              Open Auto-Apply in Job Matches →
+            </Button>
+          </div>
+        </div>
       </Card>
     </div>
   );

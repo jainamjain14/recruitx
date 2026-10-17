@@ -21,6 +21,8 @@ import {
   Mail,
   Compass,
   SlidersHorizontal,
+  Zap,
+  X,
 } from 'lucide-react';
 import {
   LocalityItem,
@@ -91,7 +93,7 @@ const resolveDetailedLocation = (lat: number, lng: number): { shortLabel: string
   if (bestSub && minSubDist <= 5.5) {
     return {
       shortLabel: `${bestSub.name}, ${bestSub.city}`,
-      fullLabel: `${bestSub.name}, ${bestSub.city} (Live Pinpoint)`,
+      fullLabel: `${bestSub.name}, ${bestSub.city}`,
     };
   }
 
@@ -109,13 +111,13 @@ const resolveDetailedLocation = (lat: number, lng: number): { shortLabel: string
   if (minCityDist <= 75) {
     return {
       shortLabel: `${nearestCity.name}, ${nearestCity.state}`,
-      fullLabel: `${nearestCity.name}, ${nearestCity.state} (Live GPS Pin)`,
+      fullLabel: `${nearestCity.name}, ${nearestCity.state}`,
     };
   }
 
   return {
     shortLabel: `${lat.toFixed(3)}°N, ${lng.toFixed(3)}°E`,
-    fullLabel: `GPS (${lat.toFixed(3)}°N, ${lng.toFixed(3)}°E), India`,
+    fullLabel: `${lat.toFixed(3)}°N, ${lng.toFixed(3)}°E, India`,
   };
 };
 
@@ -129,6 +131,15 @@ export const StudentJobs: React.FC = () => {
   const [appliedCompany, setAppliedCompany] = useState<string[]>([]);
   const [applyingKey, setApplyingKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Auto-Apply Permission & Execution State
+  const [autoApplyModalOpen, setAutoApplyModalOpen] = useState(false);
+  const [autoApplyConsent, setAutoApplyConsent] = useState(false);
+  const [autoApplyMinScore, setAutoApplyMinScore] = useState<number>(75);
+  const [autoApplyMaxApps, setAutoApplyMaxApps] = useState<number>(5);
+  const [autoApplying, setAutoApplying] = useState(false);
+  const [autoApplyError, setAutoApplyError] = useState<string | null>(null);
+  const [autoApplyResult, setAutoApplyResult] = useState<{ appliedCount: number; message: string; applications: any[] } | null>(null);
 
   // GPS Permission Prompt State
   const [gpsModalOpen, setGpsModalOpen] = useState(false);
@@ -335,6 +346,34 @@ export const StudentJobs: React.FC = () => {
     }
   };
 
+  const handleExecuteAutoApply = async () => {
+    if (!autoApplyConsent) {
+      setAutoApplyError('You must check the authorization box to grant permission before running automated applications.');
+      return;
+    }
+
+    setAutoApplying(true);
+    setAutoApplyError(null);
+    setAutoApplyResult(null);
+
+    try {
+      const res = await api.post('/jobs/auto-apply', {
+        consentGranted: true,
+        minMatchScore: autoApplyMinScore,
+        maxApplications: autoApplyMaxApps,
+      });
+
+      if (res.data?.data) {
+        setAutoApplyResult(res.data.data);
+        await fetchExistingApplications();
+      }
+    } catch (err: any) {
+      setAutoApplyError(err.response?.data?.message || err.message || 'Auto-apply scan failed.');
+    } finally {
+      setAutoApplying(false);
+    }
+  };
+
   const filteredJobs = companyJobs.filter((job) => {
     const cleanCompany = decodeHtmlEntities(job.company).toLowerCase();
     const cleanTitle = decodeHtmlEntities(job.title).toLowerCase();
@@ -437,64 +476,210 @@ export const StudentJobs: React.FC = () => {
         </div>
       )}
 
+      {/* Auto-Apply Permission & Execution Modal */}
+      {autoApplyModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <Card className="max-w-lg w-full p-6 space-y-5 bg-white border-neutral-300 shadow-2xl">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-neutral-900 text-white">
+                  <Zap className="w-4 h-4 text-amber-300" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    AI Automated Job Applications
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    With Explicit User Permission &amp; Skill Threshold Matching
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAutoApplyModalOpen(false)}
+                className="text-neutral-400 hover:text-neutral-700 p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Error or Success Alert */}
+            {autoApplyError && (
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{autoApplyError}</span>
+              </div>
+            )}
+
+            {autoApplyResult && (
+              <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 space-y-2">
+                <div className="flex items-center gap-2 font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>{autoApplyResult.message}</span>
+                </div>
+                {autoApplyResult.applications.length > 0 && (
+                  <div className="space-y-1 pl-6 pt-1 text-[11px] text-emerald-700">
+                    {autoApplyResult.applications.map((app: any) => (
+                      <div key={app._id} className="flex justify-between items-center">
+                        <span>• {app.jobTitle} at <strong>{app.companyName}</strong></span>
+                        <span className="font-semibold text-emerald-800">Applied ✓</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* User Consent & Legal Authorization (Mandatory) */}
+            <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200 space-y-2.5">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoApplyConsent}
+                  onChange={(e) => {
+                    setAutoApplyConsent(e.target.checked);
+                    if (e.target.checked) setAutoApplyError(null);
+                  }}
+                  className="mt-0.5 w-4 h-4 rounded text-neutral-900 focus:ring-0 border-neutral-300"
+                />
+                <div className="text-xs text-neutral-800">
+                  <span className="font-bold">Grant Explicit Permission: </span>
+                  I authorize RecruitX to automatically submit job applications matching my profile qualifications.
+                </div>
+              </label>
+
+              <p className="text-[10.5px] text-neutral-500 pl-6 leading-relaxed">
+                As required by the RecruitX Placement Protocol, automated applications are only dispatched with your active consent. Each submission is logged in your Applications Tracker with your uploaded resume.
+              </p>
+            </div>
+
+            {/* Threshold & Preference Configuration */}
+            <div className="space-y-3 text-xs">
+              <div>
+                <div className="flex justify-between text-neutral-700 font-semibold mb-1">
+                  <span>Minimum Match Percentage Threshold:</span>
+                  <span className="font-bold text-neutral-900">{autoApplyMinScore}% Match</span>
+                </div>
+                <input
+                  type="range"
+                  min="60"
+                  max="95"
+                  step="5"
+                  value={autoApplyMinScore}
+                  onChange={(e) => setAutoApplyMinScore(Number(e.target.value))}
+                  className="w-full h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+                />
+                <div className="flex justify-between text-[10px] text-neutral-400 mt-1">
+                  <span>60% (Broad)</span>
+                  <span>75% (Recommended)</span>
+                  <span>95% (Exact)</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="font-semibold text-neutral-700 block mb-1">Max Applications Per Batch:</label>
+                  <select
+                    value={autoApplyMaxApps}
+                    onChange={(e) => setAutoApplyMaxApps(Number(e.target.value))}
+                    className="w-full text-xs p-2 rounded-lg border border-neutral-300 bg-white"
+                  >
+                    <option value="3">Up to 3 Jobs</option>
+                    <option value="5">Up to 5 Jobs (Recommended)</option>
+                    <option value="10">Up to 10 Jobs</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-neutral-700 block mb-1">Target Discipline:</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={targetDomain}
+                    className="w-full text-xs p-2 rounded-lg border border-neutral-200 bg-neutral-100 text-neutral-600 truncate"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setAutoApplyModalOpen(false)}
+                className="text-xs"
+              >
+                Close
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handleExecuteAutoApply}
+                disabled={!autoApplyConsent || autoApplying}
+                className="text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white disabled:opacity-50"
+              >
+                {autoApplying ? (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                    <span>Matching &amp; Applying...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Run Auto-Apply Scan Now</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-200 pb-4 gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-neutral-900">India Job Matches & Company Vacancies</h1>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600 text-white flex items-center gap-1">
-              <Navigation className="w-3 h-3" />
-              🇮🇳 Live Openings (₹ LPA)
+            <h1 className="text-xl font-bold text-neutral-900">Job Matches & Company Openings</h1>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-900 text-white flex items-center gap-1">
+              🇮🇳 India
             </span>
           </div>
           <p className="text-xs text-neutral-500 mt-1">
-            Indian company job openings verified relative to <span className="font-semibold text-neutral-900">{userCity}</span> for:{' '}
+            Openings near <span className="font-semibold text-neutral-900">{userCity}</span> for:{' '}
             <span className="font-semibold text-neutral-900">{targetDomain}</span>
           </p>
         </div>
 
-        {/* View Toggle Mode */}
-        <div className="flex items-center gap-2 bg-neutral-100 p-1 rounded-lg border border-neutral-200">
+        {/* Auto-Apply Action Button */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setViewMode('list')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              viewMode === 'list' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'
-            }`}
+            onClick={() => {
+              setAutoApplyModalOpen(true);
+              setAutoApplyResult(null);
+              setAutoApplyError(null);
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-900 text-white hover:bg-neutral-800 flex items-center gap-1.5 transition-all shadow-sm"
           >
-            <ListFilter className="w-3.5 h-3.5" />
-            List View ({filteredJobs.length})
-          </button>
-
-          <button
-            onClick={() => setViewMode('map')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              viewMode === 'map' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'
-            }`}
-          >
-            <Map className="w-3.5 h-3.5 text-emerald-400" />
-            Interactive Map ({filteredJobs.length})
+            <Zap className="w-3.5 h-3.5 text-neutral-200" />
+            <span>Auto-Apply Engine</span>
           </button>
         </div>
       </div>
 
-      {/* Geolocation Permission Request Banner */}
+      {/* Location Permission Banner */}
       {gpsPermissionState !== 'granted' && (
-        <div className="bg-gradient-to-r from-emerald-950 via-neutral-900 to-neutral-950 text-white p-4 rounded-xl border border-emerald-500/40 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-3 animate-in fade-in duration-300">
+        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 shrink-0">
-              <Compass className="w-5 h-5 animate-pulse" />
+            <div className="p-2.5 rounded-full bg-neutral-200 text-neutral-700 shrink-0">
+              <Compass className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold text-white">Browser Location &amp; India Pinpoint</h3>
-                <span className="text-[10px] font-semibold bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">
-                  {gpsPermissionState === 'denied' ? 'Permission Denied in Browser' : 'Live Real-Time GPS'}
-                </span>
-              </div>
-              <p className="text-[11.5px] text-neutral-300 mt-0.5">
+              <h3 className="text-xs font-bold text-neutral-900">Set Your Location for Nearby Results</h3>
+              <p className="text-[11.5px] text-neutral-500 mt-0.5">
                 {gpsPermissionState === 'denied'
-                  ? 'Location access was blocked in browser settings. Search or select any locality across India below, or allow access via the URL bar lock icon.'
-                  : 'Allow browser location access to pinpoint your live GPS coordinates anywhere in India and calculate exact road distances to nearby companies and tech parks.'}
+                  ? 'Location access was blocked. Use the search box below to manually set your city.'
+                  : 'Allow browser location access to show jobs closest to you, or manually search your city below.'}
               </p>
             </div>
           </div>
@@ -503,17 +688,18 @@ export const StudentJobs: React.FC = () => {
               onClick={() => detectLocationAndFetch(true)}
               disabled={locatingGps}
               size="sm"
-              className="bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs shrink-0 shadow-md flex items-center gap-1.5"
+              variant="outline"
+              className="text-xs flex items-center gap-1.5"
             >
               {locatingGps ? (
                 <>
                   <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  Requesting GPS...
+                  Detecting...
                 </>
               ) : (
                 <>
-                  <Navigation className="w-3.5 h-3.5 fill-current" />
-                  Allow Live Location Access
+                  <Navigation className="w-3.5 h-3.5" />
+                  Use My Location
                 </>
               )}
             </Button>
@@ -521,15 +707,15 @@ export const StudentJobs: React.FC = () => {
         </div>
       )}
 
-      {/* Location & GPS Proximity Toolbar */}
-      <div className="p-3.5 bg-neutral-900 text-white rounded-xl border border-neutral-800 shadow-md space-y-3">
+      {/* Location & Distance Toolbar */}
+      <div className="p-3.5 bg-neutral-50 text-neutral-900 rounded-xl border border-neutral-200 space-y-3">
         {/* Row 1: Origin display, GPS trigger, and Radius filter */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
-            <Compass className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="text-neutral-300 font-medium">Distance Origin:</span>
-            <span className="font-bold text-emerald-400 bg-neutral-800 px-2.5 py-1 rounded border border-neutral-700 flex items-center gap-1.5 shadow-sm">
-              {locationMode === 'gps' && deviceLat !== null ? '🛰️ Live Pinpoint:' : '📍 Center:'} {userCity}
+            <MapPin className="w-4 h-4 text-neutral-500 shrink-0" />
+            <span className="text-neutral-600 font-medium">Search Center:</span>
+            <span className="font-bold text-neutral-900 bg-white px-2.5 py-1 rounded border border-neutral-200 flex items-center gap-1.5">
+              {userCity}
               {deviceLat !== null && deviceLng !== null && (
                 <span className="text-[10px] text-neutral-400 font-normal">
                   ({deviceLat.toFixed(3)}°N, {deviceLng.toFixed(3)}°E)
@@ -540,21 +726,17 @@ export const StudentJobs: React.FC = () => {
               type="button"
               onClick={() => detectLocationAndFetch(true)}
               disabled={locatingGps}
-              className={`text-[11px] py-1 px-3 rounded-md font-bold transition-all flex items-center gap-1.5 shadow-sm ${
-                locationMode === 'gps'
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-500 border border-emerald-400 ring-1 ring-emerald-400/40'
-                  : 'bg-neutral-800 text-white hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-500'
-              }`}
+              className="text-[11px] py-1 px-3 rounded-md font-semibold transition-all flex items-center gap-1.5 border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
             >
               {locatingGps ? (
                 <>
-                  <Sparkles className="w-3.5 h-3.5 animate-spin text-white" />
-                  <span>Querying GPS...</span>
+                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                  <span>Detecting...</span>
                 </>
               ) : (
                 <>
-                  <Navigation className="w-3.5 h-3.5 text-white fill-current shrink-0" />
-                  <span>Use My GPS Pin</span>
+                  <Navigation className="w-3.5 h-3.5 shrink-0" />
+                  <span>Detect My Location</span>
                 </>
               )}
             </button>
@@ -563,7 +745,7 @@ export const StudentJobs: React.FC = () => {
           {filterMode === 'nearby' && (
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-3.5 h-3.5 text-neutral-400" />
-              <span className="text-neutral-300">Nearby Radius:</span>
+              <span className="text-neutral-500">Radius:</span>
               <div className="flex items-center gap-1">
                 {[15, 25, 50, 100].map((r) => (
                   <button
@@ -571,8 +753,8 @@ export const StudentJobs: React.FC = () => {
                     onClick={() => setNearbyRadius(r)}
                     className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${
                       nearbyRadius === r
-                        ? 'bg-emerald-500 text-neutral-950 border-emerald-400 font-bold'
-                        : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700'
+                        ? 'bg-neutral-900 text-white border-neutral-900'
+                        : 'bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-100'
                     }`}
                   >
                     &lt; {r} km
@@ -583,20 +765,20 @@ export const StudentJobs: React.FC = () => {
           )}
         </div>
 
-        {/* Row 2: Interactive All-India Locality Search Bar with Autocomplete Dropdown */}
-        <div className="relative pt-1 border-t border-neutral-800">
-          <div className="flex items-center gap-2 bg-neutral-950 px-3 py-1.5 rounded-lg border border-neutral-700 focus-within:border-emerald-400 transition-colors">
-            <Search className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+        {/* Row 2: Locality Search Bar */}
+        <div className="relative pt-1 border-t border-neutral-200">
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-neutral-300 focus-within:border-neutral-900 transition-colors">
+            <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
             <input
               type="text"
-              placeholder="🔍 Search ANY locality or IT park in India (e.g. Borivali, Dadar, Fort, Hinjewadi, Whitefield, Sector 62, Cyber City...)"
+              placeholder="Search any city or area in India (e.g. Borivali, Whitefield, Hinjewadi, Sector 62...)"
               value={localitySearchText}
               onChange={(e) => {
                 setLocalitySearchText(e.target.value);
                 setIsLocalitySearchOpen(true);
               }}
               onFocus={() => setIsLocalitySearchOpen(true)}
-              className="bg-transparent text-xs text-white placeholder-neutral-500 focus:outline-none w-full"
+              className="bg-transparent text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none w-full"
             />
             {localitySearchText && (
               <button
@@ -605,7 +787,7 @@ export const StudentJobs: React.FC = () => {
                   setLocalitySearchText('');
                   setIsLocalitySearchOpen(false);
                 }}
-                className="text-neutral-400 hover:text-white text-xs px-1"
+                className="text-neutral-400 hover:text-neutral-700 text-xs px-1"
               >
                 ✕
               </button>
@@ -620,31 +802,28 @@ export const StudentJobs: React.FC = () => {
                 onClick={() => setIsLocalitySearchOpen(false)}
               />
               {filteredLocalities.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-neutral-950 border border-neutral-700 rounded-lg shadow-2xl max-h-64 overflow-y-auto z-50 divide-y divide-neutral-800">
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-xl max-h-64 overflow-y-auto z-50 divide-y divide-neutral-100">
                   {filteredLocalities.map((loc) => (
                     <button
                       key={`${loc.name}-${loc.city}-${loc.lat}`}
                       type="button"
                       onClick={() => handleSelectLocality(loc)}
-                      className="w-full text-left px-3 py-2 hover:bg-neutral-800 flex items-center justify-between group transition-colors"
+                      className="w-full text-left px-3 py-2 hover:bg-neutral-50 flex items-center justify-between group transition-colors"
                     >
                       <div className="flex items-center gap-2">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                        <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                         <div>
-                          <span className="text-xs font-bold text-white group-hover:text-emerald-400">
+                          <span className="text-xs font-bold text-neutral-900">
                             {loc.name}
                           </span>
-                          <span className="text-[10px] text-neutral-400 ml-2">
+                          <span className="text-[10px] text-neutral-500 ml-2">
                             ({loc.city}, {loc.state})
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300 border border-neutral-700 group-hover:border-emerald-500/50 group-hover:text-emerald-300">
+                        <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600 border border-neutral-200">
                           {loc.categoryLabel}
-                        </span>
-                        <span className="text-[9px] text-neutral-500 font-mono">
-                          {loc.lat.toFixed(2)}°N, {loc.lng.toFixed(2)}°E
                         </span>
                       </div>
                     </button>
@@ -718,26 +897,9 @@ export const StudentJobs: React.FC = () => {
         <div className="flex items-center justify-center py-12">
           <p className="text-xs text-neutral-500 flex items-center gap-2">
             <Sparkles className="w-4 h-4 animate-spin text-neutral-900" />
-            Fetching live Indian company job vacancies and computing exact GPS distances...
+            Loading job openings...
           </p>
         </div>
-      ) : viewMode === 'map' ? (
-        /* Leaflet Interactive Map View with Live Drag Pin */
-        <CompanyLocationMap
-          companies={filteredJobs}
-          userLat={userLat ?? undefined}
-          userLng={userLng ?? undefined}
-          userCity={userCity}
-          deviceLat={deviceLat ?? undefined}
-          deviceLng={deviceLng ?? undefined}
-          deviceCity={deviceCity}
-          locationMode={locationMode}
-          hasGpsPermission={gpsPermissionState === 'granted'}
-          onRequestLocation={() => detectLocationAndFetch(true)}
-          onLocationChange={handleManualLocationChange}
-          onApply={(comp, title, hrEmail) => handleNativeApply(comp, title, hrEmail)}
-          appliedKeys={appliedCompany}
-        />
       ) : filteredJobs.length === 0 ? (
         <Card className="p-8 text-center space-y-2">
           <p className="text-xs font-semibold text-neutral-700">
@@ -800,17 +962,17 @@ export const StudentJobs: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs">
                         <span className="font-bold text-neutral-900">{decodeHtmlEntities(job.company)}</span>
                         <span>•</span>
-                        <span className="flex items-center gap-1 font-semibold text-emerald-700">
-                          <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
-                          {locationMode === 'gps' && distFromDevice !== null
-                            ? (distFromDevice <= 1
-                                ? 'Within 1 km of your GPS location'
-                                : `${distFromDevice} km from your GPS location`)
-                            : (distFromActiveCenter > 0
-                                ? (distFromActiveCenter <= 2
-                                    ? `Within ${userCity.split(',')[0]} center (< 2 km)`
-                                    : `${distFromActiveCenter} km from ${userCity.split(',')[0]} center`)
-                                : '')}
+                        <span className="flex items-center gap-1 font-semibold text-neutral-700">
+                          <MapPin className="w-3 h-3 text-neutral-500 shrink-0" />
+                          {distFromDevice !== null && distFromDevice <= 1
+                            ? 'Within 1 km of your location'
+                            : distFromDevice !== null && distFromDevice > 1
+                            ? `${distFromDevice} km from your location`
+                            : distFromActiveCenter > 0
+                            ? (distFromActiveCenter <= 2
+                                ? `Within ${userCity.split(',')[0]} center`
+                                : `${distFromActiveCenter} km from ${userCity.split(',')[0]}`)
+                            : ''}
                           <span className="text-neutral-500 font-normal">({job.location})</span>
                         </span>
 
@@ -843,35 +1005,23 @@ export const StudentJobs: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Middle Row: Salary in Rupees (₹ LPA) & Per-Company Skill Gap Breakdown */}
+                {/* Middle Row: Per-Company Matching and Missing Skills */}
                 <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-neutral-600 gap-1.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="flex items-center gap-1 font-bold text-neutral-900">
-                        <IndianRupee className="w-3.5 h-3.5 text-emerald-700" /> Compensation: {job.salary}
-                      </span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        {job.salary.includes('Disclosed') ? '✓ Employer Disclosed CTC' : '✓ AmbitionBox Market Benchmark'}
-                      </span>
-                    </div>
-                    <span className="text-neutral-400">Skill Gap Breakdown for {decodeHtmlEntities(job.company)}</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-neutral-50 p-4 rounded-md border border-neutral-200">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
                     {/* Matching Skills Candidate Possesses */}
                     <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-neutral-800" />
                         <span>Matching Skills You Possess ({job.matchedSkills.length})</span>
                       </div>
                       {job.matchedSkills.length === 0 ? (
-                        <p className="text-[11px] text-neutral-400 italic">No matching skills found in your resume.</p>
+                        <p className="text-[11px] text-neutral-400 italic">No matching skills found in your profile.</p>
                       ) : (
                         <div className="flex flex-wrap gap-1.5 pt-1">
                           {job.matchedSkills.map((sk) => (
                             <span
                               key={sk}
-                              className="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200"
+                              className="px-2 py-0.5 rounded text-[11px] font-medium bg-neutral-200 text-neutral-800 border border-neutral-300"
                             >
                               ✓ {sk}
                             </span>
@@ -882,20 +1032,20 @@ export const StudentJobs: React.FC = () => {
 
                     {/* Missing Skills Required by This Specific Company */}
                     <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Skills You Need for {decodeHtmlEntities(job.company)} ({job.missingSkills.length})</span>
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-700">
+                        <AlertTriangle className="w-3.5 h-3.5 text-neutral-500" />
+                        <span>Missing Skills for {decodeHtmlEntities(job.company)} ({job.missingSkills.length})</span>
                       </div>
                       {job.missingSkills.length === 0 ? (
-                        <p className="text-[11px] text-emerald-700 font-semibold pt-1">
-                          ✨ You meet 100% of {decodeHtmlEntities(job.company)}'s requirements!
+                        <p className="text-[11px] text-neutral-700 font-semibold pt-1">
+                          ✓ You meet 100% of requirements for this role!
                         </p>
                       ) : (
                         <div className="flex flex-wrap gap-1.5 pt-1">
                           {job.missingSkills.map((sk) => (
                             <span
                               key={sk}
-                              className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-900 border border-amber-200"
+                              className="px-2 py-0.5 rounded text-[11px] font-medium bg-neutral-100 text-neutral-600 border border-neutral-200"
                             >
                               + {sk}
                             </span>

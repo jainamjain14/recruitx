@@ -9,11 +9,21 @@ export interface ChatContact {
   headline?: string;
 }
 
+export interface IMeetingInfo {
+  title: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  meetingLink: string;
+  platform?: string;
+  status: 'proposed' | 'accepted' | 'declined';
+}
+
 export interface ChatMessage {
   _id: string;
   sender: string | { _id: string; name: string; role: string };
   recipient: string | { _id: string; name: string; role: string };
   content: string;
+  meetingInfo?: IMeetingInfo;
   read: boolean;
   createdAt: string;
   updatedAt: string;
@@ -43,8 +53,12 @@ export const messageService = {
     return res.data?.data || { messages: [], recipient: { _id: recipientId, name: 'User', role: 'student' } };
   },
 
-  sendMessage: async (recipientId: string, content: string): Promise<ChatMessage> => {
-    const res = await api.post('/messages', { recipientId, content });
+  sendMessage: async (
+    recipientId: string,
+    content: string,
+    meetingInfo?: IMeetingInfo
+  ): Promise<ChatMessage> => {
+    const res = await api.post('/messages', { recipientId, content, meetingInfo });
     return res.data?.data?.message;
   },
 

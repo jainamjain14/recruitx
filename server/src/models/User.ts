@@ -15,6 +15,15 @@ export interface IUserDocument {
   location?: string;
   description?: string;
   phone?: string;
+  title?: string;
+  profession?: string;
+  github?: string;
+  linkedin?: string;
+  portfolio?: string;
+  experienceLevel?: string;
+  companySize?: string;
+  industry?: string;
+  onboardingCompleted?: boolean;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
   createdAt: Date;
@@ -36,6 +45,15 @@ export class UserDoc implements IUserDocument {
   location?: string;
   description?: string;
   phone?: string;
+  title?: string;
+  profession?: string;
+  github?: string;
+  linkedin?: string;
+  portfolio?: string;
+  experienceLevel?: string;
+  companySize?: string;
+  industry?: string;
+  onboardingCompleted?: boolean;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
   createdAt: Date;
@@ -55,6 +73,15 @@ export class UserDoc implements IUserDocument {
     this.location = data.location;
     this.description = data.description;
     this.phone = data.phone;
+    this.title = data.title;
+    this.profession = data.profession;
+    this.github = data.github;
+    this.linkedin = data.linkedin;
+    this.portfolio = data.portfolio;
+    this.experienceLevel = data.experienceLevel;
+    this.companySize = data.companySize;
+    this.industry = data.industry;
+    this.onboardingCompleted = data.onboardingCompleted ?? false;
     this.resetPasswordToken = data.resetPasswordToken;
     this.resetPasswordExpires = data.resetPasswordExpires ? dateFromFirestore(data.resetPasswordExpires) : undefined;
     this.createdAt = dateFromFirestore(data.createdAt);
@@ -90,6 +117,15 @@ export class UserDoc implements IUserDocument {
       location: this.location || null,
       description: this.description || null,
       phone: this.phone || null,
+      title: this.title || null,
+      profession: this.profession || null,
+      github: this.github || null,
+      linkedin: this.linkedin || null,
+      portfolio: this.portfolio || null,
+      experienceLevel: this.experienceLevel || null,
+      companySize: this.companySize || null,
+      industry: this.industry || null,
+      onboardingCompleted: this.onboardingCompleted ?? false,
       resetPasswordToken: this.resetPasswordToken,
       resetPasswordExpires: this.resetPasswordExpires,
       createdAt: this.createdAt,
@@ -142,6 +178,15 @@ export class User {
     location?: string;
     description?: string;
     phone?: string;
+    title?: string;
+    profession?: string;
+    github?: string;
+    linkedin?: string;
+    portfolio?: string;
+    experienceLevel?: string;
+    companySize?: string;
+    industry?: string;
+    onboardingCompleted?: boolean;
     resetPasswordToken?: string;
     resetPasswordExpires?: Date;
   }): Promise<IUserDocument> {
@@ -164,6 +209,15 @@ export class User {
       location: data.location || null,
       description: data.description || null,
       phone: data.phone || null,
+      title: data.title || null,
+      profession: data.profession || null,
+      github: data.github || null,
+      linkedin: data.linkedin || null,
+      portfolio: data.portfolio || null,
+      experienceLevel: data.experienceLevel || null,
+      companySize: data.companySize || null,
+      industry: data.industry || null,
+      onboardingCompleted: data.onboardingCompleted ?? false,
       resetPasswordToken: data.resetPasswordToken || null,
       resetPasswordExpires: data.resetPasswordExpires || null,
       createdAt: now,

@@ -6,15 +6,13 @@ import { Logo } from '../components/Logo';
 import { AnnouncementBanner } from '../components/notifications/AnnouncementBanner';
 import { NotificationCenterDrawer } from '../components/notifications/NotificationCenterDrawer';
 import { NotificationModal } from '../components/notifications/NotificationModal';
-import { FeatureSpotlightDrawer } from '../components/notifications/FeatureSpotlightDrawer';
 import { NotificationToastContainer } from '../components/notifications/NotificationToastContainer';
-import { FeatureHotspots } from '../components/notifications/FeatureHotspots';
+import { OnboardingModal } from '../components/OnboardingModal';
 import {
   LayoutDashboard,
   FileText,
   Briefcase,
   Map,
-  Zap,
   ClipboardList,
   Video,
   Settings,
@@ -30,8 +28,6 @@ import {
   Plus,
   MessageSquare,
   GraduationCap,
-  Sparkles,
-  HelpCircle,
 } from 'lucide-react';
 
 interface NavItem {
@@ -45,12 +41,10 @@ interface NavItem {
 const baseStudentNav: NavItem[] = [
   { label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, path: '/student' },
   { label: 'My Resume', icon: <FileText className="w-4 h-4" />, path: '/student/resume' },
-  { label: 'Skill Gap', icon: <Zap className="w-4 h-4" />, path: '/student/skill-gap' },
-  { label: 'Roadmap', icon: <Map className="w-4 h-4" />, path: '/student/roadmap' },
+  { label: 'Career Roadmap & Skills', icon: <Map className="w-4 h-4" />, path: '/student/roadmap' },
   { label: 'Job Matches', icon: <Briefcase className="w-4 h-4" />, path: '/student/jobs' },
   { label: 'Applications', icon: <ClipboardList className="w-4 h-4" />, path: '/student/applications' },
   { label: 'Messages', icon: <MessageSquare className="w-4 h-4" />, path: '/student/messages' },
-  { label: 'Mock Interview', icon: <Video className="w-4 h-4" />, path: '/student/mock-interview' },
   { label: 'Notifications', icon: <Bell className="w-4 h-4" />, path: '/student/notifications', isNotification: true },
   { label: 'Settings', icon: <Settings className="w-4 h-4" />, path: '/student/settings' },
 ];
@@ -245,18 +239,8 @@ export const DashboardLayout: React.FC = () => {
               </div>
             </div>
 
-            {/* Right: Quick Tour button, Notification Bell, User Status */}
+            {/* Right: Notification Bell, User Status */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Interactive Quick Tour Trigger */}
-              <button
-                onClick={startHotspotTour}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-neutral-600 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200/80 transition-colors"
-                title="Guided Feature Tour"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span className="hidden sm:inline">Quick Tour</span>
-              </button>
-
               {/* Notification Bell with Live Unread Counter */}
               <button
                 onClick={openNotificationCenter}
@@ -294,14 +278,11 @@ export const DashboardLayout: React.FC = () => {
       {/* 3. Center Screen Overlay: High-Priority Decision Modals */}
       <NotificationModal />
 
-      {/* 4. Feature Spotlight Edge Slideout */}
-      <FeatureSpotlightDrawer />
-
-      {/* 5. Real-Time Corner Toasts / Snackbars */}
+      {/* 4. Real-Time Corner Toasts / Snackbars */}
       <NotificationToastContainer />
 
-      {/* 6. Tooltips & Hotspots Interactive Guidance Tour */}
-      <FeatureHotspots />
+      {/* 5. First-time User Onboarding Interactive Pop-up */}
+      <OnboardingModal />
     </div>
   );
 };

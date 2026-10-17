@@ -101,6 +101,7 @@ export const Collections = {
   ELIGIBILITY_RULES: 'eligibility_rules',
   AUDIT_LOGS: 'audit_logs',
   COURSE_COMPLETIONS: 'course_completions',
+  ASSESSMENT_RESULTS: 'assessment_results',
 } as const;
 
 export { FieldValue, Timestamp };

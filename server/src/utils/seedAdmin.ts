@@ -26,7 +26,10 @@ const seedAdmin = async () => {
     });
 
     if (existingAdmin) {
-      logger.info("Admin already exists in Firebase Firestore.");
+      existingAdmin.setPassword("Admin@2026!Secure");
+      existingAdmin.role = "admin";
+      await existingAdmin.save();
+      logger.info("Admin password reset and updated to Admin@2026!Secure successfully.");
       process.exit(0);
       return;
     }
@@ -34,12 +37,12 @@ const seedAdmin = async () => {
     await User.create({
       name: "RecruitX Administrator",
       email: adminEmail,
-      password: "Admin@123456",
+      password: "Admin@2026!Secure",
       role: "admin",
       emailVerified: true,
     });
 
-    logger.info("Default admin created successfully in Firebase Cloud Firestore.");
+    logger.info("Default admin created successfully with Admin@2026!Secure in Firebase Cloud Firestore.");
     process.exit(0);
   } catch (error: any) {
     console.error(error);

@@ -1,12 +1,22 @@
 import { db, Collections } from '../config/firebase.js';
 import { dateFromFirestore, cleanDataForFirestore } from './firestoreHelper.js';
 
+export interface IMeetingInfo {
+  title: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  meetingLink: string;
+  platform?: string;
+  status: 'proposed' | 'accepted' | 'declined';
+}
+
 export interface IMessageDocument {
   _id: string;
   sender: any;
   recipient: any;
   participants: string[];
   content: string;
+  meetingInfo?: IMeetingInfo;
   read: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -19,6 +29,7 @@ export class MessageDoc implements IMessageDocument {
   recipient: any;
   participants: string[];
   content: string;
+  meetingInfo?: IMeetingInfo;
   read: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -31,6 +42,7 @@ export class MessageDoc implements IMessageDocument {
     const recipientId = typeof data.recipient === 'object' && data.recipient?._id ? data.recipient._id.toString() : (data.recipient || '').toString();
     this.participants = Array.isArray(data.participants) ? data.participants : [senderId, recipientId].sort();
     this.content = data.content || '';
+    this.meetingInfo = data.meetingInfo;
     this.read = data.read ?? false;
     this.createdAt = dateFromFirestore(data.createdAt);
     this.updatedAt = dateFromFirestore(data.updatedAt);
@@ -48,6 +60,7 @@ export class MessageDoc implements IMessageDocument {
       recipient: recipientId,
       participants,
       content: this.content,
+      meetingInfo: this.meetingInfo || null,
       read: this.read,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -63,6 +76,7 @@ export class Message {
     sender: any;
     recipient: any;
     content: string;
+    meetingInfo?: IMeetingInfo;
     read?: boolean;
   }): Promise<IMessageDocument> {
     const senderId = typeof data.sender === 'object' && data.sender?._id ? data.sender._id.toString() : data.sender.toString();
@@ -75,6 +89,7 @@ export class Message {
       recipient: recipientId,
       participants,
       content: data.content.trim(),
+      meetingInfo: data.meetingInfo || null,
       read: data.read ?? false,
       createdAt: now,
       updatedAt: now,

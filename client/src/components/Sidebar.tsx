@@ -21,11 +21,10 @@ export const Sidebar: React.FC = () => {
   const roleItems: Record<string, NavItem[]> = {
     student: [
       { label: 'My Resume', to: '/student/resume' },
-      { label: 'Skill Gap', to: '/student/skill-gap' },
-      { label: 'Roadmap', to: '/student/roadmap' },
+      { label: 'Career Roadmap & Skills', to: '/student/roadmap' },
       { label: 'Job Matches', to: '/student/jobs' },
       { label: 'Applications', to: '/student/applications' },
-      { label: 'Mock Interview', to: '/student/mock-interview' },
+      { label: 'Messages', to: '/student/messages' },
       { label: 'Settings', to: '/student/settings' },
       { label: 'Notifications', to: '/student/notifications', showBadge: true },
     ],

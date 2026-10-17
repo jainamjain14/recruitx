@@ -112,13 +112,39 @@ export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res:
     return;
   }
 
-  const { name, phone, company, website, location, description } = req.body;
+  const {
+    name,
+    phone,
+    company,
+    website,
+    location,
+    description,
+    title,
+    profession,
+    github,
+    linkedin,
+    portfolio,
+    experienceLevel,
+    companySize,
+    industry,
+    onboardingCompleted,
+  } = req.body;
+
   if (name !== undefined) user.name = name.trim();
   if (phone !== undefined) user.phone = phone.trim();
   if (company !== undefined) user.company = company.trim();
   if (website !== undefined) user.website = website.trim();
   if (location !== undefined) user.location = location.trim();
   if (description !== undefined) user.description = description.trim();
+  if (title !== undefined) user.title = title.trim();
+  if (profession !== undefined) user.profession = profession.trim();
+  if (github !== undefined) user.github = github.trim();
+  if (linkedin !== undefined) user.linkedin = linkedin.trim();
+  if (portfolio !== undefined) user.portfolio = portfolio.trim();
+  if (experienceLevel !== undefined) user.experienceLevel = experienceLevel.trim();
+  if (companySize !== undefined) user.companySize = companySize.trim();
+  if (industry !== undefined) user.industry = industry.trim();
+  if (onboardingCompleted !== undefined) user.onboardingCompleted = Boolean(onboardingCompleted);
 
   await user.save();
   sendSuccess(res, 'Profile updated successfully', { user });

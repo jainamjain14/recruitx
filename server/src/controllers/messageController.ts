@@ -77,16 +77,19 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response): Pro
       return;
     }
 
-    const { recipientId, content } = req.body;
-    if (!recipientId || !content || !content.trim()) {
-      sendError(res, 'Recipient ID and message content are required', null, 400);
+    const { recipientId, content, meetingInfo } = req.body;
+    if (!recipientId || (!content?.trim() && !meetingInfo)) {
+      sendError(res, 'Recipient ID and message content or meeting info are required', null, 400);
       return;
     }
+
+    const messageText = content?.trim() || (meetingInfo ? `📅 Interview Meeting Proposed: ${meetingInfo.title} on ${meetingInfo.scheduledAt}` : '');
 
     const message = await Message.create({
       sender: currentUser._id,
       recipient: recipientId,
-      content: content.trim(),
+      content: messageText,
+      meetingInfo: meetingInfo || undefined,
     });
 
     // Real-time delivery via Socket.io to recipient

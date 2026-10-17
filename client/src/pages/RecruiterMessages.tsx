@@ -12,9 +12,11 @@ import {
   CheckCheck,
   Search,
   Loader2,
-  Sparkles,
   ArrowRight,
-  ShieldCheck,
+  Video,
+  Calendar,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 
 interface RecruiterContact extends ChatContact {
@@ -48,6 +50,13 @@ export const RecruiterMessages: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Meeting Proposal Modal State
+  const [meetingModalOpen, setMeetingModalOpen] = useState(false);
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingTime, setMeetingTime] = useState('');
+  const [meetingPlatform, setMeetingPlatform] = useState<'google_meet' | 'jitsi'>('google_meet');
+  const [proposingMeeting, setProposingMeeting] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -259,6 +268,44 @@ export const RecruiterMessages: React.FC = () => {
     );
   });
 
+  const handleProposeMeeting = async () => {
+    if (!selectedContact || !meetingDate || !meetingTime) return;
+    setProposingMeeting(true);
+    try {
+      const dt = new Date(`${meetingDate}T${meetingTime}`);
+      const meetingId = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const meetingLink =
+        meetingPlatform === 'google_meet'
+          ? `https://meet.google.com/${meetingId.toLowerCase().substring(0, 3)}-${meetingId.toLowerCase().substring(3, 7)}-${meetingId.toLowerCase().substring(7, 10)}`
+          : `https://meet.jit.si/RecruitX-Interview-${meetingId}`;
+
+      const meetingInfo = {
+        scheduledAt: dt.toISOString(),
+        meetingLink,
+        platform: meetingPlatform === 'google_meet' ? 'Google Meet' : 'Jitsi Meet',
+        proposedBy: user?.name || 'Recruiter',
+        note: `Interview scheduled for ${dt.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} at ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      };
+
+      const sentMessage = await messageService.sendMessage(selectedContact._id, `📅 Interview Meeting Proposed\n\nDate: ${meetingInfo.note}\nPlatform: ${meetingInfo.platform}\nMeeting Link: ${meetingLink}`, meetingInfo);
+      setMessages((prev) => [...prev, sentMessage]);
+      setContacts((prev) =>
+        prev.map((c) =>
+          c._id === selectedContact._id
+            ? { ...c, lastMessageText: 'Interview Meeting Proposed', lastMessageTime: formatMessageTime(new Date().toISOString()) }
+            : c
+        )
+      );
+      setMeetingModalOpen(false);
+      setMeetingDate('');
+      setMeetingTime('');
+    } catch (err) {
+      console.error('Failed to propose meeting:', err);
+    } finally {
+      setProposingMeeting(false);
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-6xl">
       <div className="border-b border-neutral-200 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -268,13 +315,12 @@ export const RecruiterMessages: React.FC = () => {
             Candidate Communications
           </h1>
           <p className="text-xs text-neutral-500">
-            Real-time direct communication channel with applicants and prospective candidates.
+            Direct messaging with applicants and candidates.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            ATS Messaging Live
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-700 border border-neutral-200">
+            Messaging
           </span>
         </div>
       </div>
@@ -365,7 +411,7 @@ export const RecruiterMessages: React.FC = () => {
           {selectedContact ? (
             <>
               {/* Chat Header */}
-              <div className="p-3.5 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
+              <div className="p-3.5 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-neutral-900 text-white flex items-center justify-center font-bold text-sm uppercase shrink-0">
                     {selectedContact.name.slice(0, 2)}
@@ -382,10 +428,15 @@ export const RecruiterMessages: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="hidden sm:flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  Candidate Direct Line
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMeetingModalOpen(true)}
+                  className="text-[11px] gap-1.5 h-7 px-3 shrink-0"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Propose Interview Meeting
+                </Button>
               </div>
 
               {/* Message Scroll Window */}
@@ -527,7 +578,7 @@ export const RecruiterMessages: React.FC = () => {
               <div>
                 <h3 className="text-sm font-bold text-neutral-800">Select a Candidate</h3>
                 <p className="text-xs text-neutral-500 max-w-sm mt-1">
-                  Select a candidate from the left directory to view communication history and send direct messages in real time.
+                  Select a candidate from the left directory to view their conversation and send messages.
                 </p>
               </div>
               {contacts.length > 0 && (
@@ -544,6 +595,101 @@ export const RecruiterMessages: React.FC = () => {
           )}
         </Card>
       </div>
+
+      {/* ============================================================== */}
+      {/* INTERVIEW MEETING PROPOSAL MODAL */}
+      {/* ============================================================== */}
+      {meetingModalOpen && selectedContact && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-5 border border-neutral-200">
+            <div className="flex items-start justify-between border-b border-neutral-100 pb-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Video className="w-4 h-4 text-neutral-800" />
+                  <h3 className="text-base font-bold text-neutral-900">Propose Interview Meeting</h3>
+                </div>
+                <p className="text-xs text-neutral-500">
+                  Schedule an online interview with <strong>{selectedContact.name}</strong>. A meeting link will be shared in chat.
+                </p>
+              </div>
+              <button
+                onClick={() => setMeetingModalOpen(false)}
+                className="text-neutral-400 hover:text-neutral-700 p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 block">Date</label>
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setMeetingDate(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 block">Time</label>
+                  <input
+                    type="time"
+                    value={meetingTime}
+                    onChange={(e) => setMeetingTime(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-700 block">Platform</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['google_meet', 'jitsi'] as const).map((platform) => (
+                    <button
+                      key={platform}
+                      type="button"
+                      onClick={() => setMeetingPlatform(platform)}
+                      className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center gap-2 transition-all ${
+                        meetingPlatform === platform
+                          ? 'bg-neutral-900 text-white border-neutral-900'
+                          : 'bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-neutral-100'
+                      }`}
+                    >
+                      <Video className="w-3.5 h-3.5 shrink-0" />
+                      {platform === 'google_meet' ? 'Google Meet' : 'Jitsi Meet'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-neutral-400 flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3" />
+                  A {meetingPlatform === 'google_meet' ? 'Google Meet' : 'Jitsi Meet'} link will be auto-generated and shared in the chat.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+              <Button variant="outline" size="sm" onClick={() => setMeetingModalOpen(false)} className="text-xs">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleProposeMeeting}
+                disabled={proposingMeeting || !meetingDate || !meetingTime}
+                className="text-xs gap-1.5"
+              >
+                {proposingMeeting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Calendar className="w-3.5 h-3.5" />
+                )}
+                {proposingMeeting ? 'Sending...' : 'Send Meeting Invitation'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

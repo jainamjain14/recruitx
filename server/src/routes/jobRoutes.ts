@@ -10,10 +10,14 @@ import {
   deleteJob,
   getCompanyJobMatches,
   getCandidates,
+  autoApplyJobs,
 } from '../controllers/jobController.js';
 
 const router = Router();
 router.use(authenticate);
+
+// Student Automated Job Applications (With User Permission)
+router.post('/auto-apply', authorize('student'), autoApplyJobs);
 
 // Recruiter & Admin job management
 router.post('/', authorize('recruiter', 'admin'), validateCreateJob, createJob);
