@@ -125,18 +125,34 @@ export class Resume implements IResumeDocument {
   }
 
   static async findOne(query: { student?: any; [key: string]: any }): Promise<Resume | null> {
-    let q: any = db.collection(Collections.RESUMES);
-
-    if (query.student) {
-      const studentId = typeof query.student === 'object' && query.student?._id ? query.student._id.toString() : query.student.toString();
-      q = q.where('student', '==', studentId);
+    if (!query || !query.student) {
+      return null;
     }
 
-    const snap = await q.limit(1).get();
+    const studentId = typeof query.student === 'object' && query.student?._id
+      ? query.student._id.toString()
+      : query.student.toString();
+
+    if (!studentId || studentId === 'undefined' || studentId === 'null') {
+      return null;
+    }
+
+    const snap = await db.collection(Collections.RESUMES).where('student', '==', studentId).limit(1).get();
     if (snap.empty) return null;
 
     const docSnap = snap.docs[0];
-    return new Resume(docSnap.data(), docSnap.id);
+    const data = docSnap.data();
+
+    // Strict identity verification: guarantee document belongs to this student
+    const docStudent = typeof data.student === 'object' && data.student?._id
+      ? data.student._id.toString()
+      : data.student?.toString();
+
+    if (docStudent && docStudent !== studentId) {
+      return null;
+    }
+
+    return new Resume(data, docSnap.id);
   }
 
   static async find(query: any = {}): Promise<Resume[]> {

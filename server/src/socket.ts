@@ -72,9 +72,12 @@ export const getIO = (): SocketIOServer | null => {
 /**
  * Helper for emitting events to a specific user
  */
-export const emitToUser = (userId: string, event: string, payload: any) => {
-  if (!ioInstance) return;
-  const uid = typeof userId === 'object' && (userId as any)?._id ? (userId as any)._id.toString() : userId.toString();
+export const emitToUser = (userId: any, event: string, payload: any) => {
+  if (!ioInstance || !userId) return;
+  const uid = typeof userId === 'object' && (userId as any)?._id
+    ? (userId as any)._id.toString()
+    : String(userId);
+  if (!uid || uid === 'undefined' || uid === 'null') return;
   ioInstance.to(`user:${uid}`).emit(event, payload);
 };
 

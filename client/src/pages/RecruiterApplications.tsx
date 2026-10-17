@@ -222,8 +222,9 @@ export const RecruiterApplications: React.FC = () => {
     const tzOffset = tomorrow.getTimezoneOffset() * 60000;
     const localISOTime = new Date(tomorrow.getTime() - tzOffset).toISOString().slice(0, 16);
     setInterviewDate(localISOTime);
-    setInterviewMeetingLink(`https://meet.google.com/recruitx-${Math.random().toString(36).substring(2, 7)}`);
-    setInterviewNotes(`Interview with ${activeCandidate.student?.name || 'candidate'} for ${activeCandidate.jobTitle || activeCandidate.job?.title}`);
+    const meetingCode = Math.random().toString(36).substring(2, 8);
+    setInterviewMeetingLink(`https://meet.jit.si/recruitx-${meetingCode}`);
+    setInterviewNotes(`Interview with ${activeCandidate.student?.name || 'candidate'} for ${activeCandidate.jobTitle || activeCandidate.job?.title || 'Technical Role'}`);
     setInterviewModalOpen(true);
   };
 
@@ -231,9 +232,13 @@ export const RecruiterApplications: React.FC = () => {
     if (!activeCandidate) return;
     setSchedulingInterview(true);
     try {
-      const studentId = typeof activeCandidate.student === 'object' && activeCandidate.student?._id
-        ? activeCandidate.student._id
-        : activeCandidate.student;
+      const studentId =
+        (typeof activeCandidate.student === 'object' && activeCandidate.student?._id ? activeCandidate.student._id : null) ||
+        (typeof activeCandidate.student === 'string' ? activeCandidate.student : null) ||
+        activeCandidate.studentId ||
+        activeCandidate.candidateProfile?.student?._id ||
+        (typeof activeCandidate.candidateProfile?.student === 'string' ? activeCandidate.candidateProfile.student : null);
+
       const jobId = typeof activeCandidate.job === 'object' && activeCandidate.job?._id
         ? activeCandidate.job._id
         : activeCandidate.job;
@@ -241,7 +246,7 @@ export const RecruiterApplications: React.FC = () => {
       await api.post('/interviews', {
         jobId: jobId || undefined,
         applicationId: activeCandidate._id,
-        studentId,
+        studentId: studentId || undefined,
         title: `Interview: ${activeCandidate.jobTitle || activeCandidate.job?.title || 'Technical Role'}`,
         scheduledAt: new Date(interviewDate).toISOString(),
         durationMinutes: parseInt(interviewDuration, 10) || 45,

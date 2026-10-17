@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types/index.js';
 import { Interview } from '../models/Interview.js';
+import { Application } from '../models/Application.js';
 import { Notification } from '../models/Notification.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { AIService } from '../services/aiService.js';
@@ -15,24 +16,37 @@ export const scheduleInterview = async (req: AuthenticatedRequest, res: Response
 
     const { jobId, applicationId, studentId, title, scheduledAt, durationMinutes, meetingLink, notes } = req.body;
 
+    let targetStudentId = studentId;
+    if (!targetStudentId && applicationId) {
+      const appDoc = await Application.findById(applicationId);
+      targetStudentId = typeof appDoc?.student === 'object' && appDoc?.student?._id
+        ? appDoc.student._id.toString()
+        : appDoc?.student?.toString();
+    }
+
+    if (!targetStudentId) {
+      sendError(res, 'Candidate Student ID is required to schedule an interview', null, 400);
+      return;
+    }
+
     const interview = await Interview.create({
-      job: jobId,
-      application: applicationId,
-      student: studentId,
+      job: jobId || undefined,
+      application: applicationId || undefined,
+      student: targetStudentId,
       recruiter: req.user._id,
-      title,
-      scheduledAt: new Date(scheduledAt),
+      title: title || 'Candidate Interview',
+      scheduledAt: new Date(scheduledAt || Date.now() + 86400000),
       durationMinutes: durationMinutes || 45,
-      meetingLink: meetingLink || 'https://meet.google.com/recruitx-demo',
+      meetingLink: meetingLink || `https://meet.jit.si/recruitx-interview-${targetStudentId.slice(-6)}`,
       notes,
       status: 'scheduled',
     });
 
     // Notify student with high-priority interview invite
     const notif = await Notification.create({
-      recipient: studentId,
+      recipient: targetStudentId,
       title: 'Interview Scheduled!',
-      message: `You have an interview for "${title}" on ${new Date(scheduledAt).toLocaleString()}`,
+      message: `You have an interview for "${title || 'your application'}" on ${new Date(scheduledAt || Date.now() + 86400000).toLocaleString()}`,
       type: 'interview_invite',
       format: 'modal',
       priority: 'urgent',
@@ -40,12 +54,12 @@ export const scheduleInterview = async (req: AuthenticatedRequest, res: Response
       actionUrl: '/student/applications',
       link: '/student/applications',
       metadata: {
-        meetingLink: meetingLink || 'https://meet.google.com/recruitx-demo',
+        meetingLink: meetingLink || `https://meet.jit.si/recruitx-interview-${targetStudentId.slice(-6)}`,
         scheduledAt,
       },
     });
 
-    emitToUser(studentId, 'notification:new', { notification: notif });
+    emitToUser(targetStudentId, 'notification:new', { notification: notif });
 
     sendSuccess(res, 'Interview scheduled successfully', { interview }, 201);
   } catch (error: any) {

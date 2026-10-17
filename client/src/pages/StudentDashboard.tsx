@@ -110,7 +110,7 @@ export const StudentDashboard: React.FC = () => {
   const overallReadinessScore = Math.min(100, p1 + p2);
 
   const offersCount = applications.filter((a) => a.status === 'offered').length;
-  const targetDomain = resumeData?.fieldOfInterest || user?.profession || 'Software Engineering';
+  const targetDomain = resumeData?.fieldOfInterest || user?.profession || 'Not Specified (Upload Resume)';
 
   return (
     <div className="space-y-6">
