@@ -93,7 +93,7 @@ export const StudentDashboard: React.FC = () => {
     if (resumeData?.skills && resumeData.skills.length >= 3) pts += 15;
     else if (resumeData?.skills && resumeData.skills.length > 0) pts += 8;
     // Summary / Bio
-    if (resumeData?.summary || user?.bio) pts += 10;
+    if (resumeData?.summary) pts += 10;
     // Location
     if (resumeData?.location || user?.location) pts += 5;
     // Online profile presence (LinkedIn / GitHub / Portfolio)

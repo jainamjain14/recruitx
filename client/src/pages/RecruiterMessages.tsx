@@ -279,15 +279,23 @@ export const RecruiterMessages: React.FC = () => {
           ? `https://meet.google.com/${meetingId.toLowerCase().substring(0, 3)}-${meetingId.toLowerCase().substring(3, 7)}-${meetingId.toLowerCase().substring(7, 10)}`
           : `https://meet.jit.si/RecruitX-Interview-${meetingId}`;
 
+      const meetingNote = `Interview scheduled for ${dt.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} at ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+      // Keep this object aligned with the IMeetingInfo interface in messageService.ts.
       const meetingInfo = {
+        title: 'Interview Meeting',
         scheduledAt: dt.toISOString(),
+        durationMinutes: 30,
         meetingLink,
         platform: meetingPlatform === 'google_meet' ? 'Google Meet' : 'Jitsi Meet',
-        proposedBy: user?.name || 'Recruiter',
-        note: `Interview scheduled for ${dt.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} at ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        status: 'proposed' as const,
       };
 
-      const sentMessage = await messageService.sendMessage(selectedContact._id, `📅 Interview Meeting Proposed\n\nDate: ${meetingInfo.note}\nPlatform: ${meetingInfo.platform}\nMeeting Link: ${meetingLink}`, meetingInfo);
+      const sentMessage = await messageService.sendMessage(
+        selectedContact._id,
+        `📅 Interview Meeting Proposed\n\nDate: ${meetingNote}\nPlatform: ${meetingInfo.platform}\nMeeting Link: ${meetingLink}`,
+        meetingInfo
+      );
       setMessages((prev) => [...prev, sentMessage]);
       setContacts((prev) =>
         prev.map((c) =>
