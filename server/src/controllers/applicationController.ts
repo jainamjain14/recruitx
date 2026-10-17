@@ -166,13 +166,13 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       return;
     }
 
-    // Resolve recruiter for this company or fallback to first recruiter/admin
-    const recruiters = await User.find({ role: { $in: ['recruiter', 'admin'] } });
+    // Resolve recruiter ONLY if a recruiter is registered for this specific company
+    const recruiters = await User.find({ role: 'recruiter' });
     const matchedRecruiter = recruiters.find(
       (r) => r.company && companyName && r.company.toLowerCase().trim() === companyName.toLowerCase().trim()
-    ) || recruiters.find((r) => r.role === 'recruiter') || recruiters[0];
+    );
 
-    const recruiterId = matchedRecruiter?._id || undefined;
+    const recruiterId = matchedRecruiter?._id || null;
 
     const application = await Application.create({
       student: req.user._id,
@@ -222,8 +222,6 @@ export const getApplications = async (req: AuthenticatedRequest, res: Response):
     const filter: any = {};
     if (req.user?.role === 'student') {
       filter.student = req.user._id;
-    } else if (req.user?.role === 'recruiter') {
-      filter.recruiter = req.user._id;
     }
 
     const applications = await Application.find(filter)
@@ -244,40 +242,65 @@ export const getApplications = async (req: AuthenticatedRequest, res: Response):
       if (sId) resumeMap.set(sId, r);
     });
 
-    const enriched = applications.map((app: any) => {
-      const sId = typeof app.student === 'object' && app.student?._id ? app.student._id.toString() : app.student?.toString();
-      const r = sId ? resumeMap.get(sId) : null;
+    const recruiterCompany = ((req.user as any)?.company || '').toLowerCase().trim();
 
-      let recruiterData = app.recruiter;
-      if (!recruiterData && allRecruiters.length > 0) {
-        const matched = allRecruiters.find(
-          (rec) => rec.company && app.companyName && rec.company.toLowerCase().trim() === app.companyName.toLowerCase().trim()
-        ) || allRecruiters.find((rec) => rec.role === 'recruiter') || allRecruiters[0];
+    const enriched = applications
+      .filter((app: any) => {
+        // If logged-in user is a recruiter, only show applications that strictly belong to their company or their jobs
+        if (req.user?.role === 'recruiter') {
+          const appRecruiterId = typeof app.recruiter === 'object' && app.recruiter?._id
+            ? app.recruiter._id.toString()
+            : app.recruiter?.toString();
+          const appJobPosterId = typeof app.job === 'object' && app.job?.postedBy
+            ? (typeof app.job.postedBy === 'object' ? app.job.postedBy._id?.toString() : app.job.postedBy.toString())
+            : null;
 
-        if (matched) {
-          recruiterData = {
-            _id: matched._id,
-            name: matched.name,
-            email: matched.email,
-            company: matched.company || app.companyName || 'Hiring Team',
-          };
+          const isDirectRecruiter = appRecruiterId === req.user._id.toString();
+          const ownsJob = appJobPosterId === req.user._id.toString();
+          const companyMatches = recruiterCompany && app.companyName && app.companyName.toLowerCase().trim() === recruiterCompany;
+
+          // Recruiter must ONLY see applications belonging to their company or jobs they posted
+          if (recruiterCompany) {
+            return companyMatches || ownsJob;
+          }
+          return isDirectRecruiter || ownsJob;
         }
-      }
+        return true;
+      })
+      .map((app: any) => {
+        const sId = typeof app.student === 'object' && app.student?._id ? app.student._id.toString() : app.student?.toString();
+        const r = sId ? resumeMap.get(sId) : null;
 
-      return {
-        ...app,
-        recruiter: recruiterData,
-        candidateProfile: r ? {
-          headline: r.headline || 'Applicant',
-          skills: r.skills || [],
-          fieldOfInterest: r.fieldOfInterest || 'General',
-          summary: r.summary || '',
-          education: r.education || [],
-          resumeUrl: r.resumeUrl || app.resumeUrl || '',
-          fileName: r.fileName || '',
-        } : null,
-      };
-    });
+        let recruiterData = app.recruiter;
+        if (!recruiterData && allRecruiters.length > 0 && app.companyName) {
+          const matched = allRecruiters.find(
+            (rec) => rec.company && rec.company.toLowerCase().trim() === app.companyName.toLowerCase().trim()
+          );
+
+          if (matched) {
+            recruiterData = {
+              _id: matched._id,
+              name: matched.name,
+              email: matched.email,
+              company: matched.company || app.companyName || 'Hiring Team',
+            };
+          }
+        }
+
+        return {
+          ...app,
+          recruiter: recruiterData,
+          candidateProfile: r ? {
+            headline: r.headline || 'Applicant',
+            skills: r.skills || [],
+            fieldOfInterest: r.fieldOfInterest || 'General',
+            summary: r.summary || '',
+            education: r.education || [],
+            resumeUrl: r.resumeUrl || app.resumeUrl || '',
+            fileName: r.fileName || '',
+          } : null,
+        };
+      });
 
     sendSuccess(res, 'Applications retrieved', { applications: enriched, count: enriched.length });
   } catch (error: any) {

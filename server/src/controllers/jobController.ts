@@ -397,11 +397,16 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
     }
 
     const createdApplications: any[] = [];
-    const recruiters = await User.find({ role: { $in: ['recruiter', 'admin'] } });
-    const fallbackRecruiter = recruiters[0];
+    const recruiters = await User.find({ role: 'recruiter' });
 
     for (const item of toProcess) {
-      const recId = item.recruiter || (fallbackRecruiter ? fallbackRecruiter._id : studentId);
+      let recId = item.recruiter || null;
+      if (!recId && item.company) {
+        const matched = recruiters.find(
+          (r) => r.company && r.company.toLowerCase().trim() === item.company.toLowerCase().trim()
+        );
+        if (matched) recId = matched._id;
+      }
 
       const app = await Application.create({
         job: item.jobId || undefined,
