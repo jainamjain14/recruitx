@@ -43,6 +43,7 @@ import { AdminNotifications } from '../pages/AdminNotifications';
 import { AdminSettings } from '../pages/AdminSettings';
 
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { MeetingRoom } from '../pages/MeetingRoom';
 import { PublicRoute } from './PublicRoute';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RoleRoute } from './RoleRoute';
@@ -112,6 +113,9 @@ export const AppRoutes: React.FC = () => {
             <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>
         </Route>
+
+        {/* Full-screen meeting room — no sidebar/layout */}
+        <Route path="/meeting/:roomCode" element={<MeetingRoom />} />
       </Route>
 
       {/* 404 Catch-All */}

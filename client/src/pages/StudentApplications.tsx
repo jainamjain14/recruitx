@@ -91,6 +91,24 @@ export const StudentApplications: React.FC = () => {
     );
   };
 
+  /** Route internal /meeting/:code links via React Router; open external links in new tab */
+  const handleJoinMeeting = (meetingLink: string) => {
+    if (!meetingLink) return;
+    // Internal route
+    if (meetingLink.startsWith('/meeting/')) {
+      navigate(meetingLink);
+      return;
+    }
+    // Legacy external Jitsi link — extract code and route internally
+    const externalMatch = meetingLink.match(/recruitx-([^/?#]+)/);
+    if (externalMatch) {
+      navigate(`/meeting/${externalMatch[1]}`);
+      return;
+    }
+    window.open(meetingLink, '_blank', 'noreferrer');
+  };
+
+
   const getStepIndex = (status: ApplicationStatus): number => {
     switch (status) {
       case 'applied':
@@ -266,15 +284,13 @@ export const StudentApplications: React.FC = () => {
 
                   <div className="flex items-center gap-2 self-start sm:self-center" onClick={(e) => e.stopPropagation()}>
                     {matchedInterview && (
-                      <a
-                        href={matchedInterview.meetingLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => handleJoinMeeting(matchedInterview.meetingLink)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-700 text-white text-xs font-bold hover:bg-purple-800 transition-colors shadow-xs animate-pulse"
                       >
                         <Video className="w-3.5 h-3.5" />
                         Join Video Interview
-                      </a>
+                      </button>
                     )}
                     <Button
                       size="sm"
@@ -349,14 +365,12 @@ export const StudentApplications: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <a
-                      href={matchedInterview.meetingLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => handleJoinMeeting(matchedInterview.meetingLink)}
                       className="text-xs font-bold text-purple-800 hover:text-purple-950 underline flex items-center gap-1"
                     >
-                      <ExternalLink className="w-3 h-3" /> Meeting Link
-                    </a>
+                      <Video className="w-3 h-3" /> Join Meeting
+                    </button>
                   </div>
                 )}
               </Card>

@@ -37,7 +37,7 @@ export const scheduleInterview = async (req: AuthenticatedRequest, res: Response
       title: title || 'Candidate Interview',
       scheduledAt: new Date(scheduledAt || Date.now() + 86400000),
       durationMinutes: durationMinutes || 45,
-      meetingLink: meetingLink || `https://meet.jit.si/recruitx-interview-${targetStudentId.slice(-6)}`,
+      meetingLink: meetingLink || `/meeting/recruitx-${targetStudentId.slice(-6)}`,
       notes,
       status: 'scheduled',
     });
@@ -54,7 +54,7 @@ export const scheduleInterview = async (req: AuthenticatedRequest, res: Response
       actionUrl: '/student/applications',
       link: '/student/applications',
       metadata: {
-        meetingLink: meetingLink || `https://meet.jit.si/recruitx-interview-${targetStudentId.slice(-6)}`,
+        meetingLink: meetingLink || `/meeting/recruitx-${targetStudentId.slice(-6)}`,
         scheduledAt,
       },
     });

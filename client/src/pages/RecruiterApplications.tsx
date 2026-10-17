@@ -223,7 +223,7 @@ export const RecruiterApplications: React.FC = () => {
     const localISOTime = new Date(tomorrow.getTime() - tzOffset).toISOString().slice(0, 16);
     setInterviewDate(localISOTime);
     const meetingCode = Math.random().toString(36).substring(2, 8);
-    setInterviewMeetingLink(`https://meet.jit.si/recruitx-${meetingCode}`);
+    setInterviewMeetingLink(`/meeting/${meetingCode}`);
     setInterviewNotes(`Interview with ${activeCandidate.student?.name || 'candidate'} for ${activeCandidate.jobTitle || activeCandidate.job?.title || 'Technical Role'}`);
     setInterviewModalOpen(true);
   };

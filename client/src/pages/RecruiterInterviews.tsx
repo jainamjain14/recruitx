@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { api } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 import { Video, Calendar, Clock } from 'lucide-react';
 
 export const RecruiterInterviews: React.FC = () => {
   const [interviews, setInterviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchInterviews();
@@ -20,6 +22,33 @@ export const RecruiterInterviews: React.FC = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Extracts the room code from a meeting link.
+   * Supports:
+   *   /meeting/abc123          → abc123
+   *   https://meet.jit.si/recruitx-abc123 → abc123
+   */
+  const getRoomPath = (meetingLink: string): string => {
+    if (!meetingLink) return '';
+    // Internal route
+    const internalMatch = meetingLink.match(/\/meeting\/([^/?#]+)/);
+    if (internalMatch) return `/meeting/${internalMatch[1]}`;
+    // Legacy external Jitsi link — extract code after last dash
+    const externalMatch = meetingLink.match(/recruitx-([^/?#]+)/);
+    if (externalMatch) return `/meeting/${externalMatch[1]}`;
+    // Fallback: open externally
+    return meetingLink;
+  };
+
+  const handleJoin = (meetingLink: string) => {
+    const path = getRoomPath(meetingLink);
+    if (path.startsWith('/meeting/')) {
+      navigate(path);
+    } else {
+      window.open(path, '_blank', 'noreferrer');
     }
   };
 
@@ -49,11 +78,13 @@ export const RecruiterInterviews: React.FC = () => {
                 </div>
               </div>
 
-              <a href={item.meetingLink} target="_blank" rel="noreferrer">
-                <Button size="sm" className="flex items-center gap-1.5">
-                  <Video className="w-3.5 h-3.5" /> Join Video Call
-                </Button>
-              </a>
+              <Button
+                size="sm"
+                className="flex items-center gap-1.5"
+                onClick={() => handleJoin(item.meetingLink)}
+              >
+                <Video className="w-3.5 h-3.5" /> Join as Host
+              </Button>
             </Card>
           ))}
         </div>
