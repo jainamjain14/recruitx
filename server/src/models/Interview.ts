@@ -144,10 +144,18 @@ export class Interview {
     notes?: string;
     status?: string;
   }): Promise<IInterviewDocument> {
-    const jobId = typeof data.job === 'object' && data.job._id ? data.job._id.toString() : data.job.toString();
-    const appId = typeof data.application === 'object' && data.application._id ? data.application._id.toString() : data.application.toString();
-    const studentId = typeof data.student === 'object' && data.student._id ? data.student._id.toString() : data.student.toString();
-    const recruiterId = typeof data.recruiter === 'object' && data.recruiter._id ? data.recruiter._id.toString() : data.recruiter.toString();
+    const jobId = data.job
+      ? (typeof data.job === 'object' && data.job._id ? data.job._id.toString() : data.job.toString())
+      : undefined;
+    const appId = data.application
+      ? (typeof data.application === 'object' && data.application._id ? data.application._id.toString() : data.application.toString())
+      : undefined;
+    const studentId = data.student
+      ? (typeof data.student === 'object' && data.student._id ? data.student._id.toString() : data.student.toString())
+      : undefined;
+    const recruiterId = data.recruiter
+      ? (typeof data.recruiter === 'object' && data.recruiter._id ? data.recruiter._id.toString() : data.recruiter.toString())
+      : undefined;
 
     const now = new Date();
     const docData = cleanDataForFirestore({
