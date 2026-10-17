@@ -8,6 +8,7 @@ import { initFirebase } from "./config/firebase.js";
 import { logger } from "./utils/logger.js";
 import http from "http";
 import { initSocket } from "./socket.js";
+import { startReminderService } from "./services/reminderService.js";
 
 const PORT = Number(process.env.PORT) || 5000;
 
@@ -23,8 +24,10 @@ const startServer = async () => {
       logger.info(
         `RecruitX Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`
       );
-
       logger.info(`API Base URL: http://localhost:${PORT}/api`);
+
+      // Start the interview reminder cron (fires every minute)
+      startReminderService();
     });
   } catch (error) {
     logger.error("Failed to start server:", error);

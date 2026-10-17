@@ -13,6 +13,7 @@ export interface IInterviewDocument {
   meetingLink: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   notes?: string;
+  reminderSent?: boolean;
   createdAt: Date;
   updatedAt: Date;
   save(): Promise<IInterviewDocument>;
@@ -30,6 +31,7 @@ export class InterviewDoc implements IInterviewDocument {
   meetingLink: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   notes?: string;
+  reminderSent?: boolean;
   createdAt: Date;
   updatedAt: Date;
 
@@ -42,9 +44,10 @@ export class InterviewDoc implements IInterviewDocument {
     this.title = data.title || '';
     this.scheduledAt = dateFromFirestore(data.scheduledAt);
     this.durationMinutes = data.durationMinutes || 45;
-    this.meetingLink = data.meetingLink || 'https://meet.google.com/recruitx-demo';
+    this.meetingLink = data.meetingLink || '';
     this.status = data.status || 'scheduled';
     this.notes = data.notes;
+    this.reminderSent = data.reminderSent ?? false;
     this.createdAt = dateFromFirestore(data.createdAt);
     this.updatedAt = dateFromFirestore(data.updatedAt);
   }
@@ -68,6 +71,7 @@ export class InterviewDoc implements IInterviewDocument {
       meetingLink: this.meetingLink,
       status: this.status,
       notes: this.notes,
+      reminderSent: this.reminderSent ?? false,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });
@@ -201,6 +205,30 @@ export class Interview {
       const snap = await db.collection(Collections.INTERVIEWS).doc(id).get();
       if (!snap.exists) return null;
       return new InterviewDoc(snap.data(), snap.id);
+    });
+  }
+
+  /**
+   * Fetch scheduled interviews whose scheduledAt is between `from` and `to`
+   * and reminderSent === false. Used by the reminder cron job.
+   */
+  static async findUpcomingUnreminded(from: Date, to: Date): Promise<IInterviewDocument[]> {
+    const snap = await db
+      .collection(Collections.INTERVIEWS)
+      .where('status', '==', 'scheduled')
+      .where('reminderSent', '==', false)
+      .where('scheduledAt', '>=', from)
+      .where('scheduledAt', '<=', to)
+      .get();
+
+    return snap.docs.map((d: any) => new InterviewDoc(d.data(), d.id));
+  }
+
+  /** Mark a single interview's reminderSent = true */
+  static async markReminderSent(id: string): Promise<void> {
+    await db.collection(Collections.INTERVIEWS).doc(id).update({
+      reminderSent: true,
+      updatedAt: new Date(),
     });
   }
 }
