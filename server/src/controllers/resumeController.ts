@@ -9,6 +9,7 @@ import { AIService, ParsedResumeData } from '../services/aiService.js';
 import { StorageService } from '../services/storageService.js';
 import { extractTextFromPdfBuffer } from '../utils/pdfExtractor.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
+import { ResumeFileStorage } from '../services/resumeFileStorage.js';
 
 export const getResume = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -131,6 +132,16 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
 
     await resume.save();
 
+    // Persist full original document in cloud Firestore storage
+    if (fileBase64) {
+      await ResumeFileStorage.saveResumeFile(
+        req.user._id.toString(),
+        fileBase64,
+        mimeType || 'application/pdf',
+        fileName || 'Uploaded Resume.pdf'
+      );
+    }
+
     sendSuccess(res, `AI Resume Extraction Complete for ${fileName || 'uploaded document'}! Profile updated.`, {
       resume,
       parsedData,
@@ -163,7 +174,17 @@ export const serveResumeFile = async (req: AuthenticatedRequest, res: Response):
     const fileName = resume?.fileName || 'Candidate_Resume.pdf';
     const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
 
-    // 1. If base64 file data is stored in Firestore
+    // 1. Cloud Firestore Chunked Storage (permanent, resilient across container restarts)
+    const cloudFile = await ResumeFileStorage.getResumeFile(studentId);
+    if (cloudFile) {
+      res.setHeader('Content-Type', cloudFile.mimeType || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${cloudFile.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
+      res.setHeader('Content-Length', cloudFile.buffer.length);
+      res.send(cloudFile.buffer);
+      return;
+    }
+
+    // 2. Direct base64 file data stored on resume document
     if (resume?.fileData) {
       const cleanBase64 = resume.fileData.includes(',')
         ? resume.fileData.split(',')[1]
@@ -177,7 +198,7 @@ export const serveResumeFile = async (req: AuthenticatedRequest, res: Response):
       return;
     }
 
-    // 2. If stored on disk in uploads/
+    // 3. If stored on disk in uploads/
     if (resume?.resumeUrl && resume.resumeUrl.startsWith('/uploads')) {
       const diskPath = path.resolve(process.cwd(), resume.resumeUrl.replace(/^\//, ''));
       if (fs.existsSync(diskPath)) {
