@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../hooks/useAuth';
 import { notificationService } from '../services/notificationService';
@@ -172,6 +172,12 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     }
   }, [token, refreshNotifications, refreshAnnouncements]);
 
+  // Stable ref for addToast to avoid socket reconnect churn
+  const addToastRef = useRef(addToast);
+  useEffect(() => {
+    addToastRef.current = addToast;
+  }, [addToast]);
+
   // Socket.io Real-Time Connection
   useEffect(() => {
     if (!token) return;
@@ -199,41 +205,53 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       console.log('⚡️ Connected to RecruitX Real-Time Notification Gateway');
     });
 
-    // Handle direct user notifications (e.g. application submitted, status change, interview scheduled)
+    // Handle direct user notifications (e.g. application submitted, status change, interview scheduled, new message)
     socket.on('notification:new', (payload: any) => {
       const notif = payload.notification || payload;
-      if (notif) {
-        setNotifications((prev) => [notif, ...prev]);
-        setUnreadCount((prev) => prev + 1);
+      if (!notif) return;
 
-        if (notif.format === 'modal') {
-          setActiveModal({
-            _id: notif._id,
-            title: notif.title,
-            message: notif.message,
-            type: notif.type,
-            format: 'modal',
-            targetAudience: 'student',
-            priority: notif.priority || 'urgent',
-            actionText: notif.actionText,
-            actionUrl: notif.actionUrl,
-            status: 'active',
-            scheduledAt: new Date().toISOString(),
-            impressions: 1,
-            clicks: 0,
-            createdAt: new Date().toISOString(),
-          });
-        } else {
-          // Trigger Toast popup
-          addToast({
-            title: notif.title,
-            message: notif.message,
-            type: notif.type,
-            priority: notif.priority,
-            actionText: notif.actionText,
-            actionUrl: notif.actionUrl || notif.link,
-          });
+      // 1. Strict deduplication to ensure item never appears twice in drawer
+      setNotifications((prev) => {
+        if (notif._id && prev.some((n) => n._id === notif._id)) {
+          return prev;
         }
+        return [notif, ...prev];
+      });
+      setUnreadCount((prev) => prev + 1);
+
+      // 2. If the user is actively inside the messages page, don't pop up an intrusive toast for chat messages
+      const isMessagesPage = window.location.pathname.includes('/messages');
+      if (notif.type === 'message' && isMessagesPage) {
+        return;
+      }
+
+      if (notif.format === 'modal') {
+        setActiveModal({
+          _id: notif._id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          format: 'modal',
+          targetAudience: 'student',
+          priority: notif.priority || 'urgent',
+          actionText: notif.actionText,
+          actionUrl: notif.actionUrl,
+          status: 'active',
+          scheduledAt: new Date().toISOString(),
+          impressions: 1,
+          clicks: 0,
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        // Trigger clean single Toast popup
+        addToastRef.current({
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          priority: notif.priority,
+          actionText: notif.actionText,
+          actionUrl: notif.actionUrl || notif.link,
+        });
       }
     });
 
@@ -243,7 +261,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       const notif = payload.notification;
 
       if (notif) {
-        setNotifications((prev) => [notif, ...prev]);
+        setNotifications((prev) => {
+          if (notif._id && prev.some((n) => n._id === notif._id)) return prev;
+          return [notif, ...prev];
+        });
         setUnreadCount((prev) => prev + 1);
       }
 
@@ -258,7 +279,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
           setActiveSlideout(ann);
           notificationService.trackImpression(ann._id);
         } else if (ann.format === 'toast') {
-          addToast({
+          addToastRef.current({
             title: ann.title,
             message: ann.message,
             type: ann.type,
@@ -273,27 +294,19 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     });
 
     // Handle real-time incoming chat messages
+    // Note: We only dispatch recruitx:message so active chat views update their chat bubble feed.
+    // The notification toast & drawer item are handled cleanly and exclusively by notification:new above.
     socket.on('message:new', (payload: any) => {
       window.dispatchEvent(new CustomEvent('recruitx:message', { detail: payload }));
-
-      const senderName = payload.sender?.name || 'Contact';
-      const content = payload.message?.content || '';
-      const preview = content.length > 60 ? `${content.slice(0, 60)}...` : content;
-
-      addToast({
-        title: `💬 ${senderName}`,
-        message: preview || 'Sent you a new message',
-        type: 'system',
-        priority: 'normal',
-        actionText: 'Reply',
-        actionUrl: user?.role === 'recruiter' ? '/recruiter/messages' : '/student/messages',
-      });
     });
 
     return () => {
+      socket.off('notification:new');
+      socket.off('announcement:new');
+      socket.off('message:new');
       socket.disconnect();
     };
-  }, [token, addToast]);
+  }, [token]);
 
   const markAsRead = async (id: string) => {
     try {

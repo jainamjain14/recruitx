@@ -32,6 +32,8 @@ export interface IResumeDocument {
   }[];
   resumeUrl?: string;
   fileName?: string;
+  fileData?: string;
+  fileMimeType?: string;
   createdAt: Date;
   updatedAt: Date;
   save(): Promise<IResumeDocument>;
@@ -46,6 +48,8 @@ export class Resume implements IResumeDocument {
   skills: string[];
   resumeUrl?: string;
   fileName?: string;
+  fileData?: string;
+  fileMimeType?: string;
   education: {
     institution: string;
     degree: string;
@@ -83,6 +87,8 @@ export class Resume implements IResumeDocument {
     this.projects = Array.isArray(data.projects) ? data.projects : [];
     this.resumeUrl = data.resumeUrl;
     this.fileName = data.fileName;
+    this.fileData = data.fileData;
+    this.fileMimeType = data.fileMimeType;
     this.createdAt = dateFromFirestore(data.createdAt);
     this.updatedAt = dateFromFirestore(data.updatedAt);
   }
@@ -102,6 +108,8 @@ export class Resume implements IResumeDocument {
       projects: this.projects,
       resumeUrl: this.resumeUrl || null,
       fileName: this.fileName || null,
+      fileData: this.fileData || null,
+      fileMimeType: this.fileMimeType || null,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });

@@ -117,7 +117,7 @@ export const StudentMessages: React.FC = () => {
 
       // 2. Add verified recruiters and campus placement coordinators
       for (const rec of platformRecruiters) {
-        if (rec._id && !contactMap.has(rec._id)) {
+        if (rec._id && rec._id !== user?._id && !contactMap.has(rec._id)) {
           contactMap.set(rec._id, {
             _id: rec._id,
             name: rec.name,
@@ -138,7 +138,7 @@ export const StudentMessages: React.FC = () => {
           : (app.companyName ? `${app.companyName} Hiring Team` : 'Hiring Manager');
         const rCompany = app.companyName || app.job?.company || 'Corporate Partner';
 
-        if (rId) {
+        if (rId && rId !== user?._id) {
           if (!contactMap.has(rId)) {
             contactMap.set(rId, {
               _id: rId,
@@ -166,7 +166,7 @@ export const StudentMessages: React.FC = () => {
         const rName = typeof job.recruiter === 'object' && job.recruiter?.name ? job.recruiter.name : `${job.company || 'Campus Partner'} Hiring Lead`;
         const rCompany = job.company || 'Campus Partner';
 
-        if (rId && !contactMap.has(rId)) {
+        if (rId && rId !== user?._id && !contactMap.has(rId)) {
           contactMap.set(rId, {
             _id: rId,
             name: rName,

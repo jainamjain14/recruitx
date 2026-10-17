@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { api } from '../services/api';
 import { decodeHtmlEntities } from '../components/CompanyLocationMap';
 import { useNavigate } from 'react-router-dom';
+import { getResumeFileUrl } from '../utils/resumeUrl';
 import {
   LayoutGrid,
   List,
@@ -722,7 +723,7 @@ export const RecruiterApplications: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <a
-                          href={activeCandidate.candidateProfile?.resumeUrl || activeCandidate.resumeUrl}
+                          href={getResumeFileUrl(activeCandidate)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"

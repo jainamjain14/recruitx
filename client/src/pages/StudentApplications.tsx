@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { api } from '../services/api';
 import { decodeHtmlEntities } from '../components/CompanyLocationMap';
 import { useNavigate } from 'react-router-dom';
+import { getResumeFileUrl } from '../utils/resumeUrl';
 import {
   Building2,
   Calendar,
@@ -474,16 +475,14 @@ export const StudentApplications: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                  {selectedApp.resumeUrl && selectedApp.resumeUrl.startsWith('http') && (
-                    <a
-                      href={selectedApp.resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-bold text-neutral-900 hover:underline flex items-center gap-1"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" /> View
-                    </a>
-                  )}
+                  <a
+                    href={getResumeFileUrl(selectedApp)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-bold text-neutral-900 hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> View
+                  </a>
                 </div>
               </div>
 

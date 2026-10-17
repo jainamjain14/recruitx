@@ -106,7 +106,7 @@ export const RecruiterMessages: React.FC = () => {
 
       // 2. Add remaining registered candidates
       for (const cand of candidates) {
-        if (!contactMap.has(cand._id)) {
+        if (cand._id && cand._id !== user?._id && !contactMap.has(cand._id)) {
           contactMap.set(cand._id, {
             _id: cand._id,
             name: cand.name,

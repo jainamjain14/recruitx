@@ -1,6 +1,9 @@
+import fs from 'fs';
+import path from 'path';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types/index.js';
 import { Resume } from '../models/Resume.js';
+import { User } from '../models/User.js';
 import { Job } from '../models/Job.js';
 import { AIService, ParsedResumeData } from '../services/aiService.js';
 import { StorageService } from '../services/storageService.js';
@@ -100,11 +103,15 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
 
     // Save or update Student Resume profile in DB
     let resume = await Resume.findOne({ student: req.user._id });
+    const isBase64Savable = fileBase64 && fileBase64.length < 900 * 1024; // Keep under 900KB for Firestore doc safety
+
     if (!resume) {
       resume = new Resume({
         student: req.user._id,
         resumeUrl: storedResumeUrl,
         fileName: fileName || 'Uploaded Resume',
+        fileData: isBase64Savable ? fileBase64 : undefined,
+        fileMimeType: mimeType || 'application/pdf',
         ...parsedData,
       });
     } else {
@@ -116,6 +123,10 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
       }
       if (storedResumeUrl) resume.resumeUrl = storedResumeUrl;
       if (fileName) resume.fileName = fileName;
+      if (isBase64Savable) {
+        resume.fileData = fileBase64;
+        resume.fileMimeType = mimeType || 'application/pdf';
+      }
     }
 
     await resume.save();
@@ -126,6 +137,133 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
     });
   } catch (error: any) {
     sendError(res, error.message || 'AI resume extraction failed', null, 500);
+  }
+};
+
+/**
+ * Public/Protected endpoint to stream or download candidate resume file
+ * Serves raw PDF if stored in Firestore/disk, or generates a verified printable HTML profile.
+ */
+export const serveResumeFile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const studentId = Array.isArray(req.params.studentId) ? req.params.studentId[0] : req.params.studentId;
+    if (!studentId) {
+      res.status(400).send('Student ID is required');
+      return;
+    }
+
+    const resume = await Resume.findOne({ student: studentId });
+    const candidateUser = await User.findById(studentId);
+
+    if (!resume && !candidateUser) {
+      res.status(404).send('Candidate resume profile not found');
+      return;
+    }
+
+    const fileName = resume?.fileName || 'Candidate_Resume.pdf';
+    const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    // 1. If base64 file data is stored in Firestore
+    if (resume?.fileData) {
+      const cleanBase64 = resume.fileData.includes(',')
+        ? resume.fileData.split(',')[1]
+        : resume.fileData;
+      const buffer = Buffer.from(cleanBase64, 'base64');
+
+      res.setHeader('Content-Type', resume.fileMimeType || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+      return;
+    }
+
+    // 2. If stored on disk in uploads/
+    if (resume?.resumeUrl && resume.resumeUrl.startsWith('/uploads')) {
+      const diskPath = path.resolve(process.cwd(), resume.resumeUrl.replace(/^\//, ''));
+      if (fs.existsSync(diskPath)) {
+        res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"`);
+        res.sendFile(diskPath);
+        return;
+      }
+    }
+
+    // 3. Resilient Fallback: If disk file was wiped across Render restart or missing,
+    // render a clean, high-fidelity printable candidate resume view!
+    const candidateName = candidateUser?.name || 'Verified Candidate';
+    const candidateEmail = candidateUser?.email || '';
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Resume - ${candidateName}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111827; max-width: 800px; margin: 40px auto; padding: 20px; }
+    h1 { margin-bottom: 4px; font-size: 28px; font-weight: 800; color: #0f172a; }
+    .subtitle { color: #475569; font-size: 14px; margin-bottom: 24px; font-weight: 500; }
+    .section-title { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #0284c7; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px; }
+    .skill-badge { display: inline-block; background: #f1f5f9; color: #0f172a; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; margin: 0 4px 6px 0; border: 1px solid #e2e8f0; }
+    .entry { margin-bottom: 14px; }
+    .entry-header { display: flex; justify-content: space-between; font-weight: 700; font-size: 14px; }
+    .entry-sub { color: #64748b; font-size: 13px; margin-bottom: 4px; }
+    .desc { font-size: 13px; color: #334155; }
+    .verified-banner { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #166534; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
+    @media print { body { margin: 0; padding: 0; } .verified-banner { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="verified-banner">
+    <span>✓ RecruitX Verified Candidate Profile</span>
+    <button onclick="window.print()" style="background:#166534; color:white; border:none; border-radius:4px; padding:6px 12px; font-size:12px; cursor:pointer; font-weight:bold;">Print / Save as PDF</button>
+  </div>
+  <h1>${candidateName}</h1>
+  <div class="subtitle">${resume?.headline || 'Candidate Profile'} • ${candidateEmail} ${candidateUser?.phone ? '• ' + candidateUser.phone : ''}</div>
+  
+  ${resume?.summary ? `<div class="section-title">Professional Summary</div><p class="desc">${resume.summary}</p>` : ''}
+  
+  ${resume?.skills && resume.skills.length > 0 ? `
+    <div class="section-title">Core Skills & Competencies</div>
+    <div>${resume.skills.map((s: string) => `<span class="skill-badge">${s}</span>`).join('')}</div>
+  ` : ''}
+
+  ${resume?.experience && resume.experience.length > 0 ? `
+    <div class="section-title">Experience</div>
+    ${resume.experience.map((e: any) => `
+      <div class="entry">
+        <div class="entry-header"><span>${e.title}</span><span>${e.startDate || ''} - ${e.endDate || 'Present'}</span></div>
+        <div class="entry-sub">${e.company}${e.location ? ' • ' + e.location : ''}</div>
+        <p class="desc">${e.description || ''}</p>
+      </div>
+    `).join('')}
+  ` : ''}
+
+  ${resume?.education && resume.education.length > 0 ? `
+    <div class="section-title">Education</div>
+    ${resume.education.map((edu: any) => `
+      <div class="entry">
+        <div class="entry-header"><span>${edu.institution}</span><span>${edu.startYear || ''} - ${edu.endYear || ''}</span></div>
+        <div class="entry-sub">${edu.degree} in ${edu.fieldOfStudy}${edu.grade ? ' • Grade: ' + edu.grade : ''}</div>
+      </div>
+    `).join('')}
+  ` : ''}
+
+  ${resume?.projects && resume.projects.length > 0 ? `
+    <div class="section-title">Projects</div>
+    ${resume.projects.map((p: any) => `
+      <div class="entry">
+        <div class="entry-header"><span>${p.title}</span></div>
+        <p class="desc">${p.description || ''}</p>
+        ${p.technologies?.length ? `<div style="margin-top:4px;">${p.technologies.map((t: string) => `<span class="skill-badge" style="font-size:11px;">${t}</span>`).join('')}</div>` : ''}
+      </div>
+    `).join('')}
+  ` : ''}
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (error: any) {
+    res.status(500).send(error.message || 'Failed to serve candidate resume');
   }
 };
 
