@@ -34,16 +34,26 @@ export const LoginPage: React.FC = () => {
   // Read message from location state if redirected from register/reset password
   const successNotice = (location.state as any)?.message;
 
+  // Retrieve remembered email and preferences
+  const savedEmail = (() => {
+    try {
+      return localStorage.getItem('recruitx_remember_email') || '';
+    } catch {
+      return '';
+    }
+  })();
+
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      email: savedEmail,
       password: '',
-      rememberMe: false,
+      rememberMe: Boolean(savedEmail),
     },
   });
 
@@ -52,6 +62,15 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // If rememberMe is checked, save email to localStorage; otherwise remove it
+      try {
+        if (values.rememberMe) {
+          localStorage.setItem('recruitx_remember_email', values.email);
+        } else {
+          localStorage.removeItem('recruitx_remember_email');
+        }
+      } catch {}
+
       const user = await login({
         email: values.email,
         password: values.password,

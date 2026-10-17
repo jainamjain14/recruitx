@@ -19,11 +19,10 @@ let ioInstance: SocketIOServer | null = null;
 export const initSocket = (httpServer: HttpServer) => {
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: [
-        process.env.CLIENT_URL || "http://localhost:5173",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-      ],
+      origin: (origin: string | undefined, callback: (err: Error | null, success?: boolean) => void) => {
+        // Allow all origin requests in production/staging to ensure connection from Vercel
+        callback(null, true);
+      },
       methods: ["GET", "POST"],
       credentials: true,
     },

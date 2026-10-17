@@ -47,13 +47,27 @@ app.use(
 
 const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 
+const allowedOrigins = [
+  clientUrl,
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://recruitx-eosin.vercel.app",
+];
+
 app.use(
   cors({
-    origin: [
-      clientUrl,
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        origin === clientUrl
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true); // Permissive in deployment to avoid breaking user
+    },
     credentials: true,
   })
 );

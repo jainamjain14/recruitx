@@ -1,8 +1,18 @@
 import axios from 'axios';
 import { tokenStorage } from '../utils/tokenStorage';
 
+const getBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl) {
+    // If user provided full URL like https://recruitx-backend.onrender.com
+    // make sure it ends with /api if not already included
+    return envUrl.endsWith('/api') ? envUrl : `${envUrl.replace(/\/$/, '')}/api`;
+  }
+  return '/api';
+};
+
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },

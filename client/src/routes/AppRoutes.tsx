@@ -6,6 +6,8 @@ import { LoginPage } from '../pages/LoginPage';
 import { RegisterPage } from '../pages/RegisterPage';
 import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
+import { TermsPage } from '../pages/TermsPage';
+import { PrivacyPage } from '../pages/PrivacyPage';
 
 // Student Pages
 import { StudentDashboard } from '../pages/StudentDashboard';
@@ -60,6 +62,10 @@ export const AppRoutes: React.FC = () => {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
       </Route>
+
+      {/* Accessible Public Policy Pages */}
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
 
       {/* Protected Multi-Role Routes wrapped in DashboardLayout */}
       <Route element={<ProtectedRoute />}>

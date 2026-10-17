@@ -176,10 +176,19 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   useEffect(() => {
     if (!token) return;
 
-    // Use current origin or fallback to server port 5000 in dev
-    const socketUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:5000'
-      : window.location.origin;
+    // Determine socket server URL
+    const envSocketUrl = (import.meta as any).env?.VITE_SOCKET_URL;
+    const envApiBase = (import.meta as any).env?.VITE_API_BASE_URL;
+    let socketUrl = 'http://localhost:5000';
+
+    if (envSocketUrl) {
+      socketUrl = envSocketUrl;
+    } else if (envApiBase) {
+      // Strip trailing /api if user specified full backend URL
+      socketUrl = envApiBase.replace(/\/api\/?$/, '');
+    } else if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      socketUrl = window.location.origin;
+    }
 
     const socket: Socket = io(socketUrl, {
       auth: { token },

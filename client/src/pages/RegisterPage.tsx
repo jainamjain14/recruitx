@@ -194,13 +194,13 @@ export const RegisterPage: React.FC = () => {
           label={
             <span>
               I agree to the{' '}
-              <a href="#" className="font-semibold underline text-neutral-900">
+              <Link to="/terms" target="_blank" className="font-semibold underline text-neutral-900 hover:text-neutral-700">
                 Terms of Service
-              </a>{' '}
+              </Link>{' '}
               and{' '}
-              <a href="#" className="font-semibold underline text-neutral-900">
+              <Link to="/privacy" target="_blank" className="font-semibold underline text-neutral-900 hover:text-neutral-700">
                 Privacy Policy
-              </a>
+              </Link>
             </span>
           }
           error={errors.terms?.message}
