@@ -101,7 +101,7 @@ export class AIService {
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey || geminiKey.trim().length < 10) return null;
 
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    const models = ['gemini-3.8-flash', 'gemini-2.5-flash'];
     const parts: any[] = [{ text: prompt }];
     if (inlineData) {
       parts.push({
@@ -391,74 +391,96 @@ Return ONLY a valid raw JSON object with:
     let detectedDomain = '';
     let extractedSkills: string[] = [];
 
-    const domainRules: { pattern: RegExp; title: string; skills: string[] }[] = [
+    const domainRules: { pattern: RegExp; title: string; skills: string[]; weight: number }[] = [
       {
-        pattern: /director|film|movie|cinema|screenplay|filmmaking|directing/i,
-        title: 'Film & Movie Direction',
-        skills: ['Film Directing', 'Screenwriting', 'Cinematography', 'Post-Production', 'Storyboarding', 'Casting', 'Video Editing'],
-      },
-      {
-        pattern: /video|premiere|after effects|davinci|motion/i,
-        title: 'Video Editing & Post-Production',
-        skills: ['Adobe Premiere Pro', 'After Effects', 'DaVinci Resolve', 'Color Grading', 'Final Cut Pro', 'Motion Graphics', 'Audio Editing'],
-      },
-      {
-        pattern: /marketing|campaign|seo|sem|brand|lead gen|growth/i,
-        title: 'Marketing & Growth Management',
-        skills: ['Digital Marketing', 'SEO & SEM', 'Campaign Strategy', 'Google Analytics', 'Content Marketing', 'Brand Management', 'Lead Generation', 'CRM (HubSpot)'],
-      },
-      {
-        pattern: /ui\/ux|figma|graphic design|illustrator|photoshop|wireframe|prototype/i,
-        title: 'UI/UX & Creative Design',
-        skills: ['Figma', 'Adobe Illustrator', 'Adobe Photoshop', 'UI/UX Design', 'Wireframing', 'Prototyping', 'User Research'],
-      },
-      {
-        pattern: /finance|accounting|audit|tally|excel|tax|banking|financial analyst/i,
-        title: 'Finance & Accounting',
-        skills: ['Financial Reporting', 'Advanced Excel', 'Accounting', 'Tally Prime', 'Financial Analysis', 'Budgeting', 'Taxation'],
-      },
-      {
-        pattern: /sales|business development|client executive|account manager/i,
-        title: 'Sales & Business Development',
-        skills: ['B2B Sales', 'Lead Generation', 'Client Negotiation', 'CRM Management', 'Sales Pipeline', 'Market Research'],
-      },
-      {
-        pattern: /\bhr\b|recruitment|talent acquisition|hiring|payroll|human resources/i,
-        title: 'Human Resources & Recruitment',
-        skills: ['Talent Acquisition', 'HR Operations', 'Recruitment', 'Employee Relations', 'Payroll Management', 'Performance Appraisal'],
-      },
-      {
-        pattern: /web|software|developer|engineer|react|node|python|java|full stack|backend|frontend/i,
+        pattern: /\b(software|developer|full stack|frontend|backend|web developer|programmer|coding|react|node|javascript|typescript|python|java|c\+\+|golang|php|laravel|django|express|mongodb|postgresql|sql|git|html|css)\b/i,
         title: 'Software Engineering',
         skills: ['JavaScript', 'TypeScript', 'React.js', 'Node.js', 'Python', 'SQL', 'MongoDB', 'Git'],
+        weight: 15,
       },
       {
-        pattern: /data scientist|data analyst|machine learning|\bai\b|deep learning|pandas/i,
+        pattern: /\b(artificial intelligence|machine learning|deep learning|data scientist|data science|nlp|computer vision|tensorflow|pytorch|pandas|numpy|scikit-learn)\b/i,
         title: 'Artificial Intelligence & Data Science',
         skills: ['Python', 'Machine Learning', 'Data Analysis', 'Pandas', 'NumPy', 'TensorFlow', 'PyTorch', 'SQL'],
+        weight: 14,
       },
       {
-        pattern: /cloud|devops|aws|docker|kubernetes|linux|sysadmin/i,
+        pattern: /\b(cloud|devops|aws|azure|gcp|docker|kubernetes|ci\/cd|terraform|ansible|linux|sysadmin)\b/i,
         title: 'Cloud Infrastructure & DevOps',
         skills: ['AWS', 'Docker', 'Kubernetes', 'Linux', 'CI/CD', 'Terraform', 'Cloud Architecture'],
+        weight: 13,
       },
       {
-        pattern: /mechanical|cad|solidworks|autocad|thermodynamics|manufacturing/i,
+        pattern: /\b(ui\/ux|ux designer|ui designer|figma|wireframe|wireframing|prototyping|design system|user experience|user interface)\b/i,
+        title: 'UI/UX & Creative Design',
+        skills: ['Figma', 'Adobe Illustrator', 'Adobe Photoshop', 'UI/UX Design', 'Wireframing', 'Prototyping', 'User Research'],
+        weight: 12,
+      },
+      {
+        pattern: /\b(cinematographer|cinematography|camera operator|director of photography|dop|camera rigging|lenses)\b/i,
+        title: 'Cinematography',
+        skills: ['Cinematography', 'Camera Operation', 'Lighting & Exposure', 'Color Grading', 'Visual Storytelling'],
+        weight: 11,
+      },
+      {
+        pattern: /\b(film director|movie director|film making|filmmaking|screenplay|screenwriting|storyboarding)\b/i,
+        title: 'Film & Movie Direction',
+        skills: ['Film Directing', 'Screenwriting', 'Cinematography', 'Post-Production', 'Storyboarding', 'Casting'],
+        weight: 10,
+      },
+      {
+        pattern: /\b(video editor|video editing|premiere pro|after effects|davinci resolve|color grading|motion graphics)\b/i,
+        title: 'Video Editing & Post-Production',
+        skills: ['Adobe Premiere Pro', 'After Effects', 'DaVinci Resolve', 'Color Grading', 'Final Cut Pro', 'Motion Graphics'],
+        weight: 9,
+      },
+      {
+        pattern: /\b(digital marketing|seo|sem|content marketing|google analytics|marketing manager|social media marketing|campaign strategy)\b/i,
+        title: 'Marketing & Growth Management',
+        skills: ['Digital Marketing', 'SEO & SEM', 'Campaign Strategy', 'Google Analytics', 'Content Marketing', 'Brand Management'],
+        weight: 8,
+      },
+      {
+        pattern: /\b(finance|accounting|chartered accountant|financial analyst|tally|taxation|auditing|balance sheet)\b/i,
+        title: 'Finance & Accounting',
+        skills: ['Financial Reporting', 'Advanced Excel', 'Accounting', 'Tally Prime', 'Financial Analysis', 'Budgeting'],
+        weight: 8,
+      },
+      {
+        pattern: /\b(human resources|talent acquisition|recruiter|recruitment|payroll|hr manager|hr executive)\b/i,
+        title: 'Human Resources & Recruitment',
+        skills: ['Talent Acquisition', 'HR Operations', 'Recruitment', 'Employee Relations', 'Payroll Management'],
+        weight: 8,
+      },
+      {
+        pattern: /\b(b2b sales|sales manager|business development|lead generation|inside sales|account executive)\b/i,
+        title: 'Sales & Business Development',
+        skills: ['B2B Sales', 'Lead Generation', 'Client Negotiation', 'CRM Management', 'Sales Pipeline'],
+        weight: 8,
+      },
+      {
+        pattern: /\b(mechanical engineer|solidworks|autocad|cad\/cam|thermodynamics|fluid mechanics)\b/i,
         title: 'Mechanical Engineering',
-        skills: ['SolidWorks', 'AutoCAD', 'CAD/CAM', 'Thermodynamics', 'Mechanical Design', 'Manufacturing Processes'],
+        skills: ['SolidWorks', 'AutoCAD', 'CAD/CAM', 'Thermodynamics', 'Mechanical Design'],
+        weight: 8,
       },
       {
-        pattern: /civil|structural|revit|staad|site engineer|construction/i,
+        pattern: /\b(civil engineer|structural engineer|staad pro|revit|construction management|site engineer)\b/i,
         title: 'Civil & Structural Engineering',
-        skills: ['AutoCAD', 'Revit', 'Structural Analysis', 'STAAD Pro', 'Site Management', 'Construction Planning'],
+        skills: ['AutoCAD', 'Revit', 'Structural Analysis', 'STAAD Pro', 'Site Management'],
+        weight: 8,
       },
     ];
 
+    // Score domains based on hit frequency and weight
+    let bestScore = 0;
     for (const rule of domainRules) {
-      if (rule.pattern.test(combinedSource)) {
+      const matches = combinedSource.match(new RegExp(rule.pattern.source, 'gi')) || [];
+      const score = matches.length * rule.weight;
+      if (score > bestScore) {
+        bestScore = score;
         detectedDomain = rule.title;
         extractedSkills = rule.skills;
-        break;
       }
     }
 
