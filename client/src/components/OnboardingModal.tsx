@@ -21,6 +21,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onCompleted })
 
   // Student specific state
   const [profession, setProfession] = useState(user.profession || '');
+  const [isCustomProfession, setIsCustomProfession] = useState(false);
   const [phone, setPhone] = useState(user.phone || '');
   const [location, setLocation] = useState(user.location || '');
   const [experienceLevel, setExperienceLevel] = useState(user.experienceLevel || 'Entry-Level / Fresher');
@@ -107,8 +108,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onCompleted })
                   Primary Profession / Field of Interest <span className="text-rose-500">*</span>
                 </label>
                 <select
-                  value={profession}
-                  onChange={(e) => setProfession(e.target.value)}
+                  value={isCustomProfession ? 'Other' : profession}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'Other') {
+                      setIsCustomProfession(true);
+                      setProfession('');
+                    } else {
+                      setIsCustomProfession(false);
+                      setProfession(val);
+                    }
+                  }}
                   required
                   className="w-full text-xs p-2.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:ring-1 focus:ring-neutral-900"
                 >
@@ -121,7 +131,25 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onCompleted })
                   <option value="Video Editing & Post-Production">Video Editing & Post-Production</option>
                   <option value="Film & Movie Direction">Film & Cinema Direction</option>
                   <option value="Cloud Infrastructure & DevOps">Cloud Infrastructure & DevOps</option>
+                  <option value="Cybersecurity & Network Engineering">Cybersecurity & Network Engineering</option>
+                  <option value="Mechanical / Core Engineering">Mechanical / Core Engineering</option>
+                  <option value="Biotechnology & Healthcare">Biotechnology & Healthcare</option>
+                  <option value="Other">Other (Enter custom profession)</option>
                 </select>
+
+                {isCustomProfession && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter your custom profession / role..."
+                      value={profession}
+                      onChange={(e) => setProfession(e.target.value)}
+                      className="w-full text-xs p-2.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:ring-1 focus:ring-neutral-900"
+                      autoFocus
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

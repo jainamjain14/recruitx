@@ -152,23 +152,6 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
               </div>
             </div>
 
-            {/* Quick-fill helper for test/viva/demo presentation */}
-            {activeDemoCode && (
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/70 border border-blue-200 text-xs text-blue-900">
-                <div className="flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Demo Code: <strong className="font-mono text-blue-700">{activeDemoCode}</strong></span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCode(activeDemoCode)}
-                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline ml-2"
-                >
-                  Auto-fill
-                </button>
-              </div>
-            )}
-
             <button
               type="submit"
               disabled={isLoading || code.length !== 6}

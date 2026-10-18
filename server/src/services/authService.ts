@@ -8,7 +8,6 @@ export interface RegisterResult {
   user: Partial<IUserDocument>;
   token: string;
   requiresVerification?: boolean;
-  demoCode?: string;
 }
 
 export class AuthService {
@@ -58,7 +57,6 @@ export class AuthService {
           } as any,
           token: '',
           requiresVerification: true,
-          demoCode: verificationCode,
         };
       }
       throw new Error('An account with this email address already exists.');
@@ -115,7 +113,6 @@ export class AuthService {
       user: userObj as any,
       token: '',
       requiresVerification: true,
-      demoCode: verificationCode,
     };
   }
 
@@ -266,7 +263,6 @@ export class AuthService {
 
     return {
       message: 'A fresh verification code has been dispatched to your email.',
-      demoCode: verificationCode,
     };
   }
 

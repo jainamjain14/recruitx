@@ -49,7 +49,6 @@ export const RegisterPage: React.FC = () => {
   // Email verification state
   const [isVerificationOpen, setIsVerificationOpen] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
-  const [pendingDemoCode, setPendingDemoCode] = useState<string | undefined>(undefined);
 
   const {
     register,
@@ -83,7 +82,6 @@ export const RegisterPage: React.FC = () => {
 
       if (res?.requiresVerification) {
         setPendingEmail(values.email);
-        setPendingDemoCode(res.demoCode);
         setIsVerificationOpen(true);
       } else {
         const redirectPath = selectedRole === 'recruiter' ? '/recruiter' : '/student';
@@ -267,7 +265,6 @@ export const RegisterPage: React.FC = () => {
       <EmailVerificationModal
         isOpen={isVerificationOpen}
         email={pendingEmail}
-        demoCode={pendingDemoCode}
         role={selectedRole}
         onSuccess={() => {
           setIsVerificationOpen(false);

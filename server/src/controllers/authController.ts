@@ -35,7 +35,6 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
         user: result.user,
         token: result.token,
         requiresVerification: result.requiresVerification,
-        demoCode: result.demoCode,
       },
       201
     );
@@ -241,7 +240,7 @@ export const resendVerification = asyncHandler(async (req: Request, res: Respons
 
   try {
     const result = await AuthService.resendVerificationCode(email);
-    sendSuccess(res, result.message, { demoCode: result.demoCode });
+    sendSuccess(res, result.message);
   } catch (error: any) {
     sendError(res, error.message || 'Failed to resend verification email', null, 400);
   }

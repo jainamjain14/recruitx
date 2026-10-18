@@ -133,7 +133,7 @@ export const StudentDashboard: React.FC = () => {
       </div>
 
       {/* Real Live Stats Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4">
           <p className="text-2xl font-bold text-neutral-900">{applications.length}</p>
           <p className="text-xs text-neutral-500 mt-1">Jobs Applied</p>
@@ -145,22 +145,6 @@ export const StudentDashboard: React.FC = () => {
         <Card className="p-4">
           <p className="text-2xl font-bold text-neutral-900">{offersCount}</p>
           <p className="text-xs text-neutral-500 mt-1">Offers Received</p>
-        </Card>
-        <Card
-          className="p-4 cursor-pointer hover:border-neutral-400 transition-colors"
-          onClick={() => setBreakdownModalOpen(true)}
-          title="Click to view exact mathematical score breakdown"
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-2xl font-extrabold text-neutral-900">{overallReadinessScore}%</p>
-            <span className="text-[10px] font-bold text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200">
-              Deterministic
-            </span>
-          </div>
-          <p className="text-xs text-neutral-500 mt-1 flex items-center justify-between">
-            <span>Job Readiness Score</span>
-            <span className="text-[10px] text-neutral-900 underline font-medium">Breakdown →</span>
-          </p>
         </Card>
       </div>
 
@@ -291,163 +275,8 @@ export const StudentDashboard: React.FC = () => {
               </div>
             )}
           </Card>
-
-          {/* ATS Job Readiness Score Card */}
-          <Card className="p-5 space-y-4 border-neutral-300">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-neutral-800" />
-                <h2 className="text-sm font-bold text-neutral-900">ATS Job Readiness Score</h2>
-              </div>
-              <span className="text-xs font-extrabold text-neutral-900">{overallReadinessScore}%</span>
-            </div>
-
-            <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden">
-              <div
-                className="h-full bg-neutral-900 rounded-full transition-all duration-500"
-                style={{ width: `${overallReadinessScore}%` }}
-              />
-            </div>
-
-            {/* 2 Deterministic Pillars Breakdown Preview */}
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between text-neutral-600">
-                <span className="flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-neutral-700" /> Profile & ATS Completeness
-                </span>
-                <span className="font-bold text-neutral-900">{p1}/50 pts</span>
-              </div>
-
-              <div className="flex items-center justify-between text-neutral-600">
-                <span className="flex items-center gap-1.5">
-                  <Target className="w-3.5 h-3.5 text-neutral-700" /> Target Role Skill Alignment
-                </span>
-                <span className="font-bold text-neutral-900">{p2}/50 pts</span>
-              </div>
-            </div>
-
-            <Button
-              onClick={() => setBreakdownModalOpen(true)}
-              variant="outline"
-              size="sm"
-              className="w-full text-xs font-semibold gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-neutral-700" />
-              <span>View Deterministic Breakdown</span>
-            </Button>
-          </Card>
         </div>
       </div>
-
-      {/* ============================================================== */}
-      {/* JOB READINESS SCORE MATHEMATICAL BREAKDOWN MODAL */}
-      {/* ============================================================== */}
-      {breakdownModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-neutral-200">
-            <div className="flex items-start justify-between border-b border-neutral-100 pb-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <Target className="w-4 h-4 text-neutral-800" />
-                  <h3 className="text-base font-bold text-neutral-900">
-                    Job Readiness Score Formulation
-                  </h3>
-                </div>
-                <p className="text-xs text-neutral-500">
-                  Deterministic score calculated objectively from profile completeness and target skill match.
-                </p>
-              </div>
-              <button
-                onClick={() => setBreakdownModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-700 p-1 rounded-md"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Total Banner */}
-            <div className="p-4 rounded-xl bg-neutral-900 text-white flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  Total Deterministic Employability Score
-                </span>
-                <h4 className="text-2xl font-black text-white mt-0.5">
-                  {overallReadinessScore} / 100 Points
-                </h4>
-              </div>
-              <span className="text-xs font-bold px-3 py-1 rounded bg-neutral-800 text-neutral-200 border border-neutral-700">
-                {overallReadinessScore >= 80 ? 'Market Ready' : 'In Preparation'}
-              </span>
-            </div>
-
-            {/* 2 Deterministic Pillars Details */}
-            <div className="space-y-3.5 text-xs">
-              {/* Pillar 1 */}
-              <div className="p-3.5 rounded-lg border border-neutral-200 space-y-1.5 bg-neutral-50/50">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-neutral-900">1. Profile & Resume ATS Completeness</span>
-                  <span className="font-extrabold text-neutral-900">{p1} / 50 pts</span>
-                </div>
-                <p className="text-[11px] text-neutral-500">
-                  Evaluates account details, profession/title, summary bio, parsed skills ({resumeData?.skills?.length || 0} skills found), location, and portfolio links.
-                </p>
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setBreakdownModalOpen(false);
-                      navigate('/student/settings');
-                    }}
-                    className="text-[11px] h-7 px-2.5"
-                  >
-                    Edit Profile Details →
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setBreakdownModalOpen(false);
-                      navigate('/student/resume');
-                    }}
-                    className="text-[11px] h-7 px-2.5"
-                  >
-                    Update Resume →
-                  </Button>
-                </div>
-              </div>
-
-              {/* Pillar 2 */}
-              <div className="p-3.5 rounded-lg border border-neutral-200 space-y-1.5 bg-neutral-50/50">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-neutral-900">2. Target Role Skill Alignment</span>
-                  <span className="font-extrabold text-neutral-900">{p2} / 50 pts</span>
-                </div>
-                <p className="text-[11px] text-neutral-500">
-                  Measures your skills coverage against live industry requirements for {targetDomain} ({skillGapScore}% match).
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setBreakdownModalOpen(false);
-                    navigate('/student/roadmap');
-                  }}
-                  className="text-[11px] h-7 px-2.5 mt-1"
-                >
-                  View Skill Gap & Roadmap →
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-neutral-100">
-              <Button size="sm" onClick={() => setBreakdownModalOpen(false)} className="text-xs">
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
