@@ -33,7 +33,7 @@ export class AuthService {
     if (existingUser) {
       if (!existingUser.emailVerified) {
         // Pending unverified registration: refresh code and send email again
-        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const verificationCode = crypto.randomInt(100000, 1000000).toString();
         existingUser.verificationCode = verificationCode;
         existingUser.verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
         existingUser.setPassword(password);
@@ -62,8 +62,8 @@ export class AuthService {
       throw new Error('An account with this email address already exists.');
     }
 
-    // Generate 6-digit verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 6-digit verification code using cryptographically secure random number generator
+    const verificationCode = crypto.randomInt(100000, 1000000).toString();
     const verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
 
     // Create user in unverified state
@@ -250,7 +250,7 @@ export class AuthService {
       return { message: 'Email address is already verified.' };
     }
 
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCode = crypto.randomInt(100000, 1000000).toString();
     user.verificationCode = verificationCode;
     user.verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();

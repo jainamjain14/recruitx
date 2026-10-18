@@ -72,8 +72,8 @@ export const AdminPlacements: React.FC = () => {
         </Card>
       </div>
 
-      {/* Salary & CTC Metrics if available */}
-      {accreditation?.salaryMetrics && (
+      {/* Salary & CTC Metrics — only displayed when verified placement offers exist */}
+      {stats.placedStudents > 0 && accreditation?.salaryMetrics && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card className="p-4 bg-neutral-900 text-white space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Highest CTC Offered</span>

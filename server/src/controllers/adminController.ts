@@ -234,12 +234,13 @@ export const getAccreditationStats = async (req: AuthenticatedRequest, res: Resp
       ctcValues.push(val);
     });
 
-    const highestCtc = ctcValues.length > 0 ? Math.max(...ctcValues) : 18.5;
-    const averageCtc = ctcValues.length > 0
+    const hasOffers = ctcValues.length > 0;
+    const highestCtc = hasOffers ? Math.max(...ctcValues) : 0;
+    const averageCtc = hasOffers
       ? Math.round((ctcValues.reduce((a, b) => a + b, 0) / ctcValues.length) * 10) / 10
-      : 8.2;
+      : 0;
     const sortedCtc = [...ctcValues].sort((a, b) => a - b);
-    const medianCtc = sortedCtc.length > 0 ? sortedCtc[Math.floor(sortedCtc.length / 2)] : 7.5;
+    const medianCtc = hasOffers ? sortedCtc[Math.floor(sortedCtc.length / 2)] : 0;
 
     // CTC Tiers
     let superDream = 0; // >= 10 LPA
@@ -252,22 +253,44 @@ export const getAccreditationStats = async (req: AuthenticatedRequest, res: Resp
       else regular++;
     });
 
-    // Branch-wise Breakdown (NIRF / NAAC requirement)
-    const branches = [
-      { name: 'Computer Science & Software', code: 'CSE', total: Math.max(1, Math.round(totalStudents * 0.45)), placedRate: 88 },
-      { name: 'Cinematography & Camera Arts', code: 'CINE', total: Math.max(1, Math.round(totalStudents * 0.20)), placedRate: 82 },
-      { name: 'Feature Film & OTT Production', code: 'FILM', total: Math.max(1, Math.round(totalStudents * 0.15)), placedRate: 78 },
-      { name: 'Product Design & UI/UX', code: 'DES', total: Math.max(1, Math.round(totalStudents * 0.12)), placedRate: 85 },
-      { name: 'Product Marketing & Growth', code: 'MKT', total: Math.max(1, Math.round(totalStudents * 0.08)), placedRate: 75 },
-    ];
+    // Group actual students by their registered department/profession
+    const deptMap: Record<string, { total: number; placed: number; ctcList: number[] }> = {};
 
-    const branchBreakdown = branches.map((b) => {
-      const placed = Math.round((b.total * b.placedRate) / 100);
+    students.forEach((s: any) => {
+      const dept = s.profession || s.department || 'General Engineering';
+      if (!deptMap[dept]) {
+        deptMap[dept] = { total: 0, placed: 0, ctcList: [] };
+      }
+      deptMap[dept].total++;
+    });
+
+    offeredApps.forEach((app: any) => {
+      const student = students.find((s: any) => s._id.toString() === (typeof app.student === 'object' ? app.student?._id?.toString() : app.student?.toString()));
+      const dept = student?.profession || (student as any)?.department || 'General Engineering';
+      if (!deptMap[dept]) {
+        deptMap[dept] = { total: 1, placed: 0, ctcList: [] };
+      }
+      deptMap[dept].placed++;
+      const jobId = typeof app.job === 'object' && app.job?._id ? app.job._id : app.job;
+      const salary = jobSalaryMap[jobId] || 0;
+      if (salary > 0) {
+        deptMap[dept].ctcList.push(salary);
+      }
+    });
+
+    const branchBreakdown = Object.entries(deptMap).map(([name, data]) => {
+      const placedRate = data.total > 0 ? Math.round((data.placed / data.total) * 100) : 0;
+      const avgSalary = data.ctcList.length > 0
+        ? Math.round((data.ctcList.reduce((a, b) => a + b, 0) / data.ctcList.length) * 10) / 10
+        : 0;
       return {
-        ...b,
-        placed,
-        unplaced: b.total - placed,
-        avgCtc: b.code === 'CSE' ? 10.4 : b.code === 'DES' ? 9.2 : b.code === 'CINE' ? 8.5 : 7.8,
+        name,
+        code: name.split(' ').map((w) => w[0]).join('').slice(0, 4).toUpperCase() || 'DEPT',
+        total: data.total,
+        placed: data.placed,
+        unplaced: Math.max(0, data.total - data.placed),
+        placedRate,
+        avgCtc: avgSalary > 0 ? `${avgSalary} LPA` : 'N/A',
       };
     });
 
@@ -276,18 +299,18 @@ export const getAccreditationStats = async (req: AuthenticatedRequest, res: Resp
         reportingYear: new Date().getFullYear(),
         nirfCompliant: true,
         naacCriteria: 'Criterion 5.2 - Student Progression',
-        totalEligibleStudents: totalStudents || 45,
-        totalPlacedStudents: placedStudentsCount || 36,
-        overallPlacementRate: totalStudents > 0 ? Math.round((placedStudentsCount / totalStudents) * 100) : 80,
+        totalEligibleStudents: totalStudents,
+        totalPlacedStudents: placedStudentsCount,
+        overallPlacementRate: totalStudents > 0 ? Math.round((placedStudentsCount / totalStudents) * 100) : 0,
         salaryMetrics: {
-          highestCtc: `${highestCtc} LPA`,
-          averageCtc: `${averageCtc} LPA`,
-          medianCtc: `${medianCtc} LPA`,
+          highestCtc: highestCtc > 0 ? `${highestCtc} LPA` : '0 LPA',
+          averageCtc: averageCtc > 0 ? `${averageCtc} LPA` : '0 LPA',
+          medianCtc: medianCtc > 0 ? `${medianCtc} LPA` : '0 LPA',
         },
         salaryTiers: {
-          superDreamOffers: superDream || 12,
-          dreamOffers: dream || 18,
-          regularOffers: regular || 6,
+          superDreamOffers: superDream,
+          dreamOffers: dream,
+          regularOffers: regular,
         },
         branchBreakdown,
       },

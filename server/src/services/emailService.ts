@@ -1,3 +1,4 @@
+import nodemailer, { Transporter } from 'nodemailer';
 import { getVerifiedCompanyHrEmail } from './linkedinService.js';
 
 export interface ApplicationEmailPayload {
@@ -14,17 +15,110 @@ export interface ApplicationEmailPayload {
 
 export class EmailService {
   /**
+   * Helper to create a nodemailer transporter if SMTP credentials exist in environment
+   */
+  private static getTransporter(): Transporter | null {
+    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+    const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
+    const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : smtpPort === 465;
+
+    if (smtpUser && smtpPass) {
+      return nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: smtpUser.trim(),
+          pass: smtpPass.trim(),
+        },
+      });
+    }
+
+    return null;
+  }
+
+  /**
+   * Send an email using SMTP (Nodemailer) or Resend as fallback
+   */
+  private static async sendMail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    replyTo?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    const { to, subject, html, replyTo } = options;
+    const transporter = this.getTransporter();
+    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+    const fromName = process.env.EMAIL_FROM_NAME || 'RecruitX Platform';
+
+    // 1. Primary: If SMTP credentials (e.g. Gmail App Password or Brevo) are configured
+    if (transporter && smtpUser) {
+      try {
+        const info = await transporter.sendMail({
+          from: `"${fromName}" <${smtpUser.trim()}>`,
+          to,
+          subject,
+          html,
+          replyTo: replyTo || smtpUser.trim(),
+        });
+        console.log(`✨ Live email dispatched via SMTP to ${to}! MessageId: ${info.messageId}`);
+        return { success: true };
+      } catch (err: any) {
+        console.error('SMTP Email dispatch failed:', err.message || err);
+        // Fall through to Resend or local log
+      }
+    }
+
+    // 2. Fallback: Resend API
+    const resendKey = process.env.RESEND_API_KEY;
+    const fromAddress = process.env.RESEND_FROM_EMAIL || 'RecruitX Security <onboarding@resend.dev>';
+
+    if (resendKey && resendKey.trim().length > 10) {
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${resendKey.trim()}`,
+          },
+          body: JSON.stringify({
+            from: fromAddress,
+            to: [to],
+            subject,
+            html,
+            reply_to: replyTo,
+          }),
+        });
+
+        const resData: any = await response.json();
+        if (resData.id) {
+          console.log(`✨ Live email sent via Resend to ${to}! ID: ${resData.id}`);
+          return { success: true };
+        } else {
+          console.warn('⚠️ Resend response info:', resData.message || resData);
+          return { success: false, error: resData.message };
+        }
+      } catch (err: any) {
+        console.error('Resend email dispatch failed:', err.message || err);
+        return { success: false, error: err.message };
+      }
+    }
+
+    console.log(`ℹ️ [Development mode] Email for ${to} — Subject: "${subject}"`);
+    return { success: true };
+  }
+
+  /**
    * Automatically dispatches candidate's application and resume package
-   * directly to the company's hiring inbox (e.g. verified company email or recruiter's email)
+   * directly to the company's hiring inbox
    */
   static async sendApplicationToHR(payload: ApplicationEmailPayload): Promise<boolean> {
     const { candidateName, candidateEmail, jobTitle, companyName, headline, summary, skills, fieldOfInterest, targetHrEmail } = payload;
 
-    // Resolve verified HR email
     const verifiedEmail = getVerifiedCompanyHrEmail(companyName);
     const resolvedHrEmail = targetHrEmail || verifiedEmail;
-
-    // If developer configured an override in .env (for testing/viva/demos), use that destination
     const destinationEmail = process.env.COMPANY_HR_EMAIL_OVERRIDE || resolvedHrEmail;
 
     if (!destinationEmail) {
@@ -35,7 +129,7 @@ export class EmailService {
     const htmlBody = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 640px; padding: 28px; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
         <div style="border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 20px;">
-          <span style="background: #0f172a; color: #ffffff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 8px; rounded: 4px;">RecruitX Candidate Dispatch</span>
+          <span style="background: #0f172a; color: #ffffff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 4px;">RecruitX Candidate Dispatch</span>
           <h2 style="color: #0f172a; margin: 8px 0 0 0; font-size: 22px; font-weight: 700;">Job Application: ${jobTitle}</h2>
           <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Target Employer: <strong>${companyName}</strong> &lt;${destinationEmail}&gt;</p>
         </div>
@@ -73,72 +167,14 @@ export class EmailService {
     `;
 
     console.log(`📧 Dispatching Automated Application Package for "${jobTitle}" at ${companyName}...`);
-    console.log(`➡️ Target Company HR Inbox: ${destinationEmail}`);
+    const result = await this.sendMail({
+      to: destinationEmail,
+      subject: `Job Application: ${candidateName} - ${jobTitle} (${companyName})`,
+      html: htmlBody,
+      replyTo: candidateEmail,
+    });
 
-    const resendKey = process.env.RESEND_API_KEY;
-    const fromAddress = process.env.RESEND_FROM_EMAIL || 'RecruitX Applications <onboarding@resend.dev>';
-
-    if (resendKey && resendKey.trim().length > 10) {
-      try {
-        // Attempt sending to Company HR Email
-        const response = await fetch(`https://api.resend.com/emails`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${resendKey.trim()}`,
-          },
-          body: JSON.stringify({
-            from: fromAddress,
-            to: [destinationEmail],
-            reply_to: candidateEmail,
-            subject: `Job Application: ${candidateName} - ${jobTitle} (${companyName})`,
-            html: htmlBody,
-          }),
-        });
-
-        const resData: any = await response.json();
-
-        if (resData.id) {
-          console.log(`✨ Live Resend Email Dispatched to Company HR Inbox (${destinationEmail})! Email ID: ${resData.id}`);
-          return true;
-        }
-
-        // Check if Resend Sandbox restriction triggered
-        if (resData.error || resData.statusCode === 403 || resData.name === 'validation_error' || resData.message?.includes('validation_error')) {
-          console.warn(`\n⚠️ Resend Sandbox Policy Notice:`);
-          console.warn(`Resend's default free test domain (onboarding@resend.dev) only delivers to the Resend account owner's registered email.`);
-          console.warn(`Failed to deliver to target HR address: ${destinationEmail}. Resend Error: ${resData.message || JSON.stringify(resData)}`);
-          console.warn(`💡 To deliver to actual company HR emails in production:`);
-          console.warn(`   1. Add and verify your custom domain in Resend (https://resend.com/domains)`);
-          console.warn(`   2. Set RESEND_FROM_EMAIL="RecruitX <applications@yourdomain.com>" in .env`);
-          console.warn(`   3. OR set COMPANY_HR_EMAIL_OVERRIDE="your-hr-inbox@..." in .env for demo testing.\n`);
-
-          // Only as a fallback for local testing when external domains are rejected by Resend sandbox
-          if (destinationEmail !== candidateEmail) {
-            console.log(`🔄 Sending local testing copy to ${candidateEmail} for sandbox verification...`);
-            await fetch(`https://api.resend.com/emails`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${resendKey.trim()}`,
-              },
-              body: JSON.stringify({
-                from: fromAddress,
-                to: [candidateEmail],
-                reply_to: candidateEmail,
-                subject: `[Sandbox Test Copy] Application for ${jobTitle} at ${companyName} (Target HR: ${destinationEmail})`,
-                html: htmlBody,
-              }),
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Email API Dispatch Error:', err);
-      }
-    }
-
-    console.log(`✅ Application Package processed for ${companyName} HR (${destinationEmail})!`);
-    return true;
+    return result.success;
   }
 
   /**
@@ -150,8 +186,6 @@ export class EmailService {
     code: string;
   }): Promise<{ success: boolean; error?: string }> {
     const { toEmail, userName, code } = payload;
-    const resendKey = process.env.RESEND_API_KEY;
-    const fromAddress = process.env.RESEND_FROM_EMAIL || 'RecruitX Security <onboarding@resend.dev>';
 
     const htmlBody = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
@@ -185,39 +219,11 @@ export class EmailService {
     `;
 
     console.log(`📧 Dispatching Verification Code [${code}] to ${toEmail}...`);
-
-    if (resendKey && resendKey.trim().length > 10) {
-      try {
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${resendKey.trim()}`,
-          },
-          body: JSON.stringify({
-            from: fromAddress,
-            to: [toEmail],
-            subject: `${code} is your RecruitX verification code`,
-            html: htmlBody,
-          }),
-        });
-
-        const resData: any = await response.json();
-        if (resData.id) {
-          console.log(`✨ Live verification email sent via Resend! ID: ${resData.id}`);
-          return { success: true };
-        } else {
-          console.warn('⚠️ Resend response info:', resData.message || resData);
-          return { success: true, error: resData.message };
-        }
-      } catch (err: any) {
-        console.error('Verification email dispatch failed:', err);
-        return { success: false, error: err.message };
-      }
-    } else {
-      console.log(`ℹ️ [Development mode] Verification code for ${toEmail}: ${code}`);
-      return { success: true };
-    }
+    return this.sendMail({
+      to: toEmail,
+      subject: `${code} is your RecruitX verification code`,
+      html: htmlBody,
+    });
   }
 }
 
