@@ -9,6 +9,7 @@ import { logger } from "./utils/logger.js";
 import http from "http";
 import { initSocket } from "./socket.js";
 import { startReminderService } from "./services/reminderService.js";
+import { EmailService } from "./services/emailService.js";
 
 const PORT = Number(process.env.PORT) || 5000;
 
@@ -28,6 +29,11 @@ const startServer = async () => {
 
       // Start the interview reminder cron (fires every minute)
       startReminderService();
+
+      // Diagnostic SMTP verification
+      EmailService.verifySMTPConnection().catch((err) => {
+        logger.error("SMTP verify error:", err);
+      });
     });
   } catch (error) {
     logger.error("Failed to start server:", error);

@@ -26,21 +26,63 @@ export class EmailService {
     const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : smtpPort === 465;
 
     if (smtpUser && smtpPass) {
-      return nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
+      const cleanUser = smtpUser.trim();
+      const cleanPass = smtpPass.trim().replace(/\s+/g, ''); // strip any remaining spaces if user pasted with spaces
+
+      const transportOptions: any = {
         auth: {
-          user: smtpUser.trim(),
-          pass: smtpPass.trim(),
+          user: cleanUser,
+          pass: cleanPass,
         },
-        connectionTimeout: 10000, // 10s max connection attempt
+        connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 15000,
-      });
+      };
+
+      // If host is explicitly set to something else or port is specified, use host/port
+      if (smtpHost && !smtpHost.includes('gmail.com')) {
+        transportOptions.host = smtpHost;
+        transportOptions.port = smtpPort;
+        transportOptions.secure = smtpSecure;
+      } else {
+        // For Gmail, nodemailer's built-in 'service: gmail' handles host, port (465/587) and STARTTLS correctly
+        transportOptions.service = 'gmail';
+      }
+
+      return nodemailer.createTransport(transportOptions);
     }
 
     return null;
+  }
+
+  /**
+   * Diagnostic: verify SMTP connection and log result (call once on startup)
+   */
+  static async verifySMTPConnection(): Promise<void> {
+    const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+    const smtpPass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+    const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : smtpPort === 465;
+    const resendKey = (process.env.RESEND_API_KEY || '').trim();
+
+    console.log('[EmailService] SMTP config → host:', smtpHost, '| port:', smtpPort, '| secure:', smtpSecure, '| user set:', !!smtpUser, '| pass set:', !!smtpPass, '| pass length:', smtpPass.length, '| resend set:', resendKey.length > 10);
+
+    if (smtpUser && smtpPass) {
+      const transporter = this.getTransporter();
+      if (transporter) {
+        try {
+          await transporter.verify();
+          console.log('[EmailService] ✅ SMTP connection verified successfully — ready to send emails');
+        } catch (err: any) {
+          console.error('[EmailService] ❌ SMTP connection FAILED:', err.code || '', err.response || '', err.message || err);
+        }
+      }
+    } else if (resendKey.length > 10) {
+      console.log('[EmailService] ℹ️ No SMTP credentials — will use Resend API for email delivery');
+    } else {
+      console.warn('[EmailService] ⚠️ No email provider configured (no SMTP_USER/SMTP_PASS and no RESEND_API_KEY). Emails will be silently skipped.');
+    }
   }
 
   /**
@@ -59,6 +101,7 @@ export class EmailService {
 
     // 1. Primary: If SMTP credentials (e.g. Gmail App Password or Brevo) are configured
     if (transporter && smtpUser) {
+      console.log(`[EmailService] Attempting SMTP delivery to ${to}...`);
       try {
         const info = await transporter.sendMail({
           from: `"${fromName}" <${smtpUser.trim()}>`,
@@ -70,8 +113,9 @@ export class EmailService {
         console.log(`✨ Live email dispatched via SMTP to ${to}! MessageId: ${info.messageId}`);
         return { success: true };
       } catch (err: any) {
-        console.error('SMTP Email dispatch failed:', err.message || err);
-        // Fall through to Resend or local log
+        // Log full details so we can diagnose in Render logs
+        console.error('[EmailService] ❌ SMTP sendMail failed — code:', err.code, '| response:', err.response, '| command:', err.command, '| message:', err.message);
+        // Fall through to Resend
       }
     }
 
@@ -80,6 +124,7 @@ export class EmailService {
     const fromAddress = process.env.RESEND_FROM_EMAIL || 'RecruitX Security <onboarding@resend.dev>';
 
     if (resendKey && resendKey.trim().length > 10) {
+      console.log(`[EmailService] Attempting Resend delivery to ${to}...`);
       try {
         const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -101,17 +146,17 @@ export class EmailService {
           console.log(`✨ Live email sent via Resend to ${to}! ID: ${resData.id}`);
           return { success: true };
         } else {
-          console.warn('⚠️ Resend response info:', resData.message || resData);
+          console.error('[EmailService] ❌ Resend API error:', JSON.stringify(resData));
           return { success: false, error: resData.message };
         }
       } catch (err: any) {
-        console.error('Resend email dispatch failed:', err.message || err);
+        console.error('[EmailService] ❌ Resend fetch failed:', err.message || err);
         return { success: false, error: err.message };
       }
     }
 
-    console.log(`ℹ️ [Development mode] Email for ${to} — Subject: "${subject}"`);
-    return { success: true };
+    console.warn(`[EmailService] ⚠️ No email provider available — email for ${to} (subject: "${subject}") was NOT sent`);
+    return { success: false, error: 'No email provider configured' };
   }
 
   /**
