@@ -16,7 +16,7 @@ export interface CourseraCourse {
 }
 
 export const COURSERA_CATALOG: CourseraCourse[] = [
-  // ==================== Software Engineering ====================
+  // ==================== Software Engineering & Computer Science ====================
   {
     id: 'meta-front-end-developer',
     title: 'Meta Front-End Developer Professional Certificate',
@@ -50,13 +50,13 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
     certificateType: 'Both Options',
   },
   {
-    id: 'google-it-automation-python',
+    id: 'google-it-automation',
     title: 'Google IT Automation with Python Professional Certificate',
     provider: 'Google',
     domain: 'Software Engineering',
     pricingType: 'both',
     pricingLabel: 'Free to Audit / Paid Certificate Available',
-    courseraUrl: 'https://www.coursera.org/professional-certificates/google-it-automation-with-python',
+    courseraUrl: 'https://www.coursera.org/professional-certificates/google-it-automation',
     duration: '3-4 Months (8 hrs/week)',
     rating: 4.8,
     enrolledCount: '520K+ Learners',
@@ -93,12 +93,108 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
     rating: 4.9,
     enrolledCount: '410K+ Learners',
     level: 'Advanced',
-    skillsCovered: ['Data Structures', 'Algorithms', 'System Design', 'Graph Search', 'Dynamic Programming'],
+    skillsCovered: ['Data Structures', 'Algorithms', 'System Design', 'Graph Search', 'Dynamic Programming', 'Coding Interviews'],
     description: 'Learn foundational algorithmic principles and computer science paradigms from world-renowned Stanford professors Tim Roughgarden.',
     certificateType: 'Free Audit Available',
   },
+  {
+    id: 'ucsd-data-structures-algorithms',
+    title: 'Data Structures and Algorithms Specialization',
+    provider: 'UC San Diego',
+    domain: 'Software Engineering',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/specializations/data-structures-algorithms',
+    duration: '3-4 Months (6 hrs/week)',
+    rating: 4.8,
+    enrolledCount: '300K+ Learners',
+    level: 'Intermediate',
+    skillsCovered: ['Data Structures', 'Algorithms', 'Graph Algorithms', 'String Processing', 'Dynamic Programming'],
+    description: 'Master algorithmic programming techniques to ace software engineering technical interviews and build efficient software systems.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'duke-java-programming',
+    title: 'Java Programming and Software Engineering Fundamentals Specialization',
+    provider: 'Duke University',
+    domain: 'Software Engineering',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/specializations/java-programming',
+    duration: '3-5 Months (5 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '480K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Java', 'OOP', 'Data Structures', 'Algorithms', 'Software Engineering', 'HTML/CSS/JS'],
+    description: 'Learn fundamental programming concepts in Java, object-oriented design, algorithms, and software testing from Duke University faculty.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'spring-framework-specialization',
+    title: 'Spring Framework Specialization',
+    provider: 'LearnQuest',
+    domain: 'Software Engineering',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/specializations/spring-framework',
+    duration: '2-3 Months (5 hrs/week)',
+    rating: 4.6,
+    enrolledCount: '90K+ Learners',
+    level: 'Intermediate',
+    skillsCovered: ['Java', 'Spring Boot', 'Spring MVC', 'RESTful APIs', 'Microservices', 'SQL'],
+    description: 'Master modern enterprise Java development using Spring Boot, Spring Data, and microservices architecture.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'meta-database-engineer',
+    title: 'Meta Database Engineer Professional Certificate',
+    provider: 'Meta',
+    domain: 'Software Engineering',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/professional-certificates/meta-database-engineer',
+    duration: '4-6 Months (6 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '130K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['SQL', 'MySQL', 'PostgreSQL', 'Database Design', 'Python', 'Database Administration'],
+    description: 'Demonstrate proficiency in database design, relational modeling, advanced SQL queries, and data storage optimizations with Meta engineers.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'michigan-python-for-everybody',
+    title: 'Python for Everybody Specialization',
+    provider: 'University of Michigan',
+    domain: 'Software Engineering',
+    pricingType: 'free',
+    pricingLabel: '100% Free to Audit',
+    courseraUrl: 'https://www.coursera.org/specializations/python',
+    duration: '2-3 Months (5 hrs/week)',
+    rating: 4.8,
+    enrolledCount: '1.5M+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Python', 'SQL', 'Data Analysis', 'Web Scraping', 'JSON'],
+    description: 'Learn how to program and analyze data with Python from University of Michigan Professor Charles Severance.',
+    certificateType: 'Free Audit Available',
+  },
 
-  // ==================== AI & Data Science ====================
+  // ==================== Data Science & Analytics ====================
+  {
+    id: 'google-data-analytics-cert',
+    title: 'Google Data Analytics Professional Certificate',
+    provider: 'Google',
+    domain: 'Data Analytics',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/professional-certificates/google-data-analytics',
+    duration: '4-6 Months (5 hrs/week)',
+    rating: 4.8,
+    enrolledCount: '2.1M+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Data Analysis', 'SQL', 'Tableau', 'Spreadsheets', 'R Programming', 'Data Visualization', 'Business Intelligence'],
+    description: 'Gain job-ready skills for an entry-level data analyst role. Learn how to clean, visualize, and analyze data to make strategic business recommendations.',
+    certificateType: 'Both Options',
+  },
   {
     id: 'deeplearning-machine-learning-andrew-ng',
     title: 'Machine Learning Specialization',
@@ -131,38 +227,6 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
     description: 'Build and train deep neural networks, implement CNNs for computer vision, and architect sequence models for cutting-edge generative AI.',
     certificateType: 'Both Options',
   },
-  {
-    id: 'google-data-analytics-cert',
-    title: 'Google Data Analytics Professional Certificate',
-    provider: 'Google',
-    domain: 'Artificial Intelligence & Data Science',
-    pricingType: 'paid',
-    pricingLabel: 'Paid Certificate Track / Financial Aid Available',
-    courseraUrl: 'https://www.coursera.org/professional-certificates/google-data-analytics',
-    duration: '4-6 Months (5 hrs/week)',
-    rating: 4.8,
-    enrolledCount: '2.1M+ Learners',
-    level: 'Beginner',
-    skillsCovered: ['Data Analysis', 'SQL', 'Pandas', 'Spreadsheets', 'Tableau', 'R Programming'],
-    description: 'Gain job-ready skills for an entry-level data analyst role. Learn how to clean, visualize, and analyze data to make strategic business recommendations.',
-    certificateType: 'Official Coursera Certificate',
-  },
-  {
-    id: 'michigan-python-for-everybody',
-    title: 'Python for Everybody Specialization',
-    provider: 'University of Michigan',
-    domain: 'Software Engineering',
-    pricingType: 'free',
-    pricingLabel: '100% Free to Audit',
-    courseraUrl: 'https://www.coursera.org/specializations/python',
-    duration: '2-3 Months (5 hrs/week)',
-    rating: 4.8,
-    enrolledCount: '1.5M+ Learners',
-    level: 'Beginner',
-    skillsCovered: ['Python', 'SQL', 'Data Analysis', 'Web Scraping', 'JSON'],
-    description: 'Learn how to program and analyze data with Python from University of Michigan Professor Charles Severance.',
-    certificateType: 'Free Audit Available',
-  },
 
   // ==================== Cloud Infrastructure & DevOps ====================
   {
@@ -177,9 +241,25 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
     rating: 4.7,
     enrolledCount: '160K+ Learners',
     level: 'Intermediate',
-    skillsCovered: ['AWS', 'Cloud Architecture', 'Linux', 'Docker', 'Terraform', 'Security'],
+    skillsCovered: ['AWS', 'Cloud Architecture', 'Linux', 'Docker', 'Networking', 'Security', 'Infrastructure'],
     description: 'Prepare for the AWS Certified Solutions Architect Associate exam. Architect fault-tolerant, scalable, and cost-effective cloud networks on AWS.',
     certificateType: 'Both Options',
+  },
+  {
+    id: 'aws-cloud-practitioner-essentials',
+    title: 'AWS Cloud Practitioner Essentials',
+    provider: 'Amazon Web Services',
+    domain: 'Cloud Infrastructure & DevOps',
+    pricingType: 'free',
+    pricingLabel: '100% Free to Audit',
+    courseraUrl: 'https://www.coursera.org/learn/aws-cloud-practitioner-essentials',
+    duration: '4-6 Weeks (3 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '420K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['AWS', 'Cloud Fundamentals', 'Compute', 'Storage', 'Cloud Security'],
+    description: 'Fundamental understanding of the AWS Cloud, global infrastructure, security models, and cloud architectural best practices directly from AWS.',
+    certificateType: 'Free Audit Available',
   },
   {
     id: 'google-cloud-infrastructure',
@@ -193,8 +273,58 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
     rating: 4.7,
     enrolledCount: '120K+ Learners',
     level: 'Intermediate',
-    skillsCovered: ['Cloud Architecture', 'Kubernetes', 'Docker', 'Linux', 'CI/CD'],
+    skillsCovered: ['Google Cloud', 'Kubernetes', 'Docker', 'Linux', 'Networking', 'CI/CD'],
     description: 'Deploy solution elements, including infrastructure components such as networks, systems and application services on Google Cloud.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'illinois-cloud-computing',
+    title: 'Cloud Computing Concepts',
+    provider: 'University of Illinois',
+    domain: 'Cloud Infrastructure & DevOps',
+    pricingType: 'free',
+    pricingLabel: '100% Free to Audit',
+    courseraUrl: 'https://www.coursera.org/learn/cloud-computing',
+    duration: '5 Weeks (4 hrs/week)',
+    rating: 4.6,
+    enrolledCount: '210K+ Learners',
+    level: 'Intermediate',
+    skillsCovered: ['Cloud Computing', 'Distributed Systems', 'Fault Tolerance', 'MapReduce', 'P2P Systems'],
+    description: 'Understand the core concepts of distributed systems and cloud networks from the University of Illinois Urbana-Champaign.',
+    certificateType: 'Free Audit Available',
+  },
+
+  // ==================== Cybersecurity ====================
+  {
+    id: 'google-cybersecurity-cert',
+    title: 'Google Cybersecurity Professional Certificate',
+    provider: 'Google',
+    domain: 'Cybersecurity',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/professional-certificates/google-cybersecurity',
+    duration: '3-6 Months (7 hrs/week)',
+    rating: 4.8,
+    enrolledCount: '450K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Cybersecurity', 'Network Security', 'Python', 'Linux', 'SIEM Tools', 'Incident Response', 'Threat Detection'],
+    description: 'Prepare for an entry-level cybersecurity role with hands-on practice in identifying threats, mitigating vulnerabilities, and analyzing security events.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'microsoft-cybersecurity-analyst',
+    title: 'Microsoft Cybersecurity Analyst Professional Certificate',
+    provider: 'Microsoft',
+    domain: 'Cybersecurity',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/professional-certificates/microsoft-cybersecurity-analyst',
+    duration: '4-6 Months (6 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '110K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Cybersecurity', 'Threat Analysis', 'Identity Management', 'Microsoft Defender', 'Azure Sentinel', 'Compliance'],
+    description: 'Master Microsoft security operations, threat modeling, vulnerability management, and incident response across enterprise environments.',
     certificateType: 'Both Options',
   },
 
@@ -211,8 +341,24 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
     rating: 4.8,
     enrolledCount: '1.4M+ Learners',
     level: 'Beginner',
-    skillsCovered: ['Figma', 'UI/UX Design', 'Wireframing', 'Prototyping', 'User Research', 'Design Systems'],
+    skillsCovered: ['Figma', 'UI/UX Design', 'Wireframing', 'Prototyping', 'User Research', 'Design Systems', 'Usability Testing'],
     description: 'Design intuitive digital mobile apps and responsive websites. Build a portfolio with 3 projects including UX research and high-fidelity Figma prototypes.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'calarts-ui-ux-design',
+    title: 'UI / UX Design Specialization',
+    provider: 'California Institute of the Arts (CalArts)',
+    domain: 'UI/UX & Creative Design',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/specializations/ui-ux-design',
+    duration: '3-4 Months (5 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '380K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['UI/UX Design', 'Visual Design', 'Wireframing', 'User Research', 'Prototyping', 'Interface Design'],
+    description: 'Learn a design-centric approach to user interface and user experience design with practical visual communication projects from CalArts faculty.',
     certificateType: 'Both Options',
   },
   {
@@ -250,19 +396,19 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
     certificateType: 'Both Options',
   },
   {
-    id: 'meta-social-media-marketing',
-    title: 'Meta Social Media Marketing Professional Certificate',
-    provider: 'Meta',
+    id: 'northwestern-social-media-marketing',
+    title: 'Social Media Marketing Specialization',
+    provider: 'Northwestern University',
     domain: 'Marketing & Growth Management',
     pricingType: 'both',
     pricingLabel: 'Free to Audit / Paid Certificate Available',
-    courseraUrl: 'https://www.coursera.org/professional-certificates/meta-social-media-marketing',
-    duration: '3-5 Months (5 hrs/week)',
-    rating: 4.9,
-    enrolledCount: '320K+ Learners',
+    courseraUrl: 'https://www.coursera.org/specializations/social-media-marketing',
+    duration: '3-4 Months (5 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '290K+ Learners',
     level: 'Beginner',
-    skillsCovered: ['Social Media Management', 'Brand Management', 'A/B Testing', 'Copywriting', 'Campaign Strategy'],
-    description: 'Master social media advertising, campaign simulation, content calendars, and viral attribution across Instagram, Facebook, and modern digital channels.',
+    skillsCovered: ['Social Media Management', 'Content Strategy', 'Brand Management', 'Audience Engagement', 'Analytics'],
+    description: 'Understand the social media landscape, build engagement strategies, and design high-impact social campaigns from Northwestern University faculty.',
     certificateType: 'Both Options',
   },
 
@@ -367,23 +513,61 @@ export class CourseraService {
         lowerMissing.some((ms) => ms.includes(cs) || cs.includes(ms))
       );
 
-      const domainMatch =
-        course.domain.toLowerCase().includes(lowerRole) ||
-        lowerRole.includes(course.domain.toLowerCase()) ||
-        ((lowerRole.includes('software') || lowerRole.includes('engineer') || lowerRole.includes('developer') || lowerRole.includes('computer')) && course.domain.includes('Software')) ||
-        (lowerRole.includes('market') && course.domain.includes('Marketing')) ||
-        (lowerRole.includes('design') && course.domain.includes('Design')) ||
-        ((lowerRole.includes('film') || lowerRole.includes('cinema') || lowerRole.includes('direct')) && course.domain.includes('Film')) ||
-        ((lowerRole.includes('video') || lowerRole.includes('edit')) && course.domain.includes('Video')) ||
-        ((lowerRole.includes('camera') || lowerRole.includes('cinematograph')) && course.domain.includes('Cinematography')) ||
-        ((lowerRole.includes('data') || lowerRole.includes('ai') || lowerRole.includes('machine learning')) && course.domain.includes('Intelligence')) ||
-        ((lowerRole.includes('finance') || lowerRole.includes('account')) && course.domain.includes('Finance'));
+      // Specific sub-discipline matches
+      const isCyber = lowerRole.includes('cyber') || lowerRole.includes('security') || lowerRole.includes('infosec');
+      const isCloud = lowerRole.includes('cloud') || lowerRole.includes('aws') || lowerRole.includes('azure') || lowerRole.includes('devops');
+      const isData = lowerRole.includes('data') || lowerRole.includes('analytics') || lowerRole.includes('analyst') || lowerRole.includes('business intelligence');
+      const isAI = lowerRole.includes('machine learning') || lowerRole.includes('ai') || lowerRole.includes('deep learning');
+      const isDesign = lowerRole.includes('design') || lowerRole.includes('ui') || lowerRole.includes('ux') || lowerRole.includes('figma');
+      const isJava = lowerRole.includes('java') || lowerRole.includes('spring');
+      const isMarketing = lowerRole.includes('market') || lowerRole.includes('seo') || lowerRole.includes('growth');
+      const isFinance = lowerRole.includes('finance') || lowerRole.includes('account') || lowerRole.includes('audit');
+      const isFilm = lowerRole.includes('film') || lowerRole.includes('cinema') || lowerRole.includes('direct') || lowerRole.includes('movie') || lowerRole.includes('screenplay');
+      const isVideo = lowerRole.includes('video') || lowerRole.includes('edit') || lowerRole.includes('premiere');
 
-      let score = matchedMissingSkills.length * 10;
-      if (domainMatch) {
-        score += 100; // Big bonus for matching user's specific domain
+      let domainMatch = false;
+      let specificRoleBonus = 0;
+
+      if (isCyber) {
+        domainMatch = course.domain === 'Cybersecurity';
+      } else if (isCloud) {
+        domainMatch = course.domain === 'Cloud Infrastructure & DevOps';
+      } else if (isData) {
+        domainMatch = course.domain === 'Data Analytics' || (course.domain.includes('Data') && !course.domain.includes('Software'));
+      } else if (isAI) {
+        domainMatch = course.domain === 'Artificial Intelligence & Data Science';
+      } else if (isDesign) {
+        domainMatch = course.domain === 'UI/UX & Creative Design';
+      } else if (isMarketing) {
+        domainMatch = course.domain === 'Marketing & Growth Management';
+      } else if (isFinance) {
+        domainMatch = course.domain === 'Finance & Accounting';
+      } else if (isFilm) {
+        domainMatch = course.domain === 'Film & Movie Direction';
+      } else if (isVideo) {
+        domainMatch = course.domain === 'Video Editing & Post-Production';
       } else {
-        score -= 50; // Suppress unrelated domains
+        // General Software / Tech
+        domainMatch = course.domain === 'Software Engineering';
+      }
+
+      // Bonus for specific technology in role title (e.g. Java, Python, Frontend, Backend)
+      if (isJava && course.skillsCovered.some((s) => s.toLowerCase().includes('java') || s.toLowerCase().includes('spring'))) {
+        specificRoleBonus += 150;
+        domainMatch = true;
+      }
+      if (lowerRole.includes('front') && course.title.toLowerCase().includes('front-end')) {
+        specificRoleBonus += 120;
+      }
+      if (lowerRole.includes('back') && course.title.toLowerCase().includes('back-end')) {
+        specificRoleBonus += 120;
+      }
+
+      let score = matchedMissingSkills.length * 10 + specificRoleBonus;
+      if (domainMatch) {
+        score += 100;
+      } else {
+        score -= 60;
       }
       score += (course.rating || 4.5);
 

@@ -11,6 +11,13 @@ export interface IUser {
   emailVerified: boolean;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
+  title?: string;
+  profession?: string;
+  experienceLevel?: string;
+  industry?: string;
+  company?: string;
+  bio?: string;
+  avatar?: string;
   createdAt: Date;
   updatedAt: Date;
 }

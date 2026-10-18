@@ -79,6 +79,18 @@ const INDUSTRY_REQUIREMENTS: { [key: string]: { required: string[]; optional: st
     required: ['Talent Acquisition', 'HR Operations', 'Recruitment', 'Employee Relations', 'Payroll Management'],
     optional: ['Performance Appraisal', 'HR Compliance', 'Labor Law', 'HRIS Systems', 'Onboarding'],
   },
+  'Cybersecurity': {
+    required: ['Cybersecurity', 'Network Security', 'Linux', 'Threat Detection', 'Incident Response', 'Python'],
+    optional: ['SIEM Tools', 'Penetration Testing', 'Identity Management', 'Vulnerability Assessment', 'Cryptography'],
+  },
+  'Java Enterprise Development': {
+    required: ['Java', 'Object-Oriented Programming (OOP)', 'Data Structures', 'Spring Boot', 'SQL', 'Git'],
+    optional: ['Microservices', 'Hibernate', 'RESTful APIs', 'JUnit', 'Docker', 'Maven'],
+  },
+  'Data Analytics': {
+    required: ['SQL', 'Python', 'Data Analysis', 'Tableau', 'Spreadsheets', 'Data Visualization'],
+    optional: ['R Programming', 'PowerBI', 'Statistics', 'Pandas', 'Business Intelligence'],
+  },
   'Software Engineering': {
     required: ['JavaScript', 'TypeScript', 'React.js', 'Node.js', 'SQL', 'Git'],
     optional: ['MongoDB', 'Docker', 'AWS', 'System Design', 'REST API', 'GraphQL', 'Redis', 'Kubernetes'],
@@ -211,10 +223,19 @@ export class AIService {
     if (lower.includes('hr') || lower.includes('human resource') || lower.includes('talent')) {
       return INDUSTRY_REQUIREMENTS['Human Resources & Recruitment'];
     }
+    if (lower.includes('cyber') || lower.includes('security') || lower.includes('infosec')) {
+      return INDUSTRY_REQUIREMENTS['Cybersecurity'];
+    }
+    if (lower.includes('java') || lower.includes('spring')) {
+      return INDUSTRY_REQUIREMENTS['Java Enterprise Development'];
+    }
+    if (lower.includes('data analyst') || lower.includes('analytics') || lower.includes('bi analyst') || lower.includes('business intelligence')) {
+      return INDUSTRY_REQUIREMENTS['Data Analytics'];
+    }
     if (lower.includes('ai') || lower.includes('data science') || lower.includes('machine learning')) {
       return INDUSTRY_REQUIREMENTS['Artificial Intelligence & Data Science'];
     }
-    if (lower.includes('cloud') || lower.includes('devops')) {
+    if (lower.includes('cloud') || lower.includes('devops') || lower.includes('aws') || lower.includes('azure')) {
       return INDUSTRY_REQUIREMENTS['Cloud Infrastructure & DevOps'];
     }
     return INDUSTRY_REQUIREMENTS[targetRole] || INDUSTRY_REQUIREMENTS['Software Engineering'];
@@ -891,76 +912,104 @@ Return ONLY a valid raw JSON array of objects with keys: "question", "keyPoints"
   /**
    * Generates tailored 5-step career & placement roadmap via Gemini AI
    */
-  static async generateCareerRoadmap(studentResume: any): Promise<{ trackTitle: string; milestones: { title: string; desc: string; actionUrl?: string; actionLabel?: string }[] }> {
-    const targetRole = studentResume?.fieldOfInterest || studentResume?.headline || 'Software Engineering';
+  static async generateCareerRoadmap(
+    studentResume: any,
+    targetCompany?: string,
+    userProfile?: any
+  ): Promise<{ trackTitle: string; targetRole: string; targetCompany: string; isCompanySpecific: boolean; milestones: { title: string; desc: string; actionUrl?: string; actionLabel?: string }[] }> {
+    const roleCandidate =
+      userProfile?.profession ||
+      userProfile?.title ||
+      studentResume?.fieldOfInterest ||
+      studentResume?.headline ||
+      'Software Engineering';
+    const targetRole = roleCandidate.trim() || 'Software Engineering';
+    const experienceLevel = userProfile?.experienceLevel || 'Entry-Level / Fresher';
     const userSkills: string[] = Array.isArray(studentResume?.skills) ? studentResume.skills : [];
+    const normalizedCompany = (targetCompany || '').trim();
 
     const geminiKey = process.env.GEMINI_API_KEY;
     if (geminiKey && geminiKey.trim().length > 10) {
       try {
-        const prompt = `You are a Career Architect and Placement Strategist.
-Generate a strictly sequential, realistic 5-milestone career and placement roadmap for a candidate pursuing a career in "${targetRole}".
+        const companyContext = normalizedCompany
+          ? `Target Employer: "${normalizedCompany}". Tailor all milestones specifically for ${normalizedCompany}'s known interview loop, engineering/work culture, and role requirements for a ${targetRole}.`
+          : `General Placement Track for ${targetRole}.`;
+
+        const prompt = `You are a Principal Career Architect and Placement Director.
+Generate a strictly sequential, realistic 5-milestone career and placement roadmap for a candidate pursuing the role of "${targetRole}" at experience level "${experienceLevel}".
+${companyContext}
 Candidate's currently verified skills: ${JSON.stringify(userSkills)}.
 
-Milestones MUST represent a clear progressive order from initial readiness to landing placement:
-Step 1: Foundational Skill Baseline & Profile Verification
-Step 2: Core Competency & Portfolio Artifact Development
-Step 3: Industry Simulation / Mock Interview & Technical Assessment
-Step 4: Capstone Case Study / Direct Pitch Deck
-Step 5: Target Applications & Placement Strategy
+IMPORTANT RULES:
+1. DO NOT assume this is software engineering if the role is different (e.g. Data Analyst, Cybersecurity Analyst, UI/UX Designer, Cloud Engineer, Java Developer, Product Marketer, Film Director). Focus strictly on skills, assessments, and interview standards relevant to "${targetRole}".
+2. ${normalizedCompany ? `Incorporate ${normalizedCompany}'s interview stages, technical assessments, case studies, or cultural criteria into the descriptions.` : `Align with top industry hiring bars for ${targetRole}.`}
+3. Step 1: Foundational Skill Baseline & Core Competency Verification (Role-specific foundations)
+   Step 2: Applied Project, Domain Case Study, or System/Portfolio Build (Practical proof of work)
+   Step 3: Technical Screening, OA, or Live Assessment Simulation (Assessments typical for this role/company)
+   Step 4: Deep-Dive Loop, Architectural / Design Review, or Behavioral STAR Preparation
+   Step 5: Final Placement, Hiring Loop Negotiation & Offer Acceptance
 
 Return ONLY a valid raw JSON object with:
-- "trackTitle": string (e.g. "${targetRole} Placement Track")
+- "trackTitle": string (e.g. "${normalizedCompany ? `${normalizedCompany} - ` : ''}${targetRole} Preparation Track")
 - "milestones": array of exactly 5 objects, each with:
-    - "title": string (concise milestone title)
-    - "desc": string (1-2 sentence actionable description)
+    - "title": string (concise milestone title specific to ${targetRole}${normalizedCompany ? ` at ${normalizedCompany}` : ''})
+    - "desc": string (1-2 sentences with concrete tools, technologies, and actionable steps)
     - "actionUrl": string (recommended action path in app: "/student/resume", "/student/skill-gap", "/student/mock-interview", or "/student/jobs")
     - "actionLabel": string (e.g. "Update Skills", "Check Skill Gap", "Take Mock Interview", "Browse Jobs")`;
 
         const parsed = await this.queryGemini(prompt);
         if (parsed && Array.isArray(parsed.milestones) && parsed.milestones.length === 5) {
           return {
-            trackTitle: parsed.trackTitle || `${targetRole} Track`,
+            trackTitle: parsed.trackTitle || (normalizedCompany ? `${normalizedCompany} - ${targetRole} Track` : `${targetRole} Placement Track`),
+            targetRole,
+            targetCompany: normalizedCompany,
+            isCompanySpecific: Boolean(normalizedCompany),
             milestones: parsed.milestones,
           };
         }
       } catch (err) {
-        console.warn('Gemini roadmap generation fallback to domain template:', err);
+        console.warn('Gemini roadmap generation fallback to role-tailored template:', err);
       }
     }
 
-    // High quality domain fallback
+    // High quality role-tailored domain fallback
     const domainReq = this.getIndustryRequirementSet(targetRole);
+    const topSkills = domainReq.required.slice(0, 3).join(', ');
+    const companyPrefix = normalizedCompany ? `${normalizedCompany} ` : '';
+
     return {
-      trackTitle: `${targetRole} Placement Track`,
+      trackTitle: normalizedCompany ? `${normalizedCompany} - ${targetRole} Track` : `${targetRole} Placement Track`,
+      targetRole,
+      targetCompany: normalizedCompany,
+      isCompanySpecific: Boolean(normalizedCompany),
       milestones: [
         {
-          title: 'Foundational Skill Baseline & Profile Verification',
-          desc: `Verify core competencies including ${domainReq.required.slice(0, 3).join(', ')} on your verified resume profile.`,
+          title: `Step 1: ${targetRole} Skill Baseline & Competency Audit`,
+          desc: `Verify core proficiencies in ${topSkills} against ${companyPrefix}hiring benchmarks on your verified profile.`,
           actionUrl: '/student/resume',
-          actionLabel: 'Update Profile',
+          actionLabel: 'Update Profile & Skills',
         },
         {
-          title: 'Skill Gap & Industry Competency Alignment',
-          desc: 'Analyze gaps against live hiring standards and target missing high-impact tools.',
-          actionUrl: '/student/skill-gap',
-          actionLabel: 'Review Gap Analysis',
+          title: `Step 2: Specialized Portfolio & ${targetRole} Case Study`,
+          desc: `Build deployable work evidence, case studies, or portfolio artifacts tailored to ${companyPrefix}standards and tools.`,
+          actionUrl: '/student/resume',
+          actionLabel: 'Add Work & Projects',
         },
         {
-          title: 'AI Mock Screening & Technical Interview Readiness',
-          desc: 'Complete technical simulation and behavioral interview questions with real-time scoring.',
+          title: `Step 3: ${companyPrefix}Assessment & Role Simulation Prep`,
+          desc: `Complete technical simulations, domain assessments, and behavioral interview questions tailored to ${targetRole}.`,
           actionUrl: '/student/mock-interview',
           actionLabel: 'Start Mock Interview',
         },
         {
-          title: 'Production Portfolio & Proof-of-Work Assembly',
-          desc: 'Build and polish deployable case studies and verified work demonstrations.',
-          actionUrl: '/student/resume',
-          actionLabel: 'Add Projects',
+          title: `Step 4: High-Impact Skill Gap Closure & Coursera Certifications`,
+          desc: `Analyze remaining high-priority gaps against ${companyPrefix}requirements and complete verified certifications.`,
+          actionUrl: '/student/skill-gap',
+          actionLabel: 'Review Gap Analysis',
         },
         {
-          title: 'Targeted Placement & Recruiter Applications',
-          desc: 'Apply directly to active company requisitions matching your validated skills.',
+          title: `Step 5: Target Applications & ${companyPrefix}Placement Loop`,
+          desc: `Submit your validated profile directly to active requisitions and prepare for final round offer discussions.`,
           actionUrl: '/student/jobs',
           actionLabel: 'Apply to Jobs',
         },

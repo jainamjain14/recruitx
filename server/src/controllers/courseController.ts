@@ -23,7 +23,15 @@ export const getRecommendedCourses = async (req: AuthenticatedRequest, res: Resp
       });
     }
 
-    const targetRole = resume.fieldOfInterest || resume.headline || 'Software Engineering';
+    const user = req.user;
+    const queryRole = (req.query.role as string)?.trim();
+    const targetRole =
+      queryRole ||
+      user?.profession ||
+      user?.title ||
+      resume.fieldOfInterest ||
+      resume.headline ||
+      'Software Engineering';
     const userSkills: string[] = Array.isArray(resume.skills) ? resume.skills : [];
     const lowerUserSkills = userSkills.map((s) => s.toLowerCase());
 

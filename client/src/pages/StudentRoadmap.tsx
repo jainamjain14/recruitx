@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { api } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import {
   CheckCircle2,
   Clock,
@@ -25,17 +26,24 @@ import {
   X,
   BookOpen,
   Building2,
+  Database,
+  Cloud,
+  Shield,
+  Coffee,
+  Loader2,
+  Briefcase,
+  Layers,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-interface MilestoneItem {
+export interface MilestoneItem {
   title: string;
   desc: string;
   actionUrl?: string;
   actionLabel?: string;
 }
 
-interface Milestone extends MilestoneItem {
+export interface Milestone extends MilestoneItem {
   status: 'completed' | 'in_progress' | 'pending';
 }
 
@@ -65,128 +73,281 @@ export interface CourseraCourseItem {
   matchedMissingSkills: string[];
 }
 
-const DOMAIN_ROADMAPS: Record<string, { label: string; icon: any; milestones: MilestoneItem[] }> = {
-  marketing: {
-    label: 'Product Marketing & Growth Track',
-    icon: TrendingUp,
+// Industry domain tracks used as baseline templates
+const DOMAIN_ROADMAPS: Record<string, { label: string; icon: any; roleName: string; milestones: MilestoneItem[] }> = {
+  data: {
+    label: 'Data Analytics & Business Intelligence Track',
+    icon: Database,
+    roleName: 'Data Analyst',
     milestones: [
       {
-        title: 'Market Research & Audience Persona Mapping',
-        desc: 'Define target customer personas, competitive landscape, and value proposition hooks.',
+        title: 'SQL, Relational Databases & Data Extraction',
+        desc: 'Master complex SQL joins, aggregations, CTEs, and window functions on enterprise databases.',
         actionUrl: '/student/resume',
-        actionLabel: 'Update Profile & Bio',
+        actionLabel: 'Add SQL Skills',
       },
       {
-        title: 'Performance Marketing & Ad Spend ROI',
-        desc: 'Run multi-channel campaign simulations, Google Ads/Meta attribution, and CAC/LTV calculations.',
+        title: 'Python for Data Analysis & Statistical Modeling',
+        desc: 'Clean, reshape, and analyze messy business datasets using Pandas, NumPy, and statistical hypothesis testing.',
         actionUrl: '/student/roadmap',
-        actionLabel: 'Review Missing Skills',
+        actionLabel: 'View Data Courses',
       },
       {
-        title: 'Content & Viral Distribution Strategy',
-        desc: 'Architect viral loops, SEO content funnels, and organic brand amplification campaigns.',
+        title: 'Interactive Dashboards with Tableau & Power BI',
+        desc: 'Architect executive-level KPIs, cohort retention curves, and automated business intelligence dashboards.',
         actionUrl: '/student/messages',
-        actionLabel: 'Connect with Recruiters',
+        actionLabel: 'Connect with Hiring Teams',
       },
       {
-        title: 'Growth Case Study Presentation',
-        desc: 'Synthesize product launch metrics and conversion rate optimization experiments into a deck.',
+        title: 'End-to-End Business Analytics Case Studies',
+        desc: 'Synthesize raw transaction logs into actionable product insights and deliver a data-driven slide deck.',
         actionUrl: '/student/resume',
-        actionLabel: 'Upload Case Study & Portfolio',
+        actionLabel: 'Upload Data Portfolio',
       },
       {
-        title: 'Agency & Enterprise Growth Role Applications',
-        desc: 'Pitch growth roadmaps and apply to leading consumer brands, agencies, and tech scale-ups.',
+        title: 'Data Analyst Technical Interviews & Offer',
+        desc: 'Practice live SQL querying screens, analytical case questions, take-home exercises, and interview loops.',
         actionUrl: '/student/jobs',
-        actionLabel: 'Browse Matching Jobs',
+        actionLabel: 'Browse Data Roles',
       },
     ],
   },
-  software: {
-    label: 'Software Engineering Track',
-    icon: Code2,
+  cloud: {
+    label: 'Cloud Architecture & DevOps Engineering Track',
+    icon: Cloud,
+    roleName: 'Cloud Engineer',
     milestones: [
       {
-        title: 'Core Programming & Data Structures Foundations',
-        desc: 'Solidify algorithmic complexity, data structures, and modular architectural design.',
+        title: 'Linux Systems, Networking & Cloud Foundations',
+        desc: 'Master Linux administration, TCP/IP, VPC routing, subnets, DNS, and fundamental cloud security principles.',
         actionUrl: '/student/resume',
-        actionLabel: 'Verify Tech Skills',
+        actionLabel: 'Add Cloud Skills',
       },
       {
-        title: 'Production Full-Stack Application & System Design',
-        desc: 'Build and deploy scalable, database-backed products with authentication and caching layers.',
+        title: 'AWS / Azure Core Services & Infrastructure as Code',
+        desc: 'Deploy resilient compute (EC2/ECS), serverless functions (Lambda), object storage (S3), and Terraform scripts.',
         actionUrl: '/student/roadmap',
-        actionLabel: 'Analyze Tech Stack Gaps',
+        actionLabel: 'View Cloud Courses',
       },
       {
-        title: 'Technical Screenings & Recruiter Outreach',
-        desc: 'Refine technical communication and architectural reasoning for employer discussions.',
+        title: 'Docker Containerization & Kubernetes Orchestration',
+        desc: 'Containerize multi-tier microservices, write Helm charts, and manage cluster scaling and service meshes.',
         actionUrl: '/student/messages',
-        actionLabel: 'Message Recruiters',
+        actionLabel: 'Practice System Mocks',
       },
       {
-        title: 'Clean Architecture Portfolio & GitHub Assembly',
-        desc: 'Package deployable projects with comprehensive READMEs and production CI/CD.',
+        title: 'CI/CD Pipelines & Site Reliability Automation',
+        desc: 'Implement zero-downtime deployment pipelines with GitHub Actions, Prometheus monitoring, and Grafana alerting.',
         actionUrl: '/student/resume',
-        actionLabel: 'Attach GitHub & Projects',
+        actionLabel: 'Link GitHub DevOps Repo',
       },
       {
-        title: 'Enterprise & Tech Scale-Up Applications',
-        desc: 'Apply directly to verified tech openings matching your verified tech competencies.',
+        title: 'Enterprise Cloud Architecture Interviews & Offer',
+        desc: 'Present high-availability cloud architecture diagrams, disaster recovery scenarios, and negotiate placement.',
         actionUrl: '/student/jobs',
-        actionLabel: 'Explore Tech Jobs',
+        actionLabel: 'Explore Cloud Openings',
+      },
+    ],
+  },
+  cybersecurity: {
+    label: 'Cybersecurity & Threat Defense Track',
+    icon: Shield,
+    roleName: 'Cybersecurity Analyst',
+    milestones: [
+      {
+        title: 'Network Defense, Protocols & Threat Landscapes',
+        desc: 'Analyze packet captures with Wireshark, configure firewall ACLs, and evaluate OWASP Top 10 vulnerabilities.',
+        actionUrl: '/student/resume',
+        actionLabel: 'Add Security Skills',
+      },
+      {
+        title: 'SIEM Tools, Log Analysis & Incident Response',
+        desc: 'Ingest and correlate enterprise security logs in Splunk/Elasticsearch to detect intrusions and triage IOCs.',
+        actionUrl: '/student/roadmap',
+        actionLabel: 'View Security Courses',
+      },
+      {
+        title: 'Vulnerability Assessment & Pen-Testing Fundamentals',
+        desc: 'Conduct automated vulnerability scans, patch audit reviews, and ethical attack surface assessments.',
+        actionUrl: '/student/messages',
+        actionLabel: 'Consult Security Mentors',
+      },
+      {
+        title: 'Security Operations & Compliance Lab Portfolio',
+        desc: 'Document incident response playbooks, MITRE ATT&CK mappings, and SOC investigation walkthroughs.',
+        actionUrl: '/student/resume',
+        actionLabel: 'Attach SOC Portfolio',
+      },
+      {
+        title: 'SOC Analyst Technical Screenings & Placement',
+        desc: 'Demonstrate log forensic reasoning and incident communication to land an information security role.',
+        actionUrl: '/student/jobs',
+        actionLabel: 'Apply for SOC Roles',
+      },
+    ],
+  },
+  java: {
+    label: 'Enterprise Java & Spring Boot Track',
+    icon: Coffee,
+    roleName: 'Java Developer',
+    milestones: [
+      {
+        title: 'Core Java, OOP & Collections Mastery',
+        desc: 'Master memory management, multithreading, concurrency, generics, and object-oriented design patterns.',
+        actionUrl: '/student/resume',
+        actionLabel: 'Verify Java Skills',
+      },
+      {
+        title: 'Spring Boot Microservices & Hibernate/JPA',
+        desc: 'Build robust RESTful microservices with Spring Data JPA, Hibernate ORM, and Spring Security JWT filters.',
+        actionUrl: '/student/roadmap',
+        actionLabel: 'View Spring Courses',
+      },
+      {
+        title: 'Database Architecture & Transaction Management',
+        desc: 'Optimize relational queries, manage ACID transactions, connection pools, and design enterprise schemas.',
+        actionUrl: '/student/messages',
+        actionLabel: 'Schedule Technical Mock',
+      },
+      {
+        title: 'Production Enterprise Project & Testing Suite',
+        desc: 'Develop a comprehensive enterprise service with JUnit 5, Mockito test coverage, and Docker containerization.',
+        actionUrl: '/student/resume',
+        actionLabel: 'Upload Java Project',
+      },
+      {
+        title: 'Enterprise Technical Rounds & Campus Placements',
+        desc: 'Clear rigorous Java coding assessments, system design interviews, and secure an enterprise engineering offer.',
+        actionUrl: '/student/jobs',
+        actionLabel: 'Browse Java Jobs',
       },
     ],
   },
   design: {
-    label: 'UI/UX & Product Design Track',
+    label: 'UI/UX & Digital Product Design Track',
     icon: Palette,
+    roleName: 'UI/UX Designer',
     milestones: [
       {
-        title: 'Design Thinking & Information Architecture',
-        desc: 'Conduct user research interviews, empathy mapping, and low-fidelity wireframing.',
+        title: 'User Research, Empathy Mapping & Wireframing',
+        desc: 'Conduct user discovery interviews, synthesize journey maps, and draft responsive low-fidelity wireframes.',
         actionUrl: '/student/resume',
         actionLabel: 'Update Design Profile',
       },
       {
-        title: 'Design Systems & Component Architecture',
-        desc: 'Build comprehensive tokenized Figma design systems with auto-layout and interactive states.',
+        title: 'Design Systems & Tokenized Component Architecture',
+        desc: 'Build modular Figma design systems with auto-layout, atomic variants, variables, and dark mode tokens.',
         actionUrl: '/student/roadmap',
-        actionLabel: 'Review Design Tools Gap',
+        actionLabel: 'View UI/UX Courses',
       },
       {
-        title: 'Portfolio Critique & Recruiter Discussions',
-        desc: 'Engage with hiring teams to present interactive design prototypes and user journeys.',
+        title: 'Interactive Prototyping & Usability Testing',
+        desc: 'Create realistic high-fidelity micro-interactions and conduct moderated usability testing rounds.',
         actionUrl: '/student/messages',
         actionLabel: 'Connect with Hiring Teams',
       },
       {
         title: 'End-to-End Product Design Case Study',
-        desc: 'Publish a polished case study documenting problem discovery, user journeys, and UX solutions.',
+        desc: 'Publish an in-depth portfolio case study documenting problem framing, iterative tests, and business impact.',
         actionUrl: '/student/resume',
         actionLabel: 'Link Figma / Portfolio',
       },
       {
-        title: 'Studio & Tech Product Design Applications',
-        desc: 'Submit portfolio case studies to digital product studios, consumer tech companies, and UX agencies.',
+        title: 'Product Studio Design Critique & Placement',
+        desc: 'Present design rationale to design directors and product leaders to secure a product design role.',
         actionUrl: '/student/jobs',
         actionLabel: 'Browse Design Roles',
+      },
+    ],
+  },
+  marketing: {
+    label: 'Product Marketing & Growth Track',
+    icon: TrendingUp,
+    roleName: 'Product Marketer',
+    milestones: [
+      {
+        title: 'Market Research & Audience Persona Mapping',
+        desc: 'Define target customer personas, competitive landscape, and value proposition messaging frameworks.',
+        actionUrl: '/student/resume',
+        actionLabel: 'Update Profile & Bio',
+      },
+      {
+        title: 'Performance Marketing & Multi-Channel ROI',
+        desc: 'Run campaign simulations, Google/Meta attribution modeling, and unit economic CAC/LTV calculations.',
+        actionUrl: '/student/roadmap',
+        actionLabel: 'Review Marketing Skills',
+      },
+      {
+        title: 'Content Funnels & Viral Distribution Loops',
+        desc: 'Architect SEO keyword content funnels, referral loops, and organic brand amplification campaigns.',
+        actionUrl: '/student/messages',
+        actionLabel: 'Connect with Recruiters',
+      },
+      {
+        title: 'Growth Case Study Presentation',
+        desc: 'Synthesize product launch metrics and conversion rate optimization experiments into an executive deck.',
+        actionUrl: '/student/resume',
+        actionLabel: 'Upload Growth Portfolio',
+      },
+      {
+        title: 'Enterprise & Scale-Up Growth Placement',
+        desc: 'Pitch growth roadmaps and apply to leading consumer brands, digital agencies, and tech scale-ups.',
+        actionUrl: '/student/jobs',
+        actionLabel: 'Browse Marketing Jobs',
+      },
+    ],
+  },
+  software: {
+    label: 'Software Engineering & Full Stack Track',
+    icon: Code2,
+    roleName: 'Software Engineer',
+    milestones: [
+      {
+        title: 'Core Programming & Data Structures Foundations',
+        desc: 'Solidify algorithmic complexity, data structures, and modular object-oriented software design.',
+        actionUrl: '/student/resume',
+        actionLabel: 'Verify Tech Skills',
+      },
+      {
+        title: 'Full-Stack Architecture & Scalable API Design',
+        desc: 'Build and deploy scalable, database-backed products with authentication, caching, and clean APIs.',
+        actionUrl: '/student/roadmap',
+        actionLabel: 'View Backend Courses',
+      },
+      {
+        title: 'System Design & Distributed Scalability',
+        desc: 'Master load balancers, caching strategies, horizontal partitioning, and asynchronous message queues.',
+        actionUrl: '/student/messages',
+        actionLabel: 'Schedule Mock Interview',
+      },
+      {
+        title: 'Production Portfolio Assembly & GitHub Showcase',
+        desc: 'Package deployable projects with comprehensive READMEs, test coverage, and automated CI/CD.',
+        actionUrl: '/student/resume',
+        actionLabel: 'Attach GitHub & Projects',
+      },
+      {
+        title: 'Technical Screenings & Offer Negotiation',
+        desc: 'Crack coding assessments, whiteboard rounds, and receive an engineering offer letter.',
+        actionUrl: '/student/jobs',
+        actionLabel: 'Explore Tech Jobs',
       },
     ],
   },
   film: {
     label: 'Film Direction & Production Track',
     icon: Clapperboard,
+    roleName: 'Film Director / Producer',
     milestones: [
       {
-        title: 'Screenplay & Visual Grammar Treatment',
-        desc: 'Craft your 3-act narrative treatment, scene blocking schematics, and directorial statement.',
+        title: 'Screenplay Structure & Visual Treatment',
+        desc: 'Craft your 3-act narrative treatment, scene blocking schematics, and directorial visual tone.',
         actionUrl: '/student/resume',
         actionLabel: 'Update Film Profile',
       },
       {
         title: 'Storyboarding & Camera Framing Plan',
-        desc: 'Develop master shot lists, storyboard pivotal dramatic beats, and determine visual motif.',
+        desc: 'Develop master shot lists, storyboard pivotal dramatic beats, and determine visual motifs.',
         actionUrl: '/student/roadmap',
         actionLabel: 'Check Production Skills',
       },
@@ -213,6 +374,7 @@ const DOMAIN_ROADMAPS: Record<string, { label: string; icon: any; milestones: Mi
   cinematography: {
     label: 'Cinematography & Camera Operations Track',
     icon: Camera,
+    roleName: 'Cinematographer',
     milestones: [
       {
         title: 'Camera Sensors & Prime Lens Schematics',
@@ -227,7 +389,7 @@ const DOMAIN_ROADMAPS: Record<string, { label: string; icon: any; milestones: Mi
         actionLabel: 'Check Lighting & Optics Gap',
       },
       {
-        title: 'Color Science & Production Outreach',
+        title: 'Color Science & ACES Grading Workflow',
         desc: 'Engage with production units on ACES pipelines, DaVinci Resolve color grading, and on-set DIT communication.',
         actionUrl: '/student/messages',
         actionLabel: 'Message Production Units',
@@ -248,8 +410,71 @@ const DOMAIN_ROADMAPS: Record<string, { label: string; icon: any; milestones: Mi
   },
 };
 
+/**
+ * Helper to determine student domain key from role/field string
+ */
+function resolveDomainKey(text: string): string {
+  const t = (text || '').toLowerCase();
+  if (t.includes('data') || t.includes('analyst') || t.includes('analytics') || t.includes('bi')) return 'data';
+  if (t.includes('cloud') || t.includes('devops') || t.includes('aws') || t.includes('azure') || t.includes('sre')) return 'cloud';
+  if (t.includes('cyber') || t.includes('security') || t.includes('infosec') || t.includes('soc')) return 'cybersecurity';
+  if (t.includes('java') || t.includes('spring')) return 'java';
+  if (t.includes('design') || t.includes('ui') || t.includes('ux') || t.includes('figma')) return 'design';
+  if (t.includes('camera') || t.includes('cinematograph') || t.includes('dp')) return 'cinematography';
+  if (t.includes('film') || t.includes('director') || t.includes('movie') || t.includes('media')) return 'film';
+  if (t.includes('market') || t.includes('growth') || t.includes('seo')) return 'marketing';
+  return 'software';
+}
+
+/**
+ * Intelligent client-side fallback generator that merges target company AND student role
+ * Used if the server or Gemini is offline, ensuring we NEVER fall back to generic software engineering.
+ */
+function generateRoleAndCompanyRoadmap(company: string, roleTitle: string, domainKey: string): MilestoneItem[] {
+  const normComp = company.trim();
+  const domainConfig = DOMAIN_ROADMAPS[domainKey] || DOMAIN_ROADMAPS.software;
+  const role = roleTitle || domainConfig.roleName;
+
+  return [
+    {
+      title: `${normComp} ${role} Hiring Requirements & Core Foundations`,
+      desc: `Analyze ${normComp}'s active job specifications, tech stack, and evaluation rubrics for ${role} positions. Solidify essential domain proficiencies.`,
+      actionUrl: '/student/resume',
+      actionLabel: `Update ${role} Skills`,
+    },
+    {
+      title: `Targeted Technical Upskilling for ${normComp}`,
+      desc: `Complete industry-recognized Coursera courses and build hands-on labs matching ${normComp}'s domain stack in ${role}.`,
+      actionUrl: '/student/roadmap',
+      actionLabel: 'View Required Courses',
+    },
+    {
+      title: `${normComp}-Aligned Practical Project & Architecture`,
+      desc: `Architect a production-grade portfolio project addressing challenges typical of ${normComp}'s business domain and infrastructure.`,
+      actionUrl: '/student/resume',
+      actionLabel: 'Attach Project Link',
+    },
+    {
+      title: `${normComp} Interview Rounds & Role-Specific Mocks`,
+      desc: `Prepare for ${normComp}'s specific interview loop for ${role}: technical screening, portfolio/domain deep dive, and culture-fit assessments.`,
+      actionUrl: '/student/messages',
+      actionLabel: 'Schedule Mock Interview',
+    },
+    {
+      title: `${normComp} Placement Application & Offer Finalization`,
+      desc: `Submit your verified candidate profile through ${normComp}'s hiring pipeline on RecruitX, complete final evaluations, and secure your offer.`,
+      actionUrl: '/student/applications',
+      actionLabel: 'View Applications',
+    },
+  ];
+}
+
 export const StudentRoadmap: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Active student profession / role state
+  const [studentRole, setStudentRole] = useState<string>('Software Engineering');
   const [activeDomain, setActiveDomain] = useState<string>('software');
   const [customMilestones, setCustomMilestones] = useState<MilestoneItem[] | null>(null);
   const [customTrackTitle, setCustomTrackTitle] = useState<string | null>(null);
@@ -262,13 +487,16 @@ export const StudentRoadmap: React.FC = () => {
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [customCompanyInput, setCustomCompanyInput] = useState<string>('');
   const [availableCompanies, setAvailableCompanies] = useState<string[]>([
-    'Shiv IT',
-    'Roy Kapur Films',
     'Google',
     'Microsoft',
+    'Amazon',
     'TCS',
     'Infosys',
-    'Amazon',
+    'Shiv IT',
+    'Roy Kapur Films',
+    'HAWKSTAR',
+    'Adobe',
+    'Netflix',
     'Meta',
     'Accenture',
     'Wipro',
@@ -285,16 +513,17 @@ export const StudentRoadmap: React.FC = () => {
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
 
-  const storageKey = selectedCompany
-    ? `recruitx_roadmap_progress_${selectedCompany.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
-    : `recruitx_roadmap_progress_${activeDomain}`;
+  // Dynamic storage key tracking progress uniquely per target company and role
+  const storageKey = useMemo(() => {
+    const roleSlug = studentRole.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    if (selectedCompany) {
+      const compSlug = selectedCompany.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      return `recruitx_roadmap_progress_${compSlug}_${roleSlug}`;
+    }
+    return `recruitx_roadmap_progress_${activeDomain}_${roleSlug}`;
+  }, [selectedCompany, studentRole, activeDomain]);
 
-  useEffect(() => {
-    fetchStudentStatus();
-    fetchCourseraCourses();
-  }, []);
-
-  // Sync completion count with localStorage whenever target company or domain changes
+  // Sync completion count with localStorage whenever storage key changes
   useEffect(() => {
     const saved = localStorage.getItem(storageKey);
     if (saved !== null) {
@@ -307,12 +536,19 @@ export const StudentRoadmap: React.FC = () => {
     } else {
       setCompletedCount(0);
     }
-  }, [selectedCompany, activeDomain, storageKey]);
+  }, [storageKey]);
 
-  const fetchCourseraCourses = async () => {
+  /**
+   * Fetch Coursera courses tailored specifically to the given role and target company
+   */
+  const fetchCourseraCourses = useCallback(async (role: string, company?: string | null) => {
     setCoursesLoading(true);
     try {
-      const res = await api.get('/courses/recommended?pricing=all');
+      const params: Record<string, string> = { pricing: 'all' };
+      if (role) params.role = role;
+      if (company) params.company = company;
+
+      const res = await api.get('/courses/recommended', { params });
       if (res.data?.data?.courses) {
         setCourses(res.data.data.courses);
       }
@@ -321,43 +557,66 @@ export const StudentRoadmap: React.FC = () => {
     } finally {
       setCoursesLoading(false);
     }
-  };
+  }, []);
 
-  const fetchStudentStatus = async () => {
+  /**
+   * Fetch company-specific and role-specific roadmap from backend AI service
+   */
+  const fetchRoadmapForCompany = useCallback(async (company: string, role: string, domain: string) => {
+    setGeneratingAI(true);
+    try {
+      const res = await api.get('/resume/roadmap', { params: { company } });
+      if (res.data?.data?.roadmap) {
+        const rData = res.data.data.roadmap;
+        if (Array.isArray(rData.milestones) && rData.milestones.length === 5) {
+          setCustomMilestones(rData.milestones);
+          setCustomTrackTitle(rData.trackTitle || `${company} ${role} Preparation Track`);
+          setIsAiGenerated(true);
+          return;
+        }
+      }
+      // If backend returned non-5 milestones, use client-side role+company generator
+      const fallbackMilestones = generateRoleAndCompanyRoadmap(company, role, domain);
+      setCustomMilestones(fallbackMilestones);
+      setCustomTrackTitle(`${company} ${role} Preparation Track`);
+      setIsAiGenerated(true);
+    } catch (err) {
+      console.warn('Backend roadmap request failed, falling back to role-tailored company plan:', err);
+      const fallbackMilestones = generateRoleAndCompanyRoadmap(company, role, domain);
+      setCustomMilestones(fallbackMilestones);
+      setCustomTrackTitle(`${company} ${role} Preparation Track`);
+      setIsAiGenerated(true);
+    } finally {
+      setGeneratingAI(false);
+    }
+  }, []);
+
+  /**
+   * Initial page load: fetches student profile, resume, active role, and company list
+   */
+  const fetchStudentStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const [resRes, appRes, roadmapRes] = await Promise.allSettled([
+      const [resRes, appRes] = await Promise.allSettled([
         api.get('/resume'),
         api.get('/applications'),
-        api.get('/resume/roadmap'),
       ]);
 
-      let domainKey = 'software';
-      let hasProfile = false;
-      let hasApplied = false;
+      let derivedRole = user?.profession || user?.title || 'Software Engineering';
+      let resumeData: any = null;
 
       if (resRes.status === 'fulfilled' && resRes.value.data?.data?.resume) {
-        const resume = resRes.value.data.data.resume;
-        const interest = `${resume.fieldOfInterest || ''} ${resume.headline || ''}`.toLowerCase();
-        if (interest.includes('camera') || interest.includes('cinematograph')) {
-          domainKey = 'cinematography';
-        } else if (interest.includes('market') || interest.includes('growth')) {
-          domainKey = 'marketing';
-        } else if (interest.includes('design') || interest.includes('ui') || interest.includes('ux')) {
-          domainKey = 'design';
-        } else if (interest.includes('film') || interest.includes('director') || interest.includes('movie')) {
-          domainKey = 'film';
-        } else {
-          domainKey = 'software';
-        }
-
-        if (resume.headline && (resume.skills?.length || 0) >= 2) {
-          hasProfile = true;
+        resumeData = resRes.value.data.data.resume;
+        if (resumeData.headline || resumeData.fieldOfInterest) {
+          derivedRole = resumeData.headline || resumeData.fieldOfInterest || derivedRole;
         }
       }
 
+      const domainKey = resolveDomainKey(derivedRole);
+      setStudentRole(derivedRole);
+      setActiveDomain(domainKey);
+
       if (appRes.status === 'fulfilled' && (appRes.value.data?.data?.applications?.length || 0) > 0) {
-        hasApplied = true;
         const appCompanies = appRes.value.data.data.applications
           .map((a: any) => a.companyName || a.job?.company)
           .filter(Boolean);
@@ -366,207 +625,68 @@ export const StudentRoadmap: React.FC = () => {
         }
       }
 
-      setActiveDomain(domainKey);
-
-      // Check if backend returned an AI generated roadmap
-      if (roadmapRes.status === 'fulfilled' && roadmapRes.value.data?.data?.roadmap) {
-        const rData = roadmapRes.value.data.data.roadmap;
-        if (Array.isArray(rData.milestones) && rData.milestones.length === 5) {
-          setCustomMilestones(rData.milestones);
-          setCustomTrackTitle(rData.trackTitle || null);
-          setIsAiGenerated(true);
-        }
-      }
-
-      const savedCount = localStorage.getItem(`recruitx_roadmap_progress_${domainKey}`);
-      if (savedCount !== null) {
-        setCompletedCount(Math.min(5, Math.max(0, parseInt(savedCount, 10) || 0)));
-      } else {
-        setCompletedCount(0);
-      }
+      // Fetch initial domain courses
+      await fetchCourseraCourses(derivedRole, null);
     } catch (err) {
       console.error('Failed to load roadmap status:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, fetchCourseraCourses]);
 
-  const handleRegenerateWithAI = async () => {
-    setGeneratingAI(true);
-    try {
-      const res = await api.get('/resume/roadmap');
-      if (res.data?.data?.roadmap) {
-        const rData = res.data.data.roadmap;
-        if (Array.isArray(rData.milestones) && rData.milestones.length === 5) {
-          setCustomMilestones(rData.milestones);
-          setCustomTrackTitle(rData.trackTitle || null);
-          setIsAiGenerated(true);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to generate AI roadmap:', err);
-    } finally {
-      setGeneratingAI(false);
-    }
-  };
+  useEffect(() => {
+    fetchStudentStatus();
+  }, [fetchStudentStatus]);
 
-  const generateMilestonesForCompany = (company: string): MilestoneItem[] => {
-    const key = company.toLowerCase().replace(/\s+/g, '');
-
-    // Google
-    if (key.includes('google')) return [
-      { title: 'Data Structures & Algorithms Mastery', desc: 'Master arrays, trees, graphs, dynamic programming, and greedy algorithms to crack Google\'s rigorous Leetcode-style coding rounds. Aim for 200+ problems.', actionUrl: '/student/resume', actionLabel: 'Add DSA Skills' },
-      { title: 'System Design & Scalability (Google Scale)', desc: 'Study distributed systems, consistent hashing, load balancing, Bigtable, Spanner, MapReduce, and Pub/Sub. Practice designing Search, YouTube, Gmail at scale.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'Google-Style Coding Interview Prep', desc: 'Practice 4 rounds of coding interviews: 2 technical coding, 1 system design, 1 behavioral ("Googleyness"). Mock interview with structured STAR answers.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Open Source & Portfolio Projects', desc: 'Contribute to Google-backed open source (Android, TensorFlow, Kubernetes, Angular). Build a portfolio of 3+ deployable projects with clean code and documentation.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Google Hiring Process & Offer Acceptance', desc: 'Submit application via Google Careers, complete the phone screen, on-site loop (4-5 rounds), and receive offer letter from Google Recruitment team.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Microsoft
-    if (key.includes('microsoft')) return [
-      { title: 'Core CS Fundamentals & OOP Principles', desc: 'Solidify Object-Oriented Programming (C#, Java, or Python), SOLID principles, design patterns (Factory, Observer, Singleton), and data structures fundamentals.', actionUrl: '/student/resume', actionLabel: 'Add CS Skills' },
-      { title: 'Azure Cloud & DevOps Certification', desc: 'Earn AZ-900 (Azure Fundamentals) or AZ-204 (Azure Developer). Study cloud services, microservices architecture, CI/CD pipelines, and DevOps with GitHub Actions.', actionUrl: '/student/roadmap', actionLabel: 'View Azure Courses' },
-      { title: 'Coding Round Preparation (LeetCode + HackerRank)', desc: 'Practice Microsoft\'s OA (Online Assessment): arrays, strings, trees, BFS/DFS, and two-pointer problems. Microsoft typically asks 2 medium Leetcode-style questions.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: '.NET / Full Stack Development Project', desc: 'Build a full-stack web application using ASP.NET Core, React/Angular, SQL Server, and Azure deployment. Focus on clean architecture, unit testing, and CI/CD setup.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Microsoft Interview Loop & Offer', desc: 'Complete Microsoft\'s hiring loop: OA → Phone Screen → 3-4 Technical Rounds (coding + design) → HR Discussion. Receive and accept offer via Microsoft Careers portal.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Amazon
-    if (key.includes('amazon')) return [
-      { title: 'Amazon Leadership Principles (LPs) Mastery', desc: 'Study all 16 Amazon Leadership Principles deeply. Prepare 3 STAR stories per LP. Amazon\'s behavioral rounds are as critical as coding — each interviewer covers 2 LPs.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
-      { title: 'Coding & Problem Solving (OA Focus)', desc: 'Crack Amazon\'s Online Assessment: 2 coding questions (Medium-Hard LeetCode) + Work Simulation. Practice arrays, hash maps, sliding window, and graph traversals.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'AWS Cloud Architecture Knowledge', desc: 'Learn core AWS services: EC2, S3, Lambda, DynamoDB, SQS/SNS, API Gateway. Understand distributed systems, eventual consistency, and event-driven architecture.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'E-Commerce & Scalable System Design', desc: 'Practice designing Amazon-scale systems: product catalog, shopping cart, order management, recommendation engine, and real-time delivery tracking.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Amazon Virtual Loop & Offer Acceptance', desc: 'Complete 4-5 virtual interview rounds (2 coding + 1 system design + 2 behavioral). Receive offer from Amazon Recruiting — negotiate total compensation (base + RSUs + sign-on).', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // TCS
-    if (key.includes('tcs')) return [
-      { title: 'TCS NQT (National Qualifier Test) Preparation', desc: 'Clear TCS NQT: Verbal Ability, Reasoning Ability, Numerical Ability, Programming Logic, and Coding rounds. Score 70%+ in all sections to qualify for interview.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
-      { title: 'Core Java / Python Programming Proficiency', desc: 'Master Java or Python fundamentals — OOP, Collections, Exception Handling, JDBC. TCS interviews test core programming, not competitive DSA. Build 2-3 projects.', actionUrl: '/student/roadmap', actionLabel: 'View Java Courses' },
-      { title: 'Database & SQL Skills (Oracle/MySQL)', desc: 'Study SQL queries (joins, aggregations, subqueries), database normalization, stored procedures, and triggers. TCS heavily uses Oracle DB in their projects.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Communication & MR (Management Round) Prep', desc: 'Prepare for TCS Technical + HR rounds: explain projects, career goals, and situational questions. Practice "Tell me about yourself" and project explanations clearly.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'TCS Campus Drive & Digital / Prime Selection', desc: 'Appear for TCS Campus Drive or TCS Smart Hiring. Qualify Digital/Prime/Ninja role based on scores. Receive offer letter and complete joining formalities.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Infosys
-    if (key.includes('infosys')) return [
-      { title: 'Infosys InfyTQ & HackWithInfy Preparation', desc: 'Register on InfyTQ platform. Complete Infosys courses in Java, Python, and data structures. Score 65%+ to get shortlisted for HackWithInfy coding competition.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
-      { title: 'Programming & Aptitude Test (PseudoCode + Coding)', desc: 'Clear Infosys Online Test: Pseudocode questions, Data Interpretation, Logical Reasoning, and 2 coding problems. Practice HackerRank and Infosys sample papers.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'Java Full Stack or Python Track Certification', desc: 'Complete Infosys Springboard Java Full Stack certification or Python Developer track. Infosys trains selected candidates in Spring Boot, React, and Microservices.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Communication Skills & HR Round Readiness', desc: 'Infosys evaluates English fluency heavily. Practice GD (Group Discussion) topics, situational judgment, and "Why Infosys?" question with concrete career alignment answers.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Infosys Campus Offer & Mysore Training', desc: 'Accept Infosys offer, complete documentation, and prepare for the Mysore Foundation Training Program (6 weeks). Map to a stream (Java/Python/Testing/Mainframe) based on assessment.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Meta / Facebook
-    if (key.includes('meta') || key.includes('facebook')) return [
-      { title: 'Competitive Programming & LeetCode Grind', desc: 'Solve 300+ LeetCode problems — focus on Graph algorithms, Dynamic Programming, Binary Search, and Sliding Window. Meta\'s coding bar is very high (Hard-level problems common).', actionUrl: '/student/resume', actionLabel: 'Add CP Skills' },
-      { title: 'System Design for Social Scale', desc: 'Practice designing Facebook News Feed, Instagram feed ranking, WhatsApp messaging, Facebook Messenger, and Ads auction system. Study consistency, partitioning, and caching.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'React & Frontend Engineering Excellence', desc: 'Master React (Meta\'s own framework), JavaScript runtime, V8 internals, CSS performance, and Web accessibility. Build a production-quality frontend application.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Behavioral Rounds & Culture Fit (Move Fast)', desc: 'Prepare for Meta\'s "Move Fast" culture. Practice conflict resolution, failure scenarios, cross-functional collaboration, and innovation examples. Meta cares deeply about impact.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Meta Hiring Loop & Offer Negotiation', desc: 'Complete Meta\'s loop: 2 coding + 1 system design + 2 behavioral rounds. Meta offers equity-heavy packages — negotiate base salary, RSUs, and signing bonus with recruiter.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Wipro
-    if (key.includes('wipro')) return [
-      { title: 'Wipro NLTH (National Level Talent Hunt) Prep', desc: 'Prepare for Wipro\'s online test: Aptitude, Logical, Verbal, Essay Writing, and Coding rounds. Score above cutoff in all sections to clear to the interview stage.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
-      { title: 'Core Programming & IT Fundamentals', desc: 'Strengthen Java/Python/C++ basics, DBMS, OS, Computer Networks, and Software Engineering concepts. Wipro technical interviews test fundamentals more than advanced DSA.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'Project Presentation & Technical Interview Prep', desc: 'Prepare to explain your final year project clearly in 5 minutes — tech stack, challenges, architecture, and your individual contribution. Wipro gives weight to project experience.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Communication Skills & HR Readiness', desc: 'Practice HR round questions: strengths/weaknesses, relocation readiness, career goals, and team scenarios. Wipro places emphasis on communication and adaptability.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Wipro Offer & Velocity/Wilp Training', desc: 'Accept Wipro offer and complete documentation. Attend WILP (Work Integrated Learning Program) or Velocity training. Get allocated to a project/account based on skills.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Accenture
-    if (key.includes('accenture')) return [
-      { title: 'Accenture Cognitive & Technical Assessment', desc: 'Clear Accenture\'s 3-section online assessment: Cognitive Ability, Technical (IT fundamentals), and Coding Test. Score 70%+ in all sections — no negative marking.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
-      { title: 'SAP / Salesforce / Cloud Skills Certification', desc: 'Get certified in SAP Fundamentals, Salesforce Admin, or AWS Cloud Practitioner. Accenture heavily places graduates in ERP, CRM, and Cloud consulting projects.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'Technical Interview & Communication Round', desc: 'Prepare for Accenture\'s Technical Interview: explain your project, basic coding questions (sorting, searching), and IT concepts. Practice clear and structured communication.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'HR Round & Digital Fluency Preparation', desc: 'Prepare HR questions: adaptability, remote work, diversity stories. Accenture tests "Digital Fluency" — awareness of AI/ML trends, blockchain, and metaverse concepts.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Accenture Offer & Role Allocation', desc: 'Receive Accenture offer letter (ASE role or Consulting Analyst). Complete documentation, background verification, and 3-month foundation training at Accenture Solutions Pvt. Ltd.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Roy Kapur Films
-    if (key.includes('roykapur') || key.includes('roy kapur')) return [
-      { title: 'Film Industry Fundamentals & Portfolio', desc: 'Build a strong creative portfolio: screenwriting samples, short films, production stills, or editing reels. Roy Kapur Films evaluates creative output above academic qualifications.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Scriptwriting & Storytelling Certification', desc: 'Complete coursework in screenplay writing, narrative structure, and story development. Practice writing 10-page short film scripts and feature film treatments.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'Film Production Knowledge & Role Clarity', desc: 'Study pre-production, production, and post-production workflows. Identify your role: Director\'s Assistant, Production Coordinator, Content Researcher, or Marketing & PR.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Digital Marketing & Film Promotions', desc: 'Learn film marketing strategies, OTT platform content distribution, social media campaigns for film releases, trailer marketing, and influencer collaborations in Bollywood.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Roy Kapur Films Interview & Internship Offer', desc: 'Submit creative portfolio and cover letter tailored to Roy Kapur Films\' upcoming projects. Attend creative interview, pitching sessions, and receive internship or placement offer.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Elance Group
-    if (key.includes('elance')) return [
-      { title: 'Freelance & Digital Services Portfolio', desc: 'Build a strong portfolio of digital work: web development projects, graphic design samples, content writing pieces, or digital marketing case studies relevant to Elance clients.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Client Communication & Project Management', desc: 'Complete courses in client communication, proposal writing, project scoping, and remote collaboration tools (Slack, Trello, Asana). Elance values strong client management skills.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'Specialization Track (Dev/Design/Content/Marketing)', desc: 'Choose your specialization and earn a relevant certification: Web Development (React/Node), UI/UX Design (Figma), SEO & Content, or Digital Marketing (Google Ads, Meta Ads).', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Live Project Execution & Client Testimonials', desc: 'Complete 2-3 live freelance projects, collect client testimonials, and build measurable case studies showing business impact. Elance Group values proven delivery track records.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Elance Group Interview & Talent Onboarding', desc: 'Apply through Elance Group\'s recruitment portal, present your portfolio, complete a skills test relevant to your track, and receive placement confirmation with project assignment.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Shiv IT
-    if (key.includes('shivit') || key.includes('shiv it')) return [
-      { title: 'Core Web Development & IT Stack Proficiency', desc: 'Master HTML, CSS, JavaScript, and at least one backend framework (Node.js, PHP, or .NET). Shiv IT Solutions focuses on full-stack web development and enterprise software delivery.', actionUrl: '/student/resume', actionLabel: 'Add Tech Skills' },
-      { title: 'Database Design & Backend APIs', desc: 'Build proficiency in MySQL/PostgreSQL, REST API design, authentication flows (JWT/OAuth), and server-side logic. Practice building CRUD applications end-to-end.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'Project-Based Interview Preparation', desc: 'Prepare to demonstrate a live project during the interview. Shiv IT gives practical coding exercises. Practice debugging, code review readiness, and explaining architectural decisions.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Team Collaboration & Version Control Skills', desc: 'Get comfortable with Git, GitHub workflows (branching, PRs, code reviews), and agile project workflows. Shiv IT works in small agile teams — collaborative skills are essential.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Shiv IT Solutions Offer & Onboarding', desc: 'Clear the technical round (live coding task + project discussion) and HR round. Receive offer letter, complete documentation, and get assigned to a live client project on joining.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // HAWKSTAR
-    if (key.includes('hawkstar')) return [
-      { title: 'Media Production & Content Creation Portfolio', desc: 'Build a portfolio of media projects: video production, photography, graphic design, or content writing. HAWKSTAR MEDIA evaluates creative talent first and academic scores second.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'Digital Media Tools & Software Proficiency', desc: 'Learn Adobe Creative Suite (Premiere Pro, After Effects, Photoshop, Illustrator), Canva Pro, and DaVinci Resolve. Obtain at least one Adobe certification for credibility.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
-      { title: 'Social Media Strategy & Content Marketing', desc: 'Study content strategy, Instagram/YouTube algorithm optimization, influencer marketing, and brand storytelling. Practice creating viral content briefs and social media calendars.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
-      { title: 'Live Campaign Execution & Analytics', desc: 'Run a real social media campaign (even personal/college-level) and document metrics: reach, engagement rate, CTR, and conversions. HAWKSTAR values data-backed creativity.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
-      { title: 'HAWKSTAR MEDIA Interview & Creative Role Offer', desc: 'Submit your creative reel/portfolio, attend a creative brief presentation round, and receive placement offer for Content Creator, Video Editor, or Social Media Manager role.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
-    ];
-
-    // Default — generic but still directional
-    return [
-      {
-        title: `Research ${company}'s Hiring Process & Requirements`,
-        desc: `Study ${company}'s official careers page, Glassdoor interview reviews, and LinkedIn job postings to understand exact skill requirements, interview rounds, and assessment formats.`,
-        actionUrl: '/student/resume',
-        actionLabel: 'Update Profile',
-      },
-      {
-        title: `Build Required Technical Skills for ${company}`,
-        desc: `Identify skill gaps between your current profile and ${company}'s job requirements. Complete targeted Coursera certifications and projects to fill those gaps with proof.`,
-        actionUrl: '/student/roadmap',
-        actionLabel: 'View Courses',
-      },
-      {
-        title: `Portfolio & Project Alignment for ${company}`,
-        desc: `Build or update 2-3 projects that directly reflect ${company}'s domain and product focus. Include live deployment links, GitHub repos, and measurable impact metrics in your resume.`,
-        actionUrl: '/student/resume',
-        actionLabel: 'Update Portfolio',
-      },
-      {
-        title: `Mock Interviews & Assessment Practice for ${company}`,
-        desc: `Practice technical and behavioral interview questions specific to ${company}'s hiring rubric. Use AI mock interview, peer practice, and coding platforms to sharpen your performance.`,
-        actionUrl: '/student/messages',
-        actionLabel: 'Schedule Mock Interview',
-      },
-      {
-        title: `Apply & Complete ${company}'s Hiring Process`,
-        desc: `Submit your verified application through ${company}'s official careers portal or via RecruitX campus placements. Track interview rounds, collect feedback, and respond promptly to offers.`,
-        actionUrl: '/student/applications',
-        actionLabel: 'View Applications',
-      },
-    ];
-  };
-
-  const handleSelectCompany = (comp: string) => {
+  /**
+   * Handle company selection: trigger genuine backend AI roadmap & course re-fetch
+   */
+  const handleSelectCompany = async (comp: string) => {
     const trimmed = comp.trim();
     if (!trimmed) return;
+
     setSelectedCompany(trimmed);
-    const key = `recruitx_roadmap_progress_${trimmed.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-    const saved = localStorage.getItem(key);
-    if (saved !== null) {
-      setCompletedCount(Math.min(5, Math.max(0, parseInt(saved, 10) || 0)));
+
+    // Normalize and add to quick-select list if not present
+    setAvailableCompanies((prev) => {
+      const exists = prev.some((c) => c.toLowerCase() === trimmed.toLowerCase());
+      return exists ? prev : [trimmed, ...prev];
+    });
+
+    // Simultaneously fetch company roadmap and role-matched Coursera courses
+    await Promise.allSettled([
+      fetchRoadmapForCompany(trimmed, studentRole, activeDomain),
+      fetchCourseraCourses(studentRole, trimmed),
+    ]);
+  };
+
+  /**
+   * Regenerate roadmap with AI for the current selection
+   */
+  const handleRegenerateWithAI = async () => {
+    if (selectedCompany) {
+      await Promise.allSettled([
+        fetchRoadmapForCompany(selectedCompany, studentRole, activeDomain),
+        fetchCourseraCourses(studentRole, selectedCompany),
+      ]);
     } else {
-      setCompletedCount(0);
-      localStorage.setItem(key, '0');
+      setGeneratingAI(true);
+      try {
+        const res = await api.get('/resume/roadmap');
+        if (res.data?.data?.roadmap) {
+          const rData = res.data.data.roadmap;
+          if (Array.isArray(rData.milestones) && rData.milestones.length === 5) {
+            setCustomMilestones(rData.milestones);
+            setCustomTrackTitle(rData.trackTitle || null);
+            setIsAiGenerated(true);
+          }
+        }
+        await fetchCourseraCourses(studentRole, null);
+      } catch (err) {
+        console.error('Failed to regenerate AI roadmap:', err);
+      } finally {
+        setGeneratingAI(false);
+      }
     }
   };
 
@@ -603,7 +723,7 @@ export const StudentRoadmap: React.FC = () => {
 
       if (res.data?.success) {
         setVerifySuccess(res.data.message || 'Coursera certificate authenticated!');
-        await fetchCourseraCourses();
+        await fetchCourseraCourses(studentRole, selectedCompany);
         setTimeout(() => {
           closeVerifyModal();
         }, 1600);
@@ -624,7 +744,7 @@ export const StudentRoadmap: React.FC = () => {
       const res = await api.post('/courses/mark-audit', { courseId: course.id });
       if (res.data?.success) {
         setVerifySuccess('Course marked completed! Skills synced to your profile.');
-        await fetchCourseraCourses();
+        await fetchCourseraCourses(studentRole, selectedCompany);
         setTimeout(() => {
           closeVerifyModal();
         }, 1400);
@@ -636,21 +756,22 @@ export const StudentRoadmap: React.FC = () => {
     }
   };
 
-  const activeMilestones: MilestoneItem[] = selectedCompany
-    ? generateMilestonesForCompany(selectedCompany)
-    : customMilestones && isAiGenerated
+  // Determine active milestone list
+  const activeMilestones: MilestoneItem[] = customMilestones && customMilestones.length === 5
     ? customMilestones
+    : selectedCompany
+    ? generateRoleAndCompanyRoadmap(selectedCompany, studentRole, activeDomain)
     : (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).milestones;
 
-  const currentTrackLabel = selectedCompany
-    ? `${selectedCompany} Placement Preparation Track`
-    : customTrackTitle && isAiGenerated
+  // Determine track title
+  const currentTrackLabel = customTrackTitle
     ? customTrackTitle
+    : selectedCompany
+    ? `${selectedCompany} ${studentRole} Placement Track`
     : (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).label;
 
-  const DomainIcon = selectedCompany
-    ? Building2
-    : (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).icon;
+  // Determine track icon
+  const DomainIcon = (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).icon;
 
   const milestones: Milestone[] = activeMilestones.map((m, idx) => {
     let status: 'completed' | 'in_progress' | 'pending';
@@ -664,14 +785,47 @@ export const StudentRoadmap: React.FC = () => {
     return { ...m, status };
   });
 
+  /**
+   * Intelligently assign relevant Coursera courses to each milestone step
+   * Prioritizes courses whose skills or title match keywords from the milestone
+   */
+  const getCoursesForStep = (stepIdx: number): CourseraCourseItem[] => {
+    if (!courses || courses.length === 0) return [];
+    const step = activeMilestones[stepIdx];
+    if (!step) return [];
+
+    const stepText = `${step.title} ${step.desc}`.toLowerCase();
+
+    // 1. Search for courses matching skills covered or key words
+    const keywordMatches = courses.filter((c) => {
+      const courseText = `${c.title} ${c.description} ${c.skillsCovered.join(' ')}`.toLowerCase();
+      // Check for skill overlaps
+      const hasSkillOverlap = c.skillsCovered.some((sk) => stepText.includes(sk.toLowerCase()));
+      if (hasSkillOverlap) return true;
+
+      // Check key keywords in step title
+      const titleTokens = step.title.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+      return titleTokens.some((tok) => courseText.includes(tok));
+    });
+
+    if (keywordMatches.length > 0) {
+      return keywordMatches.slice(0, 2);
+    }
+
+    // 2. Fallback: distribute available role courses across steps
+    const perStep = Math.max(1, Math.ceil(courses.length / 5));
+    const start = (stepIdx * perStep) % courses.length;
+    return courses.slice(start, start + 2);
+  };
+
   const markCurrentComplete = () => {
     const stepCourses = getCoursesForStep(completedCount);
     const hasVerifiedCourse = stepCourses.some((c) => c.isCompleted);
 
-    // If this milestone has courses and none have been verified, block completion!
+    // If this milestone has courses and none have been verified, prompt completion
     if (stepCourses.length > 0 && !hasVerifiedCourse) {
       alert(
-        `⚠️ Certificate Verification Required:\n\nPlease complete or authenticate at least one Coursera certificate for Step ${completedCount + 1} by clicking "Verify / Complete" before marking this milestone complete.`
+        `⚠️ Certificate Verification Recommended:\n\nPlease complete or authenticate at least one Coursera certificate for Step ${completedCount + 1} by clicking "Verify / Complete" or using Free Audit before completing this milestone.`
       );
       if (stepCourses[0]) {
         openVerifyModal(stepCourses[0]);
@@ -701,33 +855,25 @@ export const StudentRoadmap: React.FC = () => {
 
   const progressPercent = Math.round((completedCount / 5) * 100);
 
-  /**
-   * Intelligently assign Coursera courses to each milestone step
-   */
-  const getCoursesForStep = (stepIdx: number): CourseraCourseItem[] => {
-    if (!courses || courses.length === 0) return [];
-    // Distribute available courses evenly across the 5 steps or map by index
-    const perStep = Math.max(1, Math.ceil(courses.length / 5));
-    const start = (stepIdx * perStep) % courses.length;
-    return courses.slice(start, start + 2);
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-neutral-900">Career & Placement Roadmap</h1>
+            <h1 className="text-xl font-bold text-neutral-900">Career &amp; Placement Roadmap</h1>
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-600 text-white flex items-center gap-1">
               <GraduationCap className="w-3 h-3" />
               Coursera Integrated
             </span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+              Role: {studentRole}
+            </span>
           </div>
           <p className="text-xs text-neutral-500 mt-1">
             {selectedCompany
-              ? `Personalized placement roadmap and Coursera skill milestones for ${selectedCompany}.`
-              : 'Select a target hiring company to generate its specific placement milestones.'}
+              ? `Personalized placement milestones and accredited Coursera skills for ${studentRole} candidates targeting ${selectedCompany}.`
+              : `Select your target hiring organization to generate a company-tailored roadmap for your ${studentRole} track.`}
           </p>
         </div>
 
@@ -736,14 +882,31 @@ export const StudentRoadmap: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
+              onClick={handleRegenerateWithAI}
+              disabled={generatingAI}
+              className="text-xs gap-1.5 h-8 border-neutral-300 hover:bg-neutral-100"
+            >
+              {generatingAI ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              )}
+              <span>Regenerate with AI</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setSelectedCompany(null);
+                setCustomMilestones(null);
+                setCustomTrackTitle(null);
                 setCustomCompanyInput('');
+                fetchCourseraCourses(studentRole, null);
               }}
               className="text-xs gap-1.5 h-8 border-neutral-300 hover:bg-neutral-100"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Change Target Company</span>
+              <span>Change Company</span>
             </Button>
           </div>
         )}
@@ -756,9 +919,9 @@ export const StudentRoadmap: React.FC = () => {
             <Building2 className="w-7 h-7" />
           </div>
           <div className="space-y-1.5">
-            <h2 className="text-lg font-bold text-neutral-900">Select a Target Company</h2>
+            <h2 className="text-lg font-bold text-neutral-900">Select Your Target Hiring Organization</h2>
             <p className="text-xs text-neutral-500 max-w-md mx-auto leading-relaxed">
-              Placement preparation milestones and Coursera course requirements are tailored to each hiring organization. Choose a company to view its preparation roadmap.
+              Every employer evaluates candidates with unique rubrics and tech stacks. Select a verified campus recruiter or enter any target company to adapt the roadmap to your <strong className="text-neutral-800">{studentRole}</strong> profile.
             </p>
           </div>
 
@@ -790,7 +953,7 @@ export const StudentRoadmap: React.FC = () => {
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                placeholder="e.g. Netflix, Oracle, Adobe, Samsung..."
+                placeholder="e.g. Netflix, Adobe, Spotify, Oracle, Flipkart..."
                 value={customCompanyInput}
                 onChange={(e) => setCustomCompanyInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -801,13 +964,19 @@ export const StudentRoadmap: React.FC = () => {
                 className="flex-1 text-xs p-2.5 rounded-lg border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-neutral-900"
               />
               <Button
-                disabled={!customCompanyInput.trim()}
+                disabled={!customCompanyInput.trim() || generatingAI}
                 onClick={() => handleSelectCompany(customCompanyInput.trim())}
                 size="sm"
                 className="text-xs gap-1.5 h-10 px-4"
               >
-                <span>View Roadmap</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                {generatingAI ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <span>Generate Roadmap</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -818,24 +987,29 @@ export const StudentRoadmap: React.FC = () => {
           <Card className="p-4 bg-neutral-50 border-neutral-300 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-neutral-900 text-white">
+                <div className="p-2.5 rounded-lg bg-neutral-900 text-white shrink-0">
                   <DomainIcon className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-sm font-bold text-neutral-900">{currentTrackLabel}</h2>
-                    <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded">
-                      Target Company
+                    <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                      <Building2 className="w-3 h-3" />
+                      {selectedCompany}
+                    </span>
+                    <span className="text-[10px] bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                      <Briefcase className="w-3 h-3" />
+                      {studentRole}
                     </span>
                     <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
                       <BookOpen className="w-3 h-3" />
                       Coursera Powered
                     </span>
                   </div>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-neutral-500 mt-1">
                     {completedCount === 5
-                      ? `All 5 milestones completed! Your placement profile is market-ready for ${selectedCompany}.`
-                      : `Milestone ${completedCount + 1} of 5 in progress. Verify its Coursera course to unlock the next milestone.`}
+                      ? `All 5 milestones completed! Your placement profile is market-ready for ${selectedCompany} as a ${studentRole}.`
+                      : `Milestone ${completedCount + 1} of 5 in progress. Verify or complete the recommended Coursera course to advance.`}
                   </p>
                 </div>
               </div>
@@ -875,208 +1049,220 @@ export const StudentRoadmap: React.FC = () => {
             </div>
           </Card>
 
-      {/* Sequential Milestone Steps with Embedded Coursera Courses */}
-      <Card className="p-6">
-        <div className="space-y-8">
-          {milestones.map((step, idx) => {
-            const stepCourses = getCoursesForStep(idx);
+          {/* Sequential Milestone Steps with Embedded Coursera Courses */}
+          <Card className="p-6">
+            {generatingAI ? (
+              <div className="py-12 text-center space-y-3">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-neutral-700" />
+                <p className="text-sm font-semibold text-neutral-700">
+                  Generating tailored roadmap for {selectedCompany} ({studentRole})...
+                </p>
+                <p className="text-xs text-neutral-400">
+                  Synthesizing real recruiter job specs, interview rounds, and accredited Coursera courses.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {milestones.map((step, idx) => {
+                  const stepCourses = getCoursesForStep(idx);
 
-            return (
-              <div key={step.title} className="flex gap-4">
-                {/* Timeline Connector & Status Icon */}
-                <div className="flex flex-col items-center">
-                  {step.status === 'completed' ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                  ) : step.status === 'in_progress' ? (
-                    <Clock className="w-5 h-5 text-amber-500 shrink-0 animate-pulse" />
-                  ) : (
-                    <Lock className="w-4 h-4 text-neutral-300 shrink-0 mt-0.5" />
-                  )}
-                  {idx !== milestones.length - 1 && (
-                    <div
-                      className={`w-0.5 my-1 transition-colors flex-1 ${
-                        idx < completedCount ? 'bg-emerald-500' : 'bg-neutral-200'
-                      }`}
-                    />
-                  )}
-                </div>
-
-                {/* Milestone Details */}
-                <div className="pt-0.5 flex-1 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-neutral-400">Step {idx + 1}</span>
-                      <h3
-                        className={`text-sm font-semibold ${
-                          step.status === 'completed'
-                            ? 'text-neutral-900 line-through opacity-80'
-                            : step.status === 'in_progress'
-                            ? 'text-neutral-900 font-bold'
-                            : 'text-neutral-400'
-                        }`}
-                      >
-                        {step.title}
-                      </h3>
-                    </div>
-
-                    {/* Status Badge */}
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                        step.status === 'completed'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : step.status === 'in_progress'
-                          ? 'bg-amber-50 text-amber-700 border-amber-300'
-                          : 'bg-neutral-100 text-neutral-400 border-neutral-200'
-                      }`}
-                    >
-                      {step.status === 'completed'
-                        ? 'Completed'
-                        : step.status === 'in_progress'
-                        ? 'In Progress'
-                        : 'Locked'}
-                    </span>
-                  </div>
-
-                  <p
-                    className={`text-xs ${
-                      step.status === 'pending' ? 'text-neutral-400' : 'text-neutral-600'
-                    }`}
-                  >
-                    {step.desc}
-                  </p>
-
-                  {/* ============================================================== */}
-                  {/* EMBEDDED COURSERA COURSES FOR THIS MILESTONE STEP */}
-                  {/* ============================================================== */}
-                  {stepCourses.length > 0 && (
-                    <div className="mt-3 space-y-2.5">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-700">
-                        <span className="p-1 rounded bg-blue-600 text-white font-black text-[9px] tracking-wider leading-none">
-                          coursera
-                        </span>
-                        <span>Recommended Coursera Courses for Step {idx + 1}:</span>
+                  return (
+                    <div key={step.title} className="flex gap-4">
+                      {/* Timeline Connector & Status Icon */}
+                      <div className="flex flex-col items-center">
+                        {step.status === 'completed' ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                        ) : step.status === 'in_progress' ? (
+                          <Clock className="w-5 h-5 text-amber-500 shrink-0 animate-pulse" />
+                        ) : (
+                          <Lock className="w-4 h-4 text-neutral-300 shrink-0 mt-0.5" />
+                        )}
+                        {idx !== milestones.length - 1 && (
+                          <div
+                            className={`w-0.5 my-1 transition-colors flex-1 ${
+                              idx < completedCount ? 'bg-emerald-500' : 'bg-neutral-200'
+                            }`}
+                          />
+                        )}
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {stepCourses.map((c) => (
-                          <div
-                            key={c.id}
-                            className={`p-3.5 rounded-lg border text-xs flex flex-col justify-between space-y-2 transition-all ${
-                              c.isCompleted
-                                ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-200'
-                                : 'bg-neutral-50/70 border-neutral-200 hover:bg-white hover:border-neutral-300'
+                      {/* Milestone Details */}
+                      <div className="pt-0.5 flex-1 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-neutral-400">Step {idx + 1}</span>
+                            <h3
+                              className={`text-sm font-semibold ${
+                                step.status === 'completed'
+                                  ? 'text-neutral-900 line-through opacity-80'
+                                  : step.status === 'in_progress'
+                                  ? 'text-neutral-900 font-bold'
+                                  : 'text-neutral-400'
+                              }`}
+                            >
+                              {step.title}
+                            </h3>
+                          </div>
+
+                          {/* Status Badge */}
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                              step.status === 'completed'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : step.status === 'in_progress'
+                                ? 'bg-amber-50 text-amber-700 border-amber-300'
+                                : 'bg-neutral-100 text-neutral-400 border-neutral-200'
                             }`}
                           >
-                            <div className="space-y-1.5">
-                              <div className="flex items-start justify-between gap-1.5">
-                                <div>
-                                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">
-                                    {c.provider}
-                                  </span>
-                                  <h4 className="font-bold text-neutral-900 text-xs line-clamp-1">
-                                    {c.title}
-                                  </h4>
-                                </div>
+                            {step.status === 'completed'
+                              ? 'Completed'
+                              : step.status === 'in_progress'
+                              ? 'In Progress'
+                              : 'Locked'}
+                          </span>
+                        </div>
 
-                                {c.isCompleted ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                    Done
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-neutral-200/70 text-neutral-700 uppercase tracking-wider shrink-0">
-                                    {c.pricingType === 'free' ? 'Free Audit' : 'Cert Available'}
-                                  </span>
-                                )}
-                              </div>
+                        <p
+                          className={`text-xs ${
+                            step.status === 'pending' ? 'text-neutral-400' : 'text-neutral-600'
+                          }`}
+                        >
+                          {step.desc}
+                        </p>
 
-                              <p className="text-[11px] text-neutral-500 line-clamp-2">{c.description}</p>
-
-                              <div className="flex items-center gap-2 text-[10px] text-neutral-400">
-                                <span className="flex items-center gap-0.5 text-amber-600 font-semibold">
-                                  <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-                                  {c.rating}
-                                </span>
-                                <span>• {c.duration}</span>
-                                <span>• {c.level}</span>
-                              </div>
-
-                              {/* Skills Covered */}
-                              <div className="flex flex-wrap gap-1 pt-0.5">
-                                {c.skillsCovered.slice(0, 3).map((sk) => (
-                                  <span key={sk} className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-neutral-200 text-neutral-700 font-medium">
-                                    {sk}
-                                  </span>
-                                ))}
-                              </div>
+                        {/* ============================================================== */}
+                        {/* EMBEDDED COURSERA COURSES FOR THIS MILESTONE STEP */}
+                        {/* ============================================================== */}
+                        {stepCourses.length > 0 && (
+                          <div className="mt-3 space-y-2.5">
+                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-700">
+                              <span className="p-1 rounded bg-blue-600 text-white font-black text-[9px] tracking-wider leading-none">
+                                coursera
+                              </span>
+                              <span>Recommended Coursera Courses for Step {idx + 1}:</span>
                             </div>
 
-                            {/* Actions */}
-                            <div className="pt-2 border-t border-neutral-200/60 flex items-center justify-between gap-2">
-                              <a
-                                href={c.courseraUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
-                              >
-                                <span>Open Course</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-
-                              {c.isCompleted ? (
-                                <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-                                  <ShieldCheck className="w-3 h-3" />
-                                  Skills Added
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => openVerifyModal(c)}
-                                  className="text-[10px] font-bold px-2 py-1 rounded bg-neutral-900 text-white hover:bg-neutral-800 flex items-center gap-1"
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {stepCourses.map((c) => (
+                                <div
+                                  key={c.id}
+                                  className={`p-3.5 rounded-lg border text-xs flex flex-col justify-between space-y-2 transition-all ${
+                                    c.isCompleted
+                                      ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-200'
+                                      : 'bg-neutral-50/70 border-neutral-200 hover:bg-white hover:border-neutral-300'
+                                  }`}
                                 >
-                                  <Award className="w-2.5 h-2.5 text-amber-300" />
-                                  Verify / Complete
-                                </button>
-                              )}
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-start justify-between gap-1.5">
+                                      <div>
+                                        <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">
+                                          {c.provider}
+                                        </span>
+                                        <h4 className="font-bold text-neutral-900 text-xs line-clamp-1">
+                                          {c.title}
+                                        </h4>
+                                      </div>
+
+                                      {c.isCompleted ? (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                          Done
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-neutral-200/70 text-neutral-700 uppercase tracking-wider shrink-0">
+                                          {c.pricingType === 'free' ? 'Free Audit' : 'Cert Available'}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <p className="text-[11px] text-neutral-500 line-clamp-2">{c.description}</p>
+
+                                    <div className="flex items-center gap-2 text-[10px] text-neutral-400">
+                                      <span className="flex items-center gap-0.5 text-amber-600 font-semibold">
+                                        <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                                        {c.rating}
+                                      </span>
+                                      <span>• {c.duration}</span>
+                                      <span>• {c.level}</span>
+                                    </div>
+
+                                    {/* Skills Covered */}
+                                    <div className="flex flex-wrap gap-1 pt-0.5">
+                                      {c.skillsCovered.slice(0, 3).map((sk) => (
+                                        <span key={sk} className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-neutral-200 text-neutral-700 font-medium">
+                                          {sk}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div className="pt-2 border-t border-neutral-200/60 flex items-center justify-between gap-2">
+                                    <a
+                                      href={c.courseraUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      <span>Open Course</span>
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                    </a>
+
+                                    {c.isCompleted ? (
+                                      <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                                        <ShieldCheck className="w-3 h-3" />
+                                        Skills Added
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => openVerifyModal(c)}
+                                        className="text-[10px] font-bold px-2 py-1 rounded bg-neutral-900 text-white hover:bg-neutral-800 flex items-center gap-1"
+                                      >
+                                        <Award className="w-2.5 h-2.5 text-amber-300" />
+                                        Verify / Complete
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        ))}
+                        )}
+
+                        {/* Interactive Action Bar for Current Step */}
+                        {step.status === 'in_progress' && (
+                          <div className="flex flex-wrap items-center gap-2 pt-2">
+                            {step.actionUrl && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => navigate(step.actionUrl!)}
+                                className="text-xs gap-1.5 h-7"
+                              >
+                                <span>{step.actionLabel || 'Go to Task'}</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              onClick={markCurrentComplete}
+                              className="text-xs gap-1.5 h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Mark Step {idx + 1} Complete</span>
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
-
-                  {/* Interactive Action Bar for Current Step */}
-                  {step.status === 'in_progress' && (
-                    <div className="flex flex-wrap items-center gap-2 pt-2">
-                      {step.actionUrl && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => navigate(step.actionUrl!)}
-                          className="text-xs gap-1.5 h-7"
-                        >
-                          <span>{step.actionLabel || 'Go to Task'}</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        onClick={markCurrentComplete}
-                        className="text-xs gap-1.5 h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Mark Step {idx + 1} Complete</span>
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      </Card>
-    </>
-  )}
+            )}
+          </Card>
+        </>
+      )}
 
       {/* ============================================================== */}
       {/* COURSERA VERIFICATION MODAL IN ROADMAP */}

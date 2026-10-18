@@ -330,7 +330,8 @@ export const getCareerRoadmap = async (req: AuthenticatedRequest, res: Response)
       });
     }
 
-    const roadmap = await AIService.generateCareerRoadmap(resume);
+    const targetCompany = (req.query.company as string) || '';
+    const roadmap = await AIService.generateCareerRoadmap(resume, targetCompany, req.user);
     sendSuccess(res, 'Career roadmap generated', { roadmap });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to generate career roadmap', null, 500);
