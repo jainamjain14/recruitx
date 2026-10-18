@@ -21,6 +21,9 @@ import { sendSuccess } from "./utils/apiResponse.js";
 
 const app = express();
 
+// Trust Render's reverse proxy so rate-limiter and client IP detection work accurately
+app.set("trust proxy", 1);
+
 /* ======================================================
    SECURITY & HEADERS
 ====================================================== */
