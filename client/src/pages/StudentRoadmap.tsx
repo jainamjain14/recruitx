@@ -415,11 +415,21 @@ const DOMAIN_ROADMAPS: Record<string, { label: string; icon: any; roleName: stri
  */
 function resolveDomainKey(text: string): string {
   const t = (text || '').toLowerCase();
+
+  // Highest-priority specific disciplines (check BEFORE generic overlap categories)
+  if (t.includes('interior') || t.includes('spatial') || t.includes('space plan') || t.includes('decorat') || t.includes('furnish')) return 'interior';
+  if (t.includes('coach') || t.includes('sport') || t.includes('athlet') || t.includes('football') || t.includes('soccer') || t.includes('conditioning')) return 'sports';
+  if ((t.includes('game') || t.includes('gaming')) && (t.includes('test') || t.includes('qa') || t.includes('quality') || t.includes('bug'))) return 'gameqa';
+  if ((t.includes('game') || t.includes('gaming')) && (t.includes('dev') || t.includes('program') || t.includes('unity') || t.includes('unreal') || t.includes('engine'))) return 'gamedev';
+  if (t.includes('graphic') || t.includes('visual designer') || t.includes('illustrat') || t.includes('branding') || t.includes('logo')) return 'graphic';
+
+  // General categories
   if (t.includes('data') || t.includes('analyst') || t.includes('analytics') || t.includes('bi')) return 'data';
   if (t.includes('cloud') || t.includes('devops') || t.includes('aws') || t.includes('azure') || t.includes('sre')) return 'cloud';
   if (t.includes('cyber') || t.includes('security') || t.includes('infosec') || t.includes('soc')) return 'cybersecurity';
   if (t.includes('java') || t.includes('spring')) return 'java';
-  if (t.includes('design') || t.includes('ui') || t.includes('ux') || t.includes('figma')) return 'design';
+  // design / UI / UX — only if NOT interior
+  if (t.includes('ui') || t.includes('ux') || t.includes('product design') || t.includes('user experience') || t.includes('figma') || t.includes('wireframe')) return 'design';
   if (t.includes('camera') || t.includes('cinematograph') || t.includes('dp')) return 'cinematography';
   if (t.includes('film') || t.includes('director') || t.includes('movie') || t.includes('media')) return 'film';
   if (t.includes('market') || t.includes('growth') || t.includes('seo')) return 'marketing';
@@ -602,14 +612,19 @@ export const StudentRoadmap: React.FC = () => {
         api.get('/applications'),
       ]);
 
-      let derivedRole = user?.profession || user?.title || 'Software Engineering';
+      let derivedRole = 'Software Engineering';
       let resumeData: any = null;
 
       if (resRes.status === 'fulfilled' && resRes.value.data?.data?.resume) {
         resumeData = resRes.value.data.data.resume;
-        if (resumeData.headline || resumeData.fieldOfInterest) {
-          derivedRole = resumeData.headline || resumeData.fieldOfInterest || derivedRole;
+        // Latest resume always wins over stale onboarding profession
+        if (resumeData.fieldOfInterest || resumeData.headline) {
+          derivedRole = resumeData.fieldOfInterest || resumeData.headline;
+        } else {
+          derivedRole = user?.profession || user?.title || 'Software Engineering';
         }
+      } else {
+        derivedRole = user?.profession || user?.title || 'Software Engineering';
       }
 
       const domainKey = resolveDomainKey(derivedRole);

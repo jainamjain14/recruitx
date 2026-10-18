@@ -50,7 +50,30 @@ export const updateResume = async (req: AuthenticatedRequest, res: Response): Pr
     }
 
     await resume.save();
-    sendSuccess(res, 'Resume updated successfully', { resume });
+
+    // Synchronize user profile profession and title if modified
+    let updatedUser: any = undefined;
+    if (req.body.fieldOfInterest || req.body.headline) {
+      const userDoc = await User.findById(req.user._id.toString());
+      if (userDoc) {
+        if (req.body.fieldOfInterest) userDoc.profession = req.body.fieldOfInterest;
+        if (req.body.headline) userDoc.title = req.body.headline;
+        await userDoc.save();
+        updatedUser = {
+          _id: userDoc._id,
+          name: userDoc.name,
+          email: userDoc.email,
+          role: userDoc.role,
+          profession: userDoc.profession,
+          title: userDoc.title,
+          industry: userDoc.industry,
+          experienceLevel: userDoc.experienceLevel,
+          emailVerified: userDoc.emailVerified,
+        };
+      }
+    }
+
+    sendSuccess(res, 'Resume updated successfully', { resume, user: updatedUser });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to update resume', null, 500);
   }
@@ -105,6 +128,7 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
     // Save or update Student Resume profile in DB
     let resume = await Resume.findOne({ student: req.user._id });
     const isBase64Savable = fileBase64 && fileBase64.length < 900 * 1024; // Keep under 900KB for Firestore doc safety
+    const nextVersion = ((resume?.resumeVersion as number) || 0) + 1;
 
     if (!resume) {
       resume = new Resume({
@@ -113,6 +137,7 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
         fileName: fileName || 'Uploaded Resume',
         fileData: isBase64Savable ? fileBase64 : undefined,
         fileMimeType: mimeType || 'application/pdf',
+        resumeVersion: nextVersion,
         ...parsedData,
       });
     } else {
@@ -122,15 +147,38 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
       if (parsedData.skills && parsedData.skills.length > 0) {
         resume.skills = parsedData.skills;
       }
+      if (Array.isArray(parsedData.education) && parsedData.education.length > 0) {
+        resume.education = parsedData.education;
+      }
+      if (Array.isArray(parsedData.experience) && parsedData.experience.length > 0) {
+        resume.experience = parsedData.experience;
+      }
+      if (Array.isArray(parsedData.projects) && parsedData.projects.length > 0) {
+        resume.projects = parsedData.projects;
+      }
       if (storedResumeUrl) resume.resumeUrl = storedResumeUrl;
       if (fileName) resume.fileName = fileName;
       if (isBase64Savable) {
         resume.fileData = fileBase64;
         resume.fileMimeType = mimeType || 'application/pdf';
       }
+      resume.resumeVersion = nextVersion;
     }
 
     await resume.save();
+
+    // CRUCIAL: Synchronize the authenticated User document with newly extracted profession & headline
+    let userDoc = await User.findById(req.user._id.toString());
+    if (userDoc) {
+      if (parsedData.fieldOfInterest) {
+        userDoc.profession = parsedData.fieldOfInterest;
+        userDoc.industry = parsedData.fieldOfInterest;
+      }
+      if (parsedData.headline) {
+        userDoc.title = parsedData.headline;
+      }
+      await userDoc.save();
+    }
 
     // Persist full original document in cloud Firestore storage
     if (fileBase64) {
@@ -145,6 +193,17 @@ export const aiParseResume = async (req: AuthenticatedRequest, res: Response): P
     sendSuccess(res, `AI Resume Extraction Complete for ${fileName || 'uploaded document'}! Profile updated.`, {
       resume,
       parsedData,
+      user: userDoc ? {
+        _id: userDoc._id,
+        name: userDoc.name,
+        email: userDoc.email,
+        role: userDoc.role,
+        profession: userDoc.profession,
+        title: userDoc.title,
+        industry: userDoc.industry,
+        experienceLevel: userDoc.experienceLevel,
+        emailVerified: userDoc.emailVerified,
+      } : undefined,
     });
   } catch (error: any) {
     sendError(res, error.message || 'AI resume extraction failed', null, 500);

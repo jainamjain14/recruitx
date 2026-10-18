@@ -479,6 +479,160 @@ export const COURSERA_CATALOG: CourseraCourse[] = [
     description: 'Write a complete feature-length screenplay. Learn dramatic structure, character development, visual pacing, and professional formatting from Michigan State University.',
     certificateType: 'Free Audit Available',
   },
+
+  // ==================== Interior & Spatial Design ====================
+  {
+    id: 'ntu-3d-cad-fundamental',
+    title: '3D CAD Fundamental',
+    provider: 'National Taiwan University',
+    domain: 'Interior & Spatial Design',
+    pricingType: 'free',
+    pricingLabel: '100% Free to Audit',
+    courseraUrl: 'https://www.coursera.org/learn/3d-cad-fundamental',
+    duration: '4 Weeks (3 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '85K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['AutoCAD', '3D Visualization', 'Space Planning', 'Drafting', '3D Modeling', 'Technical Drawing'],
+    description: 'Master core 3D modeling, technical drafting, and dimensional space layout techniques fundamental to spatial and interior design disciplines.',
+    certificateType: 'Free Audit Available',
+  },
+  {
+    id: 'ie-making-architecture',
+    title: 'Making Architecture',
+    provider: 'IE School of Architecture and Design',
+    domain: 'Interior & Spatial Design',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/learn/making-architecture',
+    duration: '4 Weeks (4 hrs/week)',
+    rating: 4.8,
+    enrolledCount: '70K+ Learners',
+    level: 'Intermediate',
+    skillsCovered: ['Space Planning', 'Color Theory & Materials', 'Lighting Design', 'Spatial Composition', 'Architectural Concepts'],
+    description: 'Explore the creative and spatial process of conceiving interior spaces, structural balance, materials, lighting, and human-scale environments.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'ucsd-design-principles',
+    title: 'Design Principles: an Introduction',
+    provider: 'University of California San Diego',
+    domain: 'Interior & Spatial Design',
+    pricingType: 'free',
+    pricingLabel: '100% Free to Audit',
+    courseraUrl: 'https://www.coursera.org/learn/design-principles',
+    duration: '4 Weeks (3 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '90K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Design Principles', 'Color Theory & Materials', 'Visual Composition', 'Space Planning', 'Prototyping'],
+    description: 'Learn foundational visual balance, spatial hierarchy, functional ergonomics, and practical design principles applied to interior and physical spaces.',
+    certificateType: 'Free Audit Available',
+  },
+
+  // ==================== Sports Coaching & Athlete Training ====================
+  {
+    id: 'colorado-science-of-exercise',
+    title: 'Science of Exercise',
+    provider: 'University of Colorado Boulder',
+    domain: 'Sports Coaching & Athlete Training',
+    pricingType: 'free',
+    pricingLabel: '100% Free to Audit',
+    courseraUrl: 'https://www.coursera.org/learn/science-exercise',
+    duration: '4 Weeks (4 hrs/week)',
+    rating: 4.8,
+    enrolledCount: '190K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Conditioning Fundamentals', 'Athlete Training', 'Fitness Assessment', 'Injury Prevention & First Aid', 'Physiology'],
+    description: 'Understand the physiological adaptations to exercise, nutrition, endurance conditioning, and athlete safety to optimize coaching programs.',
+    certificateType: 'Free Audit Available',
+  },
+  {
+    id: 'ucdavis-coaching-conversations',
+    title: 'Coaching Skills for Managers & Leaders',
+    provider: 'University of California, Davis',
+    domain: 'Sports Coaching & Athlete Training',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/learn/coaching-conversations',
+    duration: '4 Weeks (3 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '120K+ Learners',
+    level: 'Intermediate',
+    skillsCovered: ['Coaching Fundamentals', 'Team Leadership', 'Player Development', 'Youth Mentorship', 'Performance Evaluation'],
+    description: 'Master interpersonal coaching dialogues, motivational techniques, constructive tactical feedback, and leadership frameworks for team development.',
+    certificateType: 'Both Options',
+  },
+
+  // ==================== Game Testing & Quality Assurance ====================
+  {
+    id: 'minnesota-software-testing',
+    title: 'Software Testing and Automation Specialization',
+    provider: 'University of Minnesota',
+    domain: 'Game Testing & Quality Assurance',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/specializations/software-testing-automation',
+    duration: '3-4 Months (5 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '65K+ Learners',
+    level: 'Intermediate',
+    skillsCovered: ['Test Case Execution', 'Defect Reporting & Reproduction', 'Regression Testing', 'Quality Assurance', 'Bug Tracking (JIRA)'],
+    description: 'Master verification methodologies, systematic test suite design, reproduction steps, automated regression, and rigorous defect tracking.',
+    certificateType: 'Both Options',
+  },
+  {
+    id: 'calarts-game-design',
+    title: 'Game Design: Art and Concepts Specialization',
+    provider: 'California Institute of the Arts',
+    domain: 'Game Testing & Quality Assurance',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/specializations/game-design',
+    duration: '4 Months (4 hrs/week)',
+    rating: 4.8,
+    enrolledCount: '140K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Gameplay Testing', 'Game World Design', 'Character Design', 'Game Mechanics', 'Level Design'],
+    description: 'Learn the formal artistic and conceptual components of game systems, player experience mechanics, and gameplay evaluation.',
+    certificateType: 'Both Options',
+  },
+
+  // ==================== Game Development & Engineering ====================
+  {
+    id: 'msu-game-development-unity',
+    title: 'Game Design and Development with Unity 2020 Specialization',
+    provider: 'Michigan State University',
+    domain: 'Game Development & Engineering',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/specializations/game-development',
+    duration: '5 Months (5 hrs/week)',
+    rating: 4.7,
+    enrolledCount: '130K+ Learners',
+    level: 'Intermediate',
+    skillsCovered: ['Game Engine (Unity/Unreal)', 'C# / C++', 'Game Physics', 'Gameplay Mechanics', '3D Math & Vectors'],
+    description: 'Build complete 2D and 3D playable games in Unity with C#, covering physics simulation, character control, game audio, and cross-platform publishing.',
+    certificateType: 'Both Options',
+  },
+
+  // ==================== Graphic Design & Visual Communication ====================
+  {
+    id: 'calarts-graphic-design',
+    title: 'Graphic Design Specialization',
+    provider: 'California Institute of the Arts',
+    domain: 'Graphic Design & Visual Communication',
+    pricingType: 'both',
+    pricingLabel: 'Free to Audit / Paid Certificate Available',
+    courseraUrl: 'https://www.coursera.org/specializations/graphic-design',
+    duration: '5 Months (4 hrs/week)',
+    rating: 4.8,
+    enrolledCount: '320K+ Learners',
+    level: 'Beginner',
+    skillsCovered: ['Adobe Photoshop', 'Adobe Illustrator', 'Typography', 'Visual Branding', 'Color Theory', 'Layout Design'],
+    description: 'Acquire the core foundational visual communication skills required for professional graphic design, typography, brand identity, and composition.',
+    certificateType: 'Both Options',
+  },
 ];
 
 export class CourseraService {
@@ -513,22 +667,88 @@ export class CourseraService {
         lowerMissing.some((ms) => ms.includes(cs) || cs.includes(ms))
       );
 
-      // Specific sub-discipline matches
+      // Specific discipline detection with strict priority
+      const isInterior =
+        lowerRole.includes('interior') ||
+        lowerRole.includes('spatial') ||
+        lowerRole.includes('space plan') ||
+        lowerRole.includes('decorat') ||
+        lowerRole.includes('furnish') ||
+        lowerRole.includes('home design');
+
+      const isSports =
+        lowerRole.includes('coach') ||
+        lowerRole.includes('sport') ||
+        lowerRole.includes('athlet') ||
+        lowerRole.includes('fitness') ||
+        lowerRole.includes('football') ||
+        lowerRole.includes('soccer') ||
+        lowerRole.includes('trainer') ||
+        lowerRole.includes('conditioning');
+
+      const isGameQA =
+        (lowerRole.includes('game') || lowerRole.includes('gaming')) &&
+        (lowerRole.includes('test') || lowerRole.includes('qa') || lowerRole.includes('quality') || lowerRole.includes('bug'));
+
+      const isGameDev =
+        (lowerRole.includes('game') || lowerRole.includes('gaming')) &&
+        (lowerRole.includes('dev') || lowerRole.includes('engineer') || lowerRole.includes('program') || lowerRole.includes('unity') || lowerRole.includes('unreal'));
+
+      const isGraphic =
+        lowerRole.includes('graphic') ||
+        lowerRole.includes('visual designer') ||
+        lowerRole.includes('branding') ||
+        lowerRole.includes('illustrat') ||
+        lowerRole.includes('logo');
+
+      const isUIUX =
+        !isInterior &&
+        !isGraphic &&
+        (lowerRole.includes('ui') ||
+          lowerRole.includes('ux') ||
+          lowerRole.includes('product design') ||
+          lowerRole.includes('user experience') ||
+          lowerRole.includes('user interface') ||
+          lowerRole.includes('figma'));
+
       const isCyber = lowerRole.includes('cyber') || lowerRole.includes('security') || lowerRole.includes('infosec');
       const isCloud = lowerRole.includes('cloud') || lowerRole.includes('aws') || lowerRole.includes('azure') || lowerRole.includes('devops');
       const isData = lowerRole.includes('data') || lowerRole.includes('analytics') || lowerRole.includes('analyst') || lowerRole.includes('business intelligence');
       const isAI = lowerRole.includes('machine learning') || lowerRole.includes('ai') || lowerRole.includes('deep learning');
-      const isDesign = lowerRole.includes('design') || lowerRole.includes('ui') || lowerRole.includes('ux') || lowerRole.includes('figma');
       const isJava = lowerRole.includes('java') || lowerRole.includes('spring');
       const isMarketing = lowerRole.includes('market') || lowerRole.includes('seo') || lowerRole.includes('growth');
       const isFinance = lowerRole.includes('finance') || lowerRole.includes('account') || lowerRole.includes('audit');
+      const isHR = lowerRole.includes('hr') || lowerRole.includes('human resource') || lowerRole.includes('talent') || lowerRole.includes('recruit');
       const isFilm = lowerRole.includes('film') || lowerRole.includes('cinema') || lowerRole.includes('direct') || lowerRole.includes('movie') || lowerRole.includes('screenplay');
       const isVideo = lowerRole.includes('video') || lowerRole.includes('edit') || lowerRole.includes('premiere');
+
+      const isGeneralSoftware =
+        lowerRole.includes('software') ||
+        lowerRole.includes('developer') ||
+        lowerRole.includes('web') ||
+        lowerRole.includes('full stack') ||
+        lowerRole.includes('backend') ||
+        lowerRole.includes('frontend') ||
+        lowerRole.includes('programmer') ||
+        lowerRole.includes('coder') ||
+        lowerRole.includes('engineer');
 
       let domainMatch = false;
       let specificRoleBonus = 0;
 
-      if (isCyber) {
+      if (isInterior) {
+        domainMatch = course.domain === 'Interior & Spatial Design';
+      } else if (isSports) {
+        domainMatch = course.domain === 'Sports Coaching & Athlete Training';
+      } else if (isGameQA) {
+        domainMatch = course.domain === 'Game Testing & Quality Assurance';
+      } else if (isGameDev) {
+        domainMatch = course.domain === 'Game Development & Engineering';
+      } else if (isGraphic) {
+        domainMatch = course.domain === 'Graphic Design & Visual Communication';
+      } else if (isUIUX) {
+        domainMatch = course.domain === 'UI/UX & Creative Design';
+      } else if (isCyber) {
         domainMatch = course.domain === 'Cybersecurity';
       } else if (isCloud) {
         domainMatch = course.domain === 'Cloud Infrastructure & DevOps';
@@ -536,8 +756,6 @@ export class CourseraService {
         domainMatch = course.domain === 'Data Analytics' || (course.domain.includes('Data') && !course.domain.includes('Software'));
       } else if (isAI) {
         domainMatch = course.domain === 'Artificial Intelligence & Data Science';
-      } else if (isDesign) {
-        domainMatch = course.domain === 'UI/UX & Creative Design';
       } else if (isMarketing) {
         domainMatch = course.domain === 'Marketing & Growth Management';
       } else if (isFinance) {
@@ -546,8 +764,7 @@ export class CourseraService {
         domainMatch = course.domain === 'Film & Movie Direction';
       } else if (isVideo) {
         domainMatch = course.domain === 'Video Editing & Post-Production';
-      } else {
-        // General Software / Tech
+      } else if (isGeneralSoftware) {
         domainMatch = course.domain === 'Software Engineering';
       }
 
@@ -588,7 +805,20 @@ export class CourseraService {
       return domainMatches.map((s) => s.course);
     }
 
-    return scored.map((s) => s.course);
+    // Never fall back to software engineering courses for unrelated professions!
+    const isTechRole =
+      lowerRole.includes('software') ||
+      lowerRole.includes('developer') ||
+      lowerRole.includes('programmer') ||
+      lowerRole.includes('engineer') ||
+      lowerRole.includes('stack') ||
+      lowerRole.includes('coder');
+
+    if (isTechRole) {
+      return scored.slice(0, 6).map((s) => s.course);
+    }
+
+    return [];
   }
 
   /**

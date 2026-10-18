@@ -102,22 +102,40 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
     const lat = userLat !== undefined && userLat !== '' && !isNaN(Number(userLat)) ? Number(userLat) : undefined;
     const lng = userLng !== undefined && userLng !== '' && !isNaN(Number(userLng)) ? Number(userLng) : undefined;
 
-    // Strictly prioritize candidate's specific profession or field of interest
-    const targetDomain = studentUser?.profession || resume?.fieldOfInterest || resume?.headline || 'Software Engineering';
+    // Strictly prioritize candidate's latest resume profession or field of interest
+    const targetDomain =
+      resume?.fieldOfInterest ||
+      resume?.headline ||
+      studentUser?.profession ||
+      studentUser?.title ||
+      'Software Engineering';
     const userSkills = (resume?.skills || []).map((s) => s.toLowerCase());
 
     // 1. Fetch Live LinkedIn Jobs matching student's domain
     const liveLinkedInJobs = await LinkedInService.fetchLiveJobs(targetDomain, lat, lng);
 
     // 2. Format recruiter jobs on the platform matching student domain
+    const targetLower = targetDomain.toLowerCase();
     const relevantPlatformJobs = recruiterJobs
       .filter((j) => {
-        const titleMatch = j.title.toLowerCase().includes(targetDomain.toLowerCase()) ||
-          targetDomain.toLowerCase().includes(j.title.toLowerCase()) ||
-          (targetDomain.toLowerCase().includes('software') && (j.title.toLowerCase().includes('engineer') || j.title.toLowerCase().includes('developer'))) ||
-          (targetDomain.toLowerCase().includes('design') && j.title.toLowerCase().includes('design')) ||
-          (targetDomain.toLowerCase().includes('marketing') && j.title.toLowerCase().includes('market'));
-        return titleMatch || recruiterJobs.length <= 5;
+        const jTitleLower = (j.title || '').toLowerCase();
+
+        // Distinct discipline boundaries
+        if (targetLower.includes('interior') || targetLower.includes('spatial')) {
+          return jTitleLower.includes('interior') || jTitleLower.includes('spatial');
+        }
+        if (targetLower.includes('coach') || targetLower.includes('sport') || targetLower.includes('athlet') || targetLower.includes('football')) {
+          return jTitleLower.includes('coach') || jTitleLower.includes('sport') || jTitleLower.includes('athlet') || jTitleLower.includes('fitness');
+        }
+        if (targetLower.includes('game') && (targetLower.includes('test') || targetLower.includes('qa') || targetLower.includes('quality'))) {
+          return jTitleLower.includes('game') && (jTitleLower.includes('test') || jTitleLower.includes('qa') || jTitleLower.includes('quality'));
+        }
+
+        const roleTokens = targetLower.split(/[\s,/-]+/).filter((t) => t.length > 2);
+        const tokenMatch = roleTokens.some((t) => jTitleLower.includes(t));
+        const directMatch = jTitleLower.includes(targetLower) || targetLower.includes(jTitleLower);
+
+        return directMatch || tokenMatch;
       })
       .map((j) => {
         const reqSkills = Array.isArray(j.skillsRequired) ? j.skillsRequired : [];

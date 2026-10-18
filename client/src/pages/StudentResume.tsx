@@ -3,9 +3,11 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { api } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import { Plus, Trash2, Save, FileText, CheckCircle2, Sparkles, Wand2, Target } from 'lucide-react';
 
 export const StudentResume: React.FC = () => {
+  const { updateUser } = useAuth();
   const [headline, setHeadline] = useState('');
   const [summary, setSummary] = useState('');
   const [fieldOfInterest, setFieldOfInterest] = useState('');
@@ -94,6 +96,8 @@ export const StudentResume: React.FC = () => {
         });
 
         const parsed = res.data?.data?.parsedData || res.data?.data?.resume;
+        const returnedUser = res.data?.data?.user;
+
         if (parsed) {
           if (parsed.headline) setHeadline(parsed.headline);
           if (parsed.summary) setSummary(parsed.summary);
@@ -103,6 +107,30 @@ export const StudentResume: React.FC = () => {
           }
           setAiSuccessMessage(`✨ AI extracted profile data & skills from "${selectedFile.name}"!`);
         }
+
+        // Sync auth context with updated user profile from server
+        if (returnedUser) {
+          updateUser({
+            profession: returnedUser.profession,
+            title: returnedUser.title,
+            industry: returnedUser.industry,
+          });
+        }
+
+        // Clear ALL stale roadmap / course / job cache so next page load re-fetches fresh
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (
+            key.startsWith('recruitx_roadmap') ||
+            key.startsWith('recruitx_courses') ||
+            key.startsWith('recruitx_jobs') ||
+            key.startsWith('recruitx_skillgap')
+          )) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
       } catch (err: any) {
         console.error('AI Parse error:', err);
         alert(err.response?.data?.message || 'AI resume extraction failed. Please try again.');

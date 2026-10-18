@@ -46,7 +46,27 @@ export interface MockEvaluationResult {
   evaluatedBy?: string;
 }
 
-const INDUSTRY_REQUIREMENTS: { [key: string]: { required: string[]; optional: string[] } } = {
+const INDUSTRY_REQUIREMENTS: Record<string, { required: string[]; optional: string[] }> = {
+  'Interior & Spatial Design': {
+    required: ['Space Planning', 'AutoCAD', 'SketchUp', '3D Visualization', 'Color Theory & Materials', 'Lighting Design'],
+    optional: ['Revit', '3ds Max', 'V-Ray', 'Client Presentations', 'Building Codes & Standards', 'Furniture Sourcing'],
+  },
+  'Sports Coaching & Athlete Training': {
+    required: ['Tactical Analysis', 'Player Development', 'Match Strategy', 'Training Session Planning', 'Conditioning Fundamentals', 'Team Leadership'],
+    optional: ['Injury Prevention & First Aid', 'Sports Psychology', 'Performance Video Analysis', 'Youth Mentorship', 'Fitness Assessment'],
+  },
+  'Game Testing & Quality Assurance': {
+    required: ['Gameplay Testing', 'Bug Tracking (JIRA)', 'Test Case Execution', 'Defect Reporting & Reproduction', 'Regression Testing', 'Quality Assurance'],
+    optional: ['Platform Compliance (Console/PC/Mobile)', 'Performance Profiling', 'Crash Log Analysis', 'Automation Basics', 'Test Planning'],
+  },
+  'Game Development & Engineering': {
+    required: ['Game Engine (Unity/Unreal)', 'C# / C++', 'Game Physics', '3D Math & Vectors', 'Gameplay Mechanics', 'Version Control (Git)'],
+    optional: ['Shader Programming', 'Multiplayer Networking', 'Asset Pipeline', 'Optimization & Profiling', 'AI Pathfinding'],
+  },
+  'Graphic Design & Visual Communication': {
+    required: ['Adobe Photoshop', 'Adobe Illustrator', 'Typography', 'Visual Branding', 'Color Theory', 'Layout Design'],
+    optional: ['InDesign', 'Print Production', 'Digital Illustration', 'Motion Graphics', 'Packaging Design'],
+  },
   'Marketing & Growth Management': {
     required: ['Digital Marketing', 'SEO & SEM', 'Campaign Strategy', 'Google Analytics', 'Brand Management', 'Lead Generation'],
     optional: ['CRM (HubSpot)', 'Social Media Management', 'A/B Testing', 'Content Marketing', 'Copywriting'],
@@ -102,6 +122,18 @@ const INDUSTRY_REQUIREMENTS: { [key: string]: { required: string[]; optional: st
   'Cloud Infrastructure & DevOps': {
     required: ['AWS', 'Docker', 'Kubernetes', 'Linux', 'CI/CD'],
     optional: ['Terraform', 'Cloud Architecture', 'Python', 'Shell Scripting', 'Monitoring (Grafana)'],
+  },
+  'Civil & Structural Engineering': {
+    required: ['AutoCAD', 'Structural Analysis', 'Construction Management', 'Building Materials', 'Site Supervision'],
+    optional: ['STAAD Pro', 'Revit Structure', 'Surveying', 'Quantity Estimation', 'Geotechnical Engineering'],
+  },
+  'Education & Teaching': {
+    required: ['Curriculum Planning', 'Instructional Design', 'Classroom Management', 'Student Assessment', 'Subject Matter Expertise'],
+    optional: ['Educational Technology', 'Differentiated Instruction', 'Parent Communication', 'Pedagogical Research'],
+  },
+  'Culinary Arts & Food Service': {
+    required: ['Culinary Techniques', 'Menu Planning', 'Food Safety & Hygiene', 'Kitchen Operations', 'Recipe Standardization'],
+    optional: ['Cost Control & Inventory', 'Pastry & Baking', 'Food Presentation', 'Kitchen Leadership'],
   },
 };
 
@@ -192,6 +224,53 @@ export class AIService {
    */
   static getIndustryRequirementSet(targetRole: string) {
     const lower = targetRole.toLowerCase();
+
+    // 1. Interior & Spatial Design (must be checked BEFORE generic 'design')
+    if (lower.includes('interior') || lower.includes('spatial') || lower.includes('space plan') || lower.includes('home decor') || (lower.includes('architecture') && !lower.includes('software'))) {
+      return INDUSTRY_REQUIREMENTS['Interior & Spatial Design'];
+    }
+
+    // 2. Sports Coaching & Athletics
+    if (lower.includes('coach') || lower.includes('football') || lower.includes('soccer') || lower.includes('athlete') || lower.includes('sports training') || lower.includes('athletics')) {
+      return INDUSTRY_REQUIREMENTS['Sports Coaching & Athlete Training'];
+    }
+
+    // 3. Game Testing & QA
+    if ((lower.includes('game') && (lower.includes('test') || lower.includes('qa'))) || lower.includes('game tester') || lower.includes('game qa') || lower.includes('qa tester')) {
+      return INDUSTRY_REQUIREMENTS['Game Testing & Quality Assurance'];
+    }
+
+    // 4. Game Development & Engineering
+    if (lower.includes('game dev') || lower.includes('game program') || lower.includes('unity') || lower.includes('unreal') || lower.includes('game engine')) {
+      return INDUSTRY_REQUIREMENTS['Game Development & Engineering'];
+    }
+
+    // 5. Graphic Design & Visual Communication
+    if (lower.includes('graphic') || lower.includes('visual communication') || lower.includes('illustration') || lower.includes('branding')) {
+      return INDUSTRY_REQUIREMENTS['Graphic Design & Visual Communication'];
+    }
+
+    // 6. UI/UX & Digital Product Design
+    if (lower.includes('ui') || lower.includes('ux') || lower.includes('product design') || lower.includes('figma') || lower.includes('wireframe')) {
+      return INDUSTRY_REQUIREMENTS['UI/UX & Creative Design'];
+    }
+
+    // 7. Civil & Structural Engineering
+    if (lower.includes('civil') || lower.includes('construction') || lower.includes('structural')) {
+      return INDUSTRY_REQUIREMENTS['Civil & Structural Engineering'];
+    }
+
+    // 8. Education & Teaching
+    if (lower.includes('teach') || lower.includes('education') || lower.includes('instructor') || lower.includes('professor') || lower.includes('academic')) {
+      return INDUSTRY_REQUIREMENTS['Education & Teaching'];
+    }
+
+    // 9. Culinary Arts
+    if (lower.includes('chef') || lower.includes('culinary') || lower.includes('cooking') || lower.includes('baker') || lower.includes('food service')) {
+      return INDUSTRY_REQUIREMENTS['Culinary Arts & Food Service'];
+    }
+
+    // 10. Film & Video Production
     if (lower.includes('cinematograph') || lower.includes('camera') || lower.includes('dop')) {
       return INDUSTRY_REQUIREMENTS['Cinematography'];
     }
@@ -208,9 +287,8 @@ export class AIService {
     if (lower.includes('video') || lower.includes('edit') || lower.includes('post-production')) {
       return INDUSTRY_REQUIREMENTS['Video Editing & Post-Production'];
     }
-    if (lower.includes('design') || lower.includes('ui') || lower.includes('ux') || lower.includes('creative')) {
-      return INDUSTRY_REQUIREMENTS['UI/UX & Creative Design'];
-    }
+
+    // 11. Business, Finance & Operations
     if (lower.includes('finance') || lower.includes('account') || lower.includes('audit') || lower.includes('tax')) {
       return INDUSTRY_REQUIREMENTS['Finance & Accounting'];
     }
@@ -223,6 +301,8 @@ export class AIService {
     if (lower.includes('hr') || lower.includes('human resource') || lower.includes('talent')) {
       return INDUSTRY_REQUIREMENTS['Human Resources & Recruitment'];
     }
+
+    // 12. Tech & Engineering
     if (lower.includes('cyber') || lower.includes('security') || lower.includes('infosec')) {
       return INDUSTRY_REQUIREMENTS['Cybersecurity'];
     }
@@ -238,7 +318,22 @@ export class AIService {
     if (lower.includes('cloud') || lower.includes('devops') || lower.includes('aws') || lower.includes('azure')) {
       return INDUSTRY_REQUIREMENTS['Cloud Infrastructure & DevOps'];
     }
-    return INDUSTRY_REQUIREMENTS[targetRole] || INDUSTRY_REQUIREMENTS['Software Engineering'];
+
+    if (INDUSTRY_REQUIREMENTS[targetRole]) {
+      return INDUSTRY_REQUIREMENTS[targetRole];
+    }
+
+    // Only assign Software Engineering if explicitly related to software development
+    const isSoftwareTech = lower.includes('software') || lower.includes('developer') || lower.includes('programmer') || lower.includes('full stack') || lower.includes('backend') || lower.includes('frontend') || lower.includes('coding');
+    if (isSoftwareTech) {
+      return INDUSTRY_REQUIREMENTS['Software Engineering'];
+    }
+
+    // Dynamic role-aligned benchmark for unlisted professions (never force software engineering)
+    return {
+      required: [`Core ${targetRole} Competencies`, 'Domain Tools & Methodologies', 'Workflow Planning', 'Professional Execution'],
+      optional: ['Advanced Practice', 'Project Coordination', 'Industry Standards'],
+    };
   }
 
   /**
@@ -414,82 +509,124 @@ Return ONLY a valid raw JSON object with:
 
     const domainRules: { pattern: RegExp; title: string; skills: string[]; weight: number }[] = [
       {
-        pattern: /\b(software|developer|full stack|frontend|backend|web developer|programmer|coding|react|node|javascript|typescript|python|java|c\+\+|golang|php|laravel|django|express|mongodb|postgresql|sql|git|html|css)\b/i,
-        title: 'Software Engineering',
-        skills: ['JavaScript', 'TypeScript', 'React.js', 'Node.js', 'Python', 'SQL', 'MongoDB', 'Git'],
+        pattern: /\b(interior design|interior designer|spatial design|space planning|residential interior|commercial interior|furniture layout|lighting design|revit|sketchup|3ds max|v-ray|autocad|decor)\b/i,
+        title: 'Interior & Spatial Design',
+        skills: ['Space Planning', 'AutoCAD', 'SketchUp', '3D Visualization', 'Color Theory & Materials', 'Lighting Design'],
+        weight: 30,
+      },
+      {
+        pattern: /\b(football coach|soccer coach|head coach|assistant coach|sports coach|athletic coach|player development|tactical analysis|training sessions|match strategy|conditioning|injury prevention)\b/i,
+        title: 'Sports Coaching & Athlete Training',
+        skills: ['Tactical Analysis', 'Player Development', 'Match Strategy', 'Training Session Planning', 'Conditioning Fundamentals', 'Team Leadership'],
+        weight: 30,
+      },
+      {
+        pattern: /\b(game tester|games tester|game testing|game qa|qa tester|bug tracking|jira|test cases|defect reproduction|gameplay testing|qa engineer|regression testing)\b/i,
+        title: 'Game Testing & Quality Assurance',
+        skills: ['Gameplay Testing', 'Bug Tracking (JIRA)', 'Test Case Execution', 'Defect Reporting & Reproduction', 'Regression Testing', 'Quality Assurance'],
+        weight: 30,
+      },
+      {
+        pattern: /\b(game developer|game development|game programmer|unity|unreal engine|c# for games|godot|game engine|game physics|gameplay mechanics)\b/i,
+        title: 'Game Development & Engineering',
+        skills: ['Game Engine (Unity/Unreal)', 'C# / C++', 'Game Physics', '3D Math & Vectors', 'Gameplay Mechanics', 'Version Control (Git)'],
+        weight: 25,
+      },
+      {
+        pattern: /\b(graphic designer|graphic design|typography|branding|print design|logo design|layout design|illustrator|photoshop)\b/i,
+        title: 'Graphic Design & Visual Communication',
+        skills: ['Adobe Photoshop', 'Adobe Illustrator', 'Typography', 'Visual Branding', 'Color Theory', 'Layout Design'],
+        weight: 22,
+      },
+      {
+        pattern: /\b(data analyst|data analytics|bi analyst|business intelligence|tableau|powerbi|data visualization|sql queries|pandas|dashboards)\b/i,
+        title: 'Data Analytics',
+        skills: ['SQL', 'Python', 'Data Analysis', 'Tableau', 'Spreadsheets', 'Data Visualization'],
+        weight: 20,
+      },
+      {
+        pattern: /\b(cybersecurity|cyber security|network security|infosec|soc analyst|penetration testing|threat detection|incident response|wireshark|siem)\b/i,
+        title: 'Cybersecurity',
+        skills: ['Cybersecurity', 'Network Security', 'Linux', 'Threat Detection', 'Incident Response', 'Python'],
+        weight: 20,
+      },
+      {
+        pattern: /\b(ui\/ux|ux designer|ui designer|figma|wireframe|wireframing|prototyping|design system|user experience|user interface)\b/i,
+        title: 'UI/UX & Creative Design',
+        skills: ['Figma', 'Adobe Illustrator', 'Adobe Photoshop', 'UI/UX Design', 'Wireframing', 'Prototyping', 'User Research'],
+        weight: 18,
+      },
+      {
+        pattern: /\b(cinematographer|cinematography|camera operator|director of photography|dop|camera rigging|lenses)\b/i,
+        title: 'Cinematography',
+        skills: ['Cinematography', 'Camera Operation', 'Lighting & Exposure', 'Color Grading', 'Visual Storytelling'],
+        weight: 18,
+      },
+      {
+        pattern: /\b(film director|movie director|film making|filmmaking|screenplay|screenwriting|storyboarding)\b/i,
+        title: 'Film & Movie Direction',
+        skills: ['Film Directing', 'Screenwriting', 'Cinematography', 'Post-Production', 'Storyboarding', 'Casting'],
+        weight: 18,
+      },
+      {
+        pattern: /\b(video editor|video editing|premiere pro|after effects|davinci resolve|color grading|motion graphics)\b/i,
+        title: 'Video Editing & Post-Production',
+        skills: ['Adobe Premiere Pro', 'After Effects', 'DaVinci Resolve', 'Color Grading', 'Final Cut Pro', 'Motion Graphics'],
+        weight: 16,
+      },
+      {
+        pattern: /\b(cloud|devops|aws|azure|gcp|docker|kubernetes|ci\/cd|terraform|ansible|linux|sysadmin)\b/i,
+        title: 'Cloud Infrastructure & DevOps',
+        skills: ['AWS', 'Docker', 'Kubernetes', 'Linux', 'CI/CD', 'Terraform', 'Cloud Architecture'],
         weight: 15,
       },
       {
         pattern: /\b(artificial intelligence|machine learning|deep learning|data scientist|data science|nlp|computer vision|tensorflow|pytorch|pandas|numpy|scikit-learn)\b/i,
         title: 'Artificial Intelligence & Data Science',
         skills: ['Python', 'Machine Learning', 'Data Analysis', 'Pandas', 'NumPy', 'TensorFlow', 'PyTorch', 'SQL'],
-        weight: 14,
+        weight: 15,
       },
       {
-        pattern: /\b(cloud|devops|aws|azure|gcp|docker|kubernetes|ci\/cd|terraform|ansible|linux|sysadmin)\b/i,
-        title: 'Cloud Infrastructure & DevOps',
-        skills: ['AWS', 'Docker', 'Kubernetes', 'Linux', 'CI/CD', 'Terraform', 'Cloud Architecture'],
-        weight: 13,
-      },
-      {
-        pattern: /\b(ui\/ux|ux designer|ui designer|figma|wireframe|wireframing|prototyping|design system|user experience|user interface)\b/i,
-        title: 'UI/UX & Creative Design',
-        skills: ['Figma', 'Adobe Illustrator', 'Adobe Photoshop', 'UI/UX Design', 'Wireframing', 'Prototyping', 'User Research'],
+        pattern: /\b(software engineer|full stack|frontend developer|backend developer|web developer|programmer|coding|react\.js|node\.js|typescript|java developer|spring boot)\b/i,
+        title: 'Software Engineering',
+        skills: ['JavaScript', 'TypeScript', 'React.js', 'Node.js', 'Python', 'SQL', 'MongoDB', 'Git'],
         weight: 12,
-      },
-      {
-        pattern: /\b(cinematographer|cinematography|camera operator|director of photography|dop|camera rigging|lenses)\b/i,
-        title: 'Cinematography',
-        skills: ['Cinematography', 'Camera Operation', 'Lighting & Exposure', 'Color Grading', 'Visual Storytelling'],
-        weight: 11,
-      },
-      {
-        pattern: /\b(film director|movie director|film making|filmmaking|screenplay|screenwriting|storyboarding)\b/i,
-        title: 'Film & Movie Direction',
-        skills: ['Film Directing', 'Screenwriting', 'Cinematography', 'Post-Production', 'Storyboarding', 'Casting'],
-        weight: 10,
-      },
-      {
-        pattern: /\b(video editor|video editing|premiere pro|after effects|davinci resolve|color grading|motion graphics)\b/i,
-        title: 'Video Editing & Post-Production',
-        skills: ['Adobe Premiere Pro', 'After Effects', 'DaVinci Resolve', 'Color Grading', 'Final Cut Pro', 'Motion Graphics'],
-        weight: 9,
       },
       {
         pattern: /\b(digital marketing|seo|sem|content marketing|google analytics|marketing manager|social media marketing|campaign strategy)\b/i,
         title: 'Marketing & Growth Management',
         skills: ['Digital Marketing', 'SEO & SEM', 'Campaign Strategy', 'Google Analytics', 'Content Marketing', 'Brand Management'],
-        weight: 8,
+        weight: 12,
       },
       {
         pattern: /\b(finance|accounting|chartered accountant|financial analyst|tally|taxation|auditing|balance sheet)\b/i,
         title: 'Finance & Accounting',
         skills: ['Financial Reporting', 'Advanced Excel', 'Accounting', 'Tally Prime', 'Financial Analysis', 'Budgeting'],
-        weight: 8,
-      },
-      {
-        pattern: /\b(human resources|talent acquisition|recruiter|recruitment|payroll|hr manager|hr executive)\b/i,
-        title: 'Human Resources & Recruitment',
-        skills: ['Talent Acquisition', 'HR Operations', 'Recruitment', 'Employee Relations', 'Payroll Management'],
-        weight: 8,
-      },
-      {
-        pattern: /\b(b2b sales|sales manager|business development|lead generation|inside sales|account executive)\b/i,
-        title: 'Sales & Business Development',
-        skills: ['B2B Sales', 'Lead Generation', 'Client Negotiation', 'CRM Management', 'Sales Pipeline'],
-        weight: 8,
-      },
-      {
-        pattern: /\b(mechanical engineer|solidworks|autocad|cad\/cam|thermodynamics|fluid mechanics)\b/i,
-        title: 'Mechanical Engineering',
-        skills: ['SolidWorks', 'AutoCAD', 'CAD/CAM', 'Thermodynamics', 'Mechanical Design'],
-        weight: 8,
+        weight: 12,
       },
       {
         pattern: /\b(civil engineer|structural engineer|staad pro|revit|construction management|site engineer)\b/i,
         title: 'Civil & Structural Engineering',
         skills: ['AutoCAD', 'Revit', 'Structural Analysis', 'STAAD Pro', 'Site Management'],
-        weight: 8,
+        weight: 12,
+      },
+      {
+        pattern: /\b(human resources|talent acquisition|recruiter|recruitment|payroll|hr manager|hr executive)\b/i,
+        title: 'Human Resources & Recruitment',
+        skills: ['Talent Acquisition', 'HR Operations', 'Recruitment', 'Employee Relations', 'Payroll Management'],
+        weight: 10,
+      },
+      {
+        pattern: /\b(b2b sales|sales manager|business development|lead generation|inside sales|account executive)\b/i,
+        title: 'Sales & Business Development',
+        skills: ['B2B Sales', 'Lead Generation', 'Client Negotiation', 'CRM Management', 'Sales Pipeline'],
+        weight: 10,
+      },
+      {
+        pattern: /\b(mechanical engineer|solidworks|cad\/cam|thermodynamics|fluid mechanics)\b/i,
+        title: 'Mechanical Engineering',
+        skills: ['SolidWorks', 'AutoCAD', 'CAD/CAM', 'Thermodynamics', 'Mechanical Design'],
+        weight: 10,
       },
     ];
 
@@ -505,13 +642,26 @@ Return ONLY a valid raw JSON object with:
       }
     }
 
+    // Inspect first 10 lines of cleanText for explicit title keywords
+    const firstLines = cleanText.split('\n').slice(0, 10).join(' ');
+    if (/interior design|interior designer/i.test(firstLines)) {
+      detectedDomain = 'Interior & Spatial Design';
+      extractedSkills = INDUSTRY_REQUIREMENTS['Interior & Spatial Design'].required;
+    } else if (/football coach|soccer coach|sports coach/i.test(firstLines)) {
+      detectedDomain = 'Sports Coaching & Athlete Training';
+      extractedSkills = INDUSTRY_REQUIREMENTS['Sports Coaching & Athlete Training'].required;
+    } else if (/game tester|games tester|game qa|qa tester/i.test(firstLines)) {
+      detectedDomain = 'Game Testing & Quality Assurance';
+      extractedSkills = INDUSTRY_REQUIREMENTS['Game Testing & Quality Assurance'].required;
+    }
+
     if (!detectedDomain) {
       detectedDomain = 'Creative & Professional Management';
       extractedSkills = ['Project Direction', 'Strategic Planning', 'Team Leadership', 'Operations', 'Creative Writing'];
     }
 
     const headline = `${detectedDomain} | ${extractedSkills.slice(0, 3).join(' • ')}`;
-    const summary = `Results-driven ${detectedDomain} professional with proven expertise in ${extractedSkills.slice(0, 5).join(', ')}. Experienced in directing creative projects, driving production milestones, and executing vision into high-impact deliverables.`;
+    const summary = `Results-driven ${detectedDomain} professional with proven expertise in ${extractedSkills.slice(0, 5).join(', ')}. Experienced in directing projects, driving production milestones, and executing vision into high-impact deliverables.`;
 
     return {
       headline,
@@ -530,12 +680,20 @@ Return ONLY a valid raw JSON object with:
   static async parseWithGemini(fileBase64: string, mimeType: string, _apiKey?: string): Promise<ParsedResumeData | null> {
     try {
       const cleanBase64 = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
-      const prompt = `Analyze this resume document or image carefully regardless of profession.
+      const prompt = `Analyze this resume document or image carefully and determine the candidate's PRIMARY PROFESSION.
+CRITICAL INSTRUCTIONS:
+- You must identify their genuine profession from their actual job title, projects, education, and stated career summary.
+- DO NOT default to "Software Engineer" or "Computer Science" if the person is in a different profession (such as Interior Designer, Football Coach, Game Tester, UI/UX Designer, Data Analyst, Graphic Designer, Accountant, Chef, Civil Engineer).
+- If candidate is an Interior Designer, fieldOfInterest must be "Interior Design" or "Interior & Spatial Design".
+- If candidate is a Football Coach, fieldOfInterest must be "Sports Coaching & Athlete Training".
+- If candidate is a Game Tester, fieldOfInterest must be "Game Testing & Quality Assurance".
+- Extract real domain-specific skills (e.g. AutoCAD, SketchUp, space planning for interior design; tactics, player development for coaching; bug tracking, JIRA for game testing).
+
 Extract and return ONLY a valid raw JSON object with keys:
-- "fieldOfInterest": string (exact candidate profession, e.g. Movie Director, Marketing Manager, Video Editor, Financial Analyst, Software Engineer, etc.)
+- "fieldOfInterest": string (exact candidate profession, e.g. Interior Designer, Football Coach, Game Tester, Data Analyst, Software Engineer)
 - "headline": string (professional headline matching candidate role and top skills)
 - "summary": string (2-3 sentence professional summary based directly on the resume)
-- "skills": array of strings (top 6-10 technical and professional skills mentioned)
+- "skills": array of strings (top 6-10 technical and professional skills mentioned in the resume)
 Do not wrap in markdown codeblocks. Return raw JSON.`;
 
       const parsed = await this.queryGemini(prompt, {
@@ -566,12 +724,20 @@ Do not wrap in markdown codeblocks. Return raw JSON.`;
    */
   static async parseTextWithGemini(textContent: string, _apiKey?: string): Promise<ParsedResumeData | null> {
     try {
-      const prompt = `Analyze this resume document carefully regardless of profession.
+      const prompt = `Analyze this resume document carefully and determine the candidate's PRIMARY PROFESSION.
+CRITICAL INSTRUCTIONS:
+- You must identify their genuine profession from their actual job title, projects, education, and stated career summary.
+- DO NOT default to "Software Engineer" or "Computer Science" if the person is in a different profession (such as Interior Designer, Football Coach, Game Tester, UI/UX Designer, Data Analyst, Graphic Designer, Accountant, Chef, Civil Engineer).
+- If candidate is an Interior Designer, fieldOfInterest must be "Interior Design" or "Interior & Spatial Design".
+- If candidate is a Football Coach, fieldOfInterest must be "Sports Coaching & Athlete Training".
+- If candidate is a Game Tester, fieldOfInterest must be "Game Testing & Quality Assurance".
+- Extract real domain-specific skills (e.g. AutoCAD, SketchUp, space planning for interior design; tactics, player development for coaching; bug tracking, JIRA for game testing).
+
 Extract and return ONLY a valid raw JSON object with keys:
-- "fieldOfInterest": string (exact candidate profession, e.g. Movie Director, Marketing Manager, Video Editor, Financial Analyst, Software Engineer, etc.)
+- "fieldOfInterest": string (exact candidate profession, e.g. Interior Designer, Football Coach, Game Tester, Data Analyst, Software Engineer)
 - "headline": string (professional headline matching candidate role and top skills)
 - "summary": string (2-3 sentence professional summary based directly on the resume)
-- "skills": array of strings (top 6-10 technical and professional skills mentioned)
+- "skills": array of strings (top 6-10 technical and professional skills mentioned in the resume)
 Do not wrap in markdown codeblocks. Return raw JSON.
 
 Resume Text:
@@ -917,14 +1083,15 @@ Return ONLY a valid raw JSON array of objects with keys: "question", "keyPoints"
     targetCompany?: string,
     userProfile?: any
   ): Promise<{ trackTitle: string; targetRole: string; targetCompany: string; isCompanySpecific: boolean; milestones: { title: string; desc: string; actionUrl?: string; actionLabel?: string }[] }> {
+    // Source of Truth: Latest resume fieldOfInterest/headline takes top precedence
     const roleCandidate =
-      userProfile?.profession ||
-      userProfile?.title ||
       studentResume?.fieldOfInterest ||
       studentResume?.headline ||
-      'Software Engineering';
-    const targetRole = roleCandidate.trim() || 'Software Engineering';
-    const experienceLevel = userProfile?.experienceLevel || 'Entry-Level / Fresher';
+      userProfile?.profession ||
+      userProfile?.title ||
+      '';
+    const targetRole = roleCandidate.trim() || 'Professional Placement';
+    const experienceLevel = userProfile?.experienceLevel || 'Entry-Level / Associate';
     const userSkills: string[] = Array.isArray(studentResume?.skills) ? studentResume.skills : [];
     const normalizedCompany = (targetCompany || '').trim();
 
@@ -932,7 +1099,7 @@ Return ONLY a valid raw JSON array of objects with keys: "question", "keyPoints"
     if (geminiKey && geminiKey.trim().length > 10) {
       try {
         const companyContext = normalizedCompany
-          ? `Target Employer: "${normalizedCompany}". Tailor all milestones specifically for ${normalizedCompany}'s known interview loop, engineering/work culture, and role requirements for a ${targetRole}.`
+          ? `Target Employer: "${normalizedCompany}". Tailor all milestones specifically for ${normalizedCompany}'s known interview loop, domain culture, and role requirements for a ${targetRole}.`
           : `General Placement Track for ${targetRole}.`;
 
         const prompt = `You are a Principal Career Architect and Placement Director.
@@ -940,13 +1107,21 @@ Generate a strictly sequential, realistic 5-milestone career and placement roadm
 ${companyContext}
 Candidate's currently verified skills: ${JSON.stringify(userSkills)}.
 
-IMPORTANT RULES:
-1. DO NOT assume this is software engineering if the role is different (e.g. Data Analyst, Cybersecurity Analyst, UI/UX Designer, Cloud Engineer, Java Developer, Product Marketer, Film Director). Focus strictly on skills, assessments, and interview standards relevant to "${targetRole}".
-2. ${normalizedCompany ? `Incorporate ${normalizedCompany}'s interview stages, technical assessments, case studies, or cultural criteria into the descriptions.` : `Align with top industry hiring bars for ${targetRole}.`}
+CRITICAL INSTRUCTIONS:
+1. STRICTLY FOCUS ON "${targetRole}". DO NOT assume this is software engineering or computer science if the role is different.
+- If candidate is an Interior Designer: Focus on space planning, AutoCAD/Sketchup, 3D visualization, materials, lighting, residential/commercial design projects, and design portfolio presentation.
+- If candidate is a Football Coach: Focus on coaching methodology, tactical formations, match analysis, player development, conditioning, safeguarding, and coaching licensing/portfolio.
+- If candidate is a Game Tester: Focus on gameplay testing, bug tracking/reporting (JIRA), test case design, defect reproduction, regression testing, and platform compliance.
+- If candidate is a Data Analyst: Focus on SQL, Python, Tableau/PowerBI, statistics, and analytical case studies.
+- If candidate is a Cybersecurity Analyst: Focus on network defense, SIEM, threat detection, incident response, and vulnerability analysis.
+- If candidate is a UI/UX Designer: Focus on user research, Figma design systems, wireframing, usability testing, and UX case studies.
+- If candidate is in another field: Focus strictly on competencies, tools, and interview standards of "${targetRole}".
+
+2. ${normalizedCompany ? `Incorporate ${normalizedCompany}'s hiring stages, technical or portfolio assessments, case studies, or cultural criteria into the descriptions.` : `Align with top industry hiring bars for ${targetRole}.`}
 3. Step 1: Foundational Skill Baseline & Core Competency Verification (Role-specific foundations)
    Step 2: Applied Project, Domain Case Study, or System/Portfolio Build (Practical proof of work)
-   Step 3: Technical Screening, OA, or Live Assessment Simulation (Assessments typical for this role/company)
-   Step 4: Deep-Dive Loop, Architectural / Design Review, or Behavioral STAR Preparation
+   Step 3: Technical Screening, Assessment, or Live Role Simulation Prep
+   Step 4: Deep-Dive Loop, Portfolio / Design Review, or Behavioral STAR Preparation
    Step 5: Final Placement, Hiring Loop Negotiation & Offer Acceptance
 
 Return ONLY a valid raw JSON object with:
@@ -972,10 +1147,136 @@ Return ONLY a valid raw JSON object with:
       }
     }
 
-    // High quality role-tailored domain fallback
+    // Role-specific fallback generator (guarantees NO generic software engineering for other roles)
+    const lowerRole = targetRole.toLowerCase();
+    const companyPrefix = normalizedCompany ? `${normalizedCompany} ` : '';
+
+    if (lowerRole.includes('interior') || lowerRole.includes('spatial')) {
+      return {
+        trackTitle: normalizedCompany ? `${normalizedCompany} - Interior & Spatial Design Track` : `Interior & Spatial Design Placement Track`,
+        targetRole,
+        targetCompany: normalizedCompany,
+        isCompanySpecific: Boolean(normalizedCompany),
+        milestones: [
+          {
+            title: `Step 1: Space Planning & Design Fundamentals for ${companyPrefix || 'Interior Roles'}`,
+            desc: `Master spatial layouts, ergonomic standards, architectural scales, and color theory principles for residential and commercial environments.`,
+            actionUrl: '/student/resume',
+            actionLabel: 'Update Design Skills',
+          },
+          {
+            title: `Step 2: CAD Drafting & 3D Visualization Portfolio`,
+            desc: `Produce detailed 2D floor plans, electrical schematics in AutoCAD, and photorealistic 3D interior renders using SketchUp / 3ds Max.`,
+            actionUrl: '/student/resume',
+            actionLabel: 'Add Design Projects',
+          },
+          {
+            title: `Step 3: Materials, Finishes & Sustainable Specifications`,
+            desc: `Curate material mood boards, lighting schedules, and sustainable finish specifications tailored to ${companyPrefix || 'client'} aesthetic standards.`,
+            actionUrl: '/student/roadmap',
+            actionLabel: 'View Design Courses',
+          },
+          {
+            title: `Step 4: Design Critique & Client Presentation Simulation`,
+            desc: `Prepare comprehensive design proposal decks, BOQ (Bill of Quantities), and practice presenting spatial concepts to ${companyPrefix || 'hiring'} design directors.`,
+            actionUrl: '/student/mock-interview',
+            actionLabel: 'Practice Presentation',
+          },
+          {
+            title: `Step 5: Portfolio Review & ${companyPrefix}Placement Finalization`,
+            desc: `Submit your verified interior portfolio showcasing residential and commercial space solutions to secure your designer offer.`,
+            actionUrl: '/student/jobs',
+            actionLabel: 'Apply for Design Roles',
+          },
+        ],
+      };
+    }
+
+    if (lowerRole.includes('coach') || lowerRole.includes('football') || lowerRole.includes('soccer')) {
+      return {
+        trackTitle: normalizedCompany ? `${normalizedCompany} - Sports Coaching & Football Development Track` : `Sports Coaching & Football Development Track`,
+        targetRole,
+        targetCompany: normalizedCompany,
+        isCompanySpecific: Boolean(normalizedCompany),
+        milestones: [
+          {
+            title: `Step 1: Tactical Methodology & Game Model Foundations`,
+            desc: `Establish core coaching philosophy, tactical formations (4-3-3, 3-5-2), phase transitions, and positional play principles.`,
+            actionUrl: '/student/resume',
+            actionLabel: 'Update Coaching Profile',
+          },
+          {
+            title: `Step 2: Training Session Design & Conditioning Microcycles`,
+            desc: `Architect age-appropriate training microcycles, drill progressions, and physical conditioning sessions incorporating injury prevention.`,
+            actionUrl: '/student/resume',
+            actionLabel: 'Upload Session Plans',
+          },
+          {
+            title: `Step 3: Video Match Analysis & Player Performance Profiling`,
+            desc: `Analyze opponent game footage, track individual player KPIs, and produce actionable scouting/tactical presentation decks.`,
+            actionUrl: '/student/roadmap',
+            actionLabel: 'View Coaching Courses',
+          },
+          {
+            title: `Step 4: Player Leadership & Coach-Athlete Communication Mocks`,
+            desc: `Practice halftime tactical adjustments, motivational speaking, safeguarding protocols, and athlete leadership interview scenarios.`,
+            actionUrl: '/student/mock-interview',
+            actionLabel: 'Start Coaching Mock',
+          },
+          {
+            title: `Step 5: Academy / Club Hiring Loop & ${companyPrefix}Placement`,
+            desc: `Present your coaching portfolio and seasonal development plan to club directors and academy managers to secure placement.`,
+            actionUrl: '/student/jobs',
+            actionLabel: 'Browse Coaching Openings',
+          },
+        ],
+      };
+    }
+
+    if (lowerRole.includes('game test') || lowerRole.includes('games test') || lowerRole.includes('game qa') || lowerRole.includes('qa tester')) {
+      return {
+        trackTitle: normalizedCompany ? `${normalizedCompany} - Game Quality Assurance & Testing Track` : `Game Quality Assurance & Testing Track`,
+        targetRole,
+        targetCompany: normalizedCompany,
+        isCompanySpecific: Boolean(normalizedCompany),
+        milestones: [
+          {
+            title: `Step 1: Game QA Fundamentals & Bug Lifecycle Mastery`,
+            desc: `Master defect tracking in JIRA, bug classification, severity vs priority triage, and rigorous bug reproduction step formatting.`,
+            actionUrl: '/student/resume',
+            actionLabel: 'Update QA Skills',
+          },
+          {
+            title: `Step 2: Test Case Design & Gameplay Verification Matrix`,
+            desc: `Design comprehensive test suites covering collision boundaries, progression blockers, physics anomalies, and save-state integrity.`,
+            actionUrl: '/student/resume',
+            actionLabel: 'Add Test Cases',
+          },
+          {
+            title: `Step 3: Platform Compliance & Console/PC/Mobile Standards`,
+            desc: `Audit certification requirements across PlayStation, Xbox, iOS, Android, and Steam (framerate stability, memory profiling, crash logs).`,
+            actionUrl: '/student/roadmap',
+            actionLabel: 'View QA Courses',
+          },
+          {
+            title: `Step 4: Live Bug Hunt & Technical QA Assessment Simulation`,
+            desc: `Execute timed playtesting sessions, isolate elusive edge-case defects, and generate professional QA diagnostic reports.`,
+            actionUrl: '/student/mock-interview',
+            actionLabel: 'Start QA Mock',
+          },
+          {
+            title: `Step 5: Studio QA Loop & ${companyPrefix}Placement Acceptance`,
+            desc: `Submit your verified QA test suite portfolio to game studios and publishing houses to secure an official game tester offer.`,
+            actionUrl: '/student/jobs',
+            actionLabel: 'Apply for QA Roles',
+          },
+        ],
+      };
+    }
+
+    // Default role-tailored domain fallback
     const domainReq = this.getIndustryRequirementSet(targetRole);
     const topSkills = domainReq.required.slice(0, 3).join(', ');
-    const companyPrefix = normalizedCompany ? `${normalizedCompany} ` : '';
 
     return {
       trackTitle: normalizedCompany ? `${normalizedCompany} - ${targetRole} Track` : `${targetRole} Placement Track`,

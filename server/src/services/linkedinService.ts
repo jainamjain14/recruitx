@@ -15,6 +15,8 @@ export interface LiveLinkedInJob {
   hrEmail: string;
 }
 
+import { AIService } from './aiService.js';
+
 export const VERIFIED_COMPANY_HR_EMAILS: { [key: string]: string } = {
   'dharma productions': 'careers@dharmaproductions.com',
   'red chillies entertainment': 'jobs@redchillies.com',
@@ -911,7 +913,11 @@ export class LinkedInService {
       'Color Grading', 'Motion Graphics', 'Cinematography', 'Storyboarding', 'Film Directing',
       'Screenwriting', 'Casting', 'Lighting Design', 'Sound Design', 'Camera Operation',
       'Visual Storytelling', 'Script Analysis', 'Actor Direction', 'Python', 'React.js',
-      'Node.js', 'AWS', 'Docker', 'System Design', 'Tally Prime', 'GST Compliance', 'Budgeting', 'Project Management'
+      'Node.js', 'AWS', 'Docker', 'System Design', 'Tally Prime', 'GST Compliance', 'Budgeting', 'Project Management',
+      'Space Planning', 'AutoCAD', 'SketchUp', '3D Visualization', 'Color Theory & Materials', 'Lighting Design',
+      'Revit', '3ds Max', 'V-Ray', 'Client Presentations', 'Building Codes & Standards', 'Furniture Sourcing',
+      'Tactical Analysis', 'Player Development', 'Match Strategy', 'Training Session Planning', 'Conditioning Fundamentals', 'Team Leadership',
+      'Gameplay Testing', 'Bug Tracking (JIRA)', 'Test Case Execution', 'Defect Reporting & Reproduction', 'Regression Testing', 'Quality Assurance'
     ];
 
     const found: string[] = [];
@@ -991,7 +997,23 @@ export class LinkedInService {
       return '₹8,00,000 - ₹14,00,000 / yr (₹8 - ₹14 LPA)';
     }
 
-    // 4. UI/UX & Design Benchmarks
+    // 4. Interior & Spatial Design Benchmarks
+    if (t.includes('interior') || t.includes('spatial') || t.includes('space plan')) {
+      if (t.includes('lead') || t.includes('head') || t.includes('senior') || t.includes('partner')) {
+        return '₹15,00,000 - ₹26,00,000 / yr (₹15 - ₹26 LPA)';
+      }
+      return '₹8,00,000 - ₹14,00,000 / yr (₹8 - ₹14 LPA)';
+    }
+
+    // 5. Sports Coaching & Athletics
+    if (t.includes('coach') || t.includes('sport') || t.includes('athlet') || t.includes('trainer')) {
+      if (t.includes('head') || t.includes('director') || t.includes('chief')) {
+        return '₹18,00,000 - ₹32,00,000 / yr (₹18 - ₹32 LPA)';
+      }
+      return '₹9,00,000 - ₹16,00,000 / yr (₹9 - ₹16 LPA)';
+    }
+
+    // 6. UI/UX & Design Benchmarks
     if (t.includes('design') || t.includes('ui') || t.includes('ux') || t.includes('product designer')) {
       if (t.includes('lead') || t.includes('head') || t.includes('principal') || t.includes('director')) {
         return '₹24,00,000 - ₹40,00,000 / yr (₹24 - ₹40 LPA)';
@@ -1002,7 +1024,7 @@ export class LinkedInService {
       return '₹8,50,000 - ₹15,00,000 / yr (₹8.5 - ₹15 LPA)';
     }
 
-    // 5. Software & Tech Engineering Benchmarks
+    // 7. Software & Tech Engineering Benchmarks
     if (t.includes('engineer') || t.includes('developer') || t.includes('architect') || t.includes('software')) {
       if (t.includes('architect') || t.includes('principal') || t.includes('lead') || t.includes('manager')) {
         return '₹30,00,000 - ₹55,00,000 / yr (₹30 - ₹55 LPA)';
@@ -1013,7 +1035,7 @@ export class LinkedInService {
       return '₹10,00,000 - ₹18,00,000 / yr (₹10 - ₹18 LPA)';
     }
 
-    // 6. Finance & Business
+    // 8. Finance & Business
     if (t.includes('finance') || t.includes('account') || t.includes('audit') || t.includes('investment')) {
       if (t.includes('head') || t.includes('controller') || t.includes('manager')) {
         return '₹22,00,000 - ₹38,00,000 / yr (₹22 - ₹38 LPA)';
@@ -1021,12 +1043,41 @@ export class LinkedInService {
       return '₹9,00,000 - ₹16,00,000 / yr (₹9 - ₹16 LPA)';
     }
 
-    // 7. Standard Indian Professional Role Benchmark
+    // 9. Standard Indian Professional Role Benchmark
     return '₹12,00,000 - ₹20,00,000 / yr (₹12 - ₹20 LPA)';
   }
 
   private static deriveSkillsFromTitle(title: string, company: string, idx: number = 0): string[] {
     const combined = `${title} ${company}`.toLowerCase();
+
+    const interiorPool = [
+      'Space Planning', 'AutoCAD', 'SketchUp', '3D Visualization', 'Color Theory & Materials',
+      'Lighting Design', 'Revit', '3ds Max', 'V-Ray', 'Client Presentations', 'Building Codes & Standards', 'Furniture Sourcing'
+    ];
+
+    const sportsCoachingPool = [
+      'Tactical Analysis', 'Player Development', 'Match Strategy', 'Training Session Planning',
+      'Conditioning Fundamentals', 'Team Leadership', 'Injury Prevention & First Aid', 'Sports Psychology'
+    ];
+
+    const gameQAPool = [
+      'Gameplay Testing', 'Bug Tracking (JIRA)', 'Test Case Execution', 'Defect Reporting & Reproduction',
+      'Regression Testing', 'Quality Assurance', 'Platform Compliance', 'Performance Profiling'
+    ];
+
+    const gameDevPool = [
+      'Game Engine (Unity/Unreal)', 'C# / C++', 'Game Physics', '3D Math & Vectors', 'Gameplay Mechanics',
+      'Shader Programming', 'Asset Pipeline', 'Multiplayer Networking'
+    ];
+
+    const graphicPool = [
+      'Adobe Photoshop', 'Adobe Illustrator', 'Typography', 'Visual Branding', 'Color Theory',
+      'Layout Design', 'InDesign', 'Packaging Design', 'Motion Graphics'
+    ];
+
+    const dataPool = [
+      'SQL', 'Python', 'Data Analysis', 'Tableau', 'PowerBI', 'Data Visualization', 'Spreadsheets', 'Statistics'
+    ];
 
     const filmDirectionPool = [
       'Film Directing', 'Screenwriting', 'Cinematography', 'Storyboarding', 'Casting & Auditions',
@@ -1065,7 +1116,17 @@ export class LinkedInService {
 
     let pool: string[];
 
-    if (combined.includes('cinematograph') || combined.includes('camera') || combined.includes('dop')) {
+    if (combined.includes('interior') || combined.includes('spatial') || combined.includes('space plan') || combined.includes('decorat')) {
+      pool = interiorPool;
+    } else if (combined.includes('coach') || combined.includes('sport') || combined.includes('athlet') || combined.includes('fitness') || combined.includes('football') || combined.includes('soccer')) {
+      pool = sportsCoachingPool;
+    } else if ((combined.includes('game') || combined.includes('gaming')) && (combined.includes('test') || combined.includes('qa') || combined.includes('quality') || combined.includes('bug'))) {
+      pool = gameQAPool;
+    } else if ((combined.includes('game') || combined.includes('gaming')) && (combined.includes('dev') || combined.includes('program') || combined.includes('unity') || combined.includes('unreal'))) {
+      pool = gameDevPool;
+    } else if (combined.includes('graphic') || combined.includes('visual designer') || combined.includes('branding') || combined.includes('illustrat')) {
+      pool = graphicPool;
+    } else if (combined.includes('cinematograph') || combined.includes('camera') || combined.includes('dop')) {
       pool = cinematographyPool;
     } else if (
       combined.includes('film') ||
@@ -1078,8 +1139,10 @@ export class LinkedInService {
       pool = filmDirectionPool;
     } else if (combined.includes('video') || combined.includes('editor') || combined.includes('post-production')) {
       pool = videoPool;
-    } else if (combined.includes('design') || combined.includes('ui') || combined.includes('ux') || combined.includes('creative')) {
+    } else if (combined.includes('ui') || combined.includes('ux') || combined.includes('product design') || combined.includes('user experience') || combined.includes('figma')) {
       pool = designPool;
+    } else if (combined.includes('data') || combined.includes('analytics') || combined.includes('analyst') || combined.includes('business intelligence')) {
+      pool = dataPool;
     } else if (combined.includes('finance') || combined.includes('account') || combined.includes('audit') || combined.includes('tax')) {
       pool = financePool;
     } else if (
@@ -1090,8 +1153,20 @@ export class LinkedInService {
       combined.includes('advertising')
     ) {
       pool = marketingPool;
-    } else {
+    } else if (
+      combined.includes('software') ||
+      combined.includes('engineer') ||
+      combined.includes('developer') ||
+      combined.includes('stack') ||
+      combined.includes('programmer') ||
+      combined.includes('coder')
+    ) {
       pool = techPool;
+    } else {
+      const indReq = AIService.getIndustryRequirementSet(title || company);
+      pool = indReq.required.length > 0
+        ? [...indReq.required, ...indReq.optional]
+        : ['Professional Communication', 'Project Management', 'Quality Assurance', 'Analytical Thinking', 'Team Collaboration'];
     }
 
     const numSkills = 5 + (idx % 2);
@@ -1428,8 +1503,148 @@ export class LinkedInService {
       },
     ];
 
+    const kwLower = keyword.toLowerCase();
+    let targetCompanies = indianCompanies;
+
+    if (kwLower.includes('interior') || kwLower.includes('spatial')) {
+      targetCompanies = [
+        {
+          company: 'Livspace',
+          logo: 'https://logo.clearbit.com/livspace.com',
+          title: `Senior Interior Designer & Space Planner`,
+          location: 'Lower Parel, Mumbai, Maharashtra, India',
+          lat: 19.0028,
+          lng: 72.8295,
+          salary: '₹12,00,000 - ₹20,00,000 / yr (₹12 - ₹20 LPA)',
+        },
+        {
+          company: 'Godrej Interio',
+          logo: 'https://logo.clearbit.com/godrejinterio.com',
+          title: `Lead Residential & Commercial Space Designer`,
+          location: 'Vikhroli, Mumbai, Maharashtra, India',
+          lat: 19.1075,
+          lng: 72.9263,
+          salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)',
+        },
+        {
+          company: 'HomeLane',
+          logo: 'https://logo.clearbit.com/homelane.com',
+          title: `Design Partner - Modular Interiors & 3D Visualization`,
+          location: 'Koramangala, Bengaluru, Karnataka, India',
+          lat: 12.9352,
+          lng: 77.6245,
+          salary: '₹10,00,000 - ₹18,00,000 / yr (₹10 - ₹18 LPA)',
+        },
+        {
+          company: 'Urban Ladder',
+          logo: 'https://logo.clearbit.com/urbanladder.com',
+          title: `Spatial Design Consultant & Interior Stylist`,
+          location: 'Indiranagar, Bengaluru, Karnataka, India',
+          lat: 12.9784,
+          lng: 77.6408,
+          salary: '₹11,00,000 - ₹19,00,000 / yr (₹11 - ₹19 LPA)',
+        },
+        {
+          company: 'Asian Paints',
+          logo: 'https://logo.clearbit.com/asianpaints.com',
+          title: `Interior Design Lead - Beautiful Homes Services`,
+          location: 'Santacruz West, Mumbai, Maharashtra, India',
+          lat: 19.0831,
+          lng: 72.8348,
+          salary: '₹15,00,000 - ₹25,00,000 / yr (₹15 - ₹25 LPA)',
+        },
+        {
+          company: 'Morphogenesis',
+          logo: 'https://logo.clearbit.com/morphogenesis.org',
+          title: `Senior Interior Architect & Space Planner`,
+          location: 'Okhla Phase III, New Delhi, India',
+          lat: 28.5355,
+          lng: 77.2690,
+          salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)',
+        },
+      ];
+    } else if (kwLower.includes('coach') || kwLower.includes('sport') || kwLower.includes('athlet') || kwLower.includes('football')) {
+      targetCompanies = [
+        {
+          company: 'Mumbai City FC',
+          logo: 'https://logo.clearbit.com/mumbaicityfc.com',
+          title: `Youth Academy Head Coach & Tactical Analyst`,
+          location: 'Andheri Sports Complex, Mumbai, India',
+          lat: 19.1351,
+          lng: 72.8290,
+          salary: '₹12,00,000 - ₹22,00,000 / yr (₹12 - ₹22 LPA)',
+        },
+        {
+          company: 'Reliance Foundation Youth Sports',
+          logo: 'https://logo.clearbit.com/rfyouthsports.com',
+          title: `Athlete Performance Coach & Training Lead`,
+          location: 'Ghansoli, Navi Mumbai, Maharashtra, India',
+          lat: 19.1084,
+          lng: 73.0118,
+          salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)',
+        },
+        {
+          company: 'Bengaluru FC Academy',
+          logo: 'https://logo.clearbit.com/bengalurufc.com',
+          title: `Assistant Coach & Conditioning Specialist`,
+          location: 'Kanteerava Stadium, Bengaluru, Karnataka, India',
+          lat: 12.9698,
+          lng: 77.5946,
+          salary: '₹10,00,000 - ₹18,00,000 / yr (₹10 - ₹18 LPA)',
+        },
+        {
+          company: 'Bhaichung Bhutia Football Schools',
+          logo: 'https://logo.clearbit.com/bbfootballschools.com',
+          title: `Technical Director & Head Coach`,
+          location: 'Vasant Kunj, New Delhi, India',
+          lat: 28.5244,
+          lng: 77.1555,
+          salary: '₹11,00,000 - ₹19,00,000 / yr (₹11 - ₹19 LPA)',
+        },
+      ];
+    } else if (kwLower.includes('game') && (kwLower.includes('test') || kwLower.includes('qa') || kwLower.includes('quality'))) {
+      targetCompanies = [
+        {
+          company: 'Electronic Arts (EA India)',
+          logo: 'https://logo.clearbit.com/ea.com',
+          title: `Quality Assurance Analyst - Gameplay & Systems`,
+          location: 'Hinjewadi Infotech Park, Pune, Maharashtra, India',
+          lat: 18.5912,
+          lng: 73.7389,
+          salary: '₹8,50,000 - ₹16,00,000 / yr (₹8.5 - ₹16 LPA)',
+        },
+        {
+          company: 'Ubisoft India',
+          logo: 'https://logo.clearbit.com/ubisoft.com',
+          title: `Senior Game Tester & Bug Reproduction Specialist`,
+          location: 'Kharadi EON Free Zone, Pune, Maharashtra, India',
+          lat: 18.5529,
+          lng: 73.9525,
+          salary: '₹9,00,000 - ₹17,50,000 / yr (₹9 - ₹17.5 LPA)',
+        },
+        {
+          company: 'Rockstar Games India',
+          logo: 'https://logo.clearbit.com/rockstargames.com',
+          title: `QA Game Tester - Open World & Physics`,
+          location: 'Bellandur / ORR, Bengaluru, Karnataka, India',
+          lat: 12.9279,
+          lng: 77.6871,
+          salary: '₹10,00,000 - ₹19,00,000 / yr (₹10 - ₹19 LPA)',
+        },
+        {
+          company: 'Nazara Technologies',
+          logo: 'https://logo.clearbit.com/nazara.com',
+          title: `Lead Mobile Game QA & Compliance Tester`,
+          location: 'Bandra Kurla Complex (BKC), Mumbai, India',
+          lat: 19.0660,
+          lng: 72.8685,
+          salary: '₹8,00,000 - ₹15,00,000 / yr (₹8 - ₹15 LPA)',
+        },
+      ];
+    }
+
     const hasUserLocation = userLat !== undefined && userLng !== undefined && !isNaN(userLat) && !isNaN(userLng);
-    const jobs = indianCompanies.map((item, idx) => {
+    const jobs = targetCompanies.map((item, idx) => {
       const coords = resolveCompanyCoordinates(item.company, item.location, idx);
       const lat = coords.lat;
       const lng = coords.lng;

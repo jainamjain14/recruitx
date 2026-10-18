@@ -27,11 +27,11 @@ export const getRecommendedCourses = async (req: AuthenticatedRequest, res: Resp
     const queryRole = (req.query.role as string)?.trim();
     const targetRole =
       queryRole ||
-      user?.profession ||
-      user?.title ||
       resume.fieldOfInterest ||
       resume.headline ||
-      'Software Engineering';
+      user?.profession ||
+      user?.title ||
+      'General Professional';
     const userSkills: string[] = Array.isArray(resume.skills) ? resume.skills : [];
     const lowerUserSkills = userSkills.map((s) => s.toLowerCase());
 
@@ -39,8 +39,15 @@ export const getRecommendedCourses = async (req: AuthenticatedRequest, res: Resp
     const realJobs = await Job.find({ status: 'active' });
     const missingSkillsSet = new Set<string>();
 
-    // 1. Missing skills from active jobs
+    // 1. Missing skills from active jobs relevant to candidate's domain
+    const targetRoleLower = targetRole.toLowerCase();
+    const roleTokens = targetRoleLower.split(/[\s,/-]+/).filter((t) => t.length > 2);
     realJobs.forEach((job) => {
+      const jobTitleLower = (job.title || '').toLowerCase();
+      const isRelevant = roleTokens.some((t) => jobTitleLower.includes(t)) ||
+        jobTitleLower.includes(targetRoleLower) || targetRoleLower.includes(jobTitleLower);
+      if (!isRelevant) return;
+
       const reqs: string[] = Array.isArray(job.requirements) ? job.requirements : [];
       reqs.forEach((r) => {
         if (!lowerUserSkills.some((u) => u.includes(r.toLowerCase()) || r.toLowerCase().includes(u))) {

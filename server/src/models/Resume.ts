@@ -34,6 +34,7 @@ export interface IResumeDocument {
   fileName?: string;
   fileData?: string;
   fileMimeType?: string;
+  resumeVersion?: number;
   createdAt: Date;
   updatedAt: Date;
   save(): Promise<IResumeDocument>;
@@ -42,6 +43,7 @@ export interface IResumeDocument {
 export class Resume implements IResumeDocument {
   _id: string;
   student: any;
+  resumeVersion?: number;
   headline: string;
   summary: string;
   fieldOfInterest: string;
@@ -89,6 +91,7 @@ export class Resume implements IResumeDocument {
     this.fileName = data.fileName;
     this.fileData = data.fileData;
     this.fileMimeType = data.fileMimeType;
+    this.resumeVersion = data.resumeVersion || 1;
     this.createdAt = dateFromFirestore(data.createdAt);
     this.updatedAt = dateFromFirestore(data.updatedAt);
   }
@@ -110,6 +113,7 @@ export class Resume implements IResumeDocument {
       fileName: this.fileName || null,
       fileData: this.fileData || null,
       fileMimeType: this.fileMimeType || null,
+      resumeVersion: this.resumeVersion || 1,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });
