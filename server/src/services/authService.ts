@@ -41,12 +41,16 @@ export class AuthService {
         existingUser.role = role;
         await existingUser.save();
 
-        // Fire-and-forget: send email in background so the HTTP response is not blocked by SMTP latency
-        EmailService.sendVerificationEmail({
+        // Await email dispatch via Brevo HTTPS API
+        const emailResult = await EmailService.sendVerificationEmail({
           toEmail: normalizedEmail,
           userName: name,
           code: verificationCode,
-        }).catch((e) => console.error('[OTP] Verification email failed (existing user):', e));
+        });
+
+        if (!emailResult.success) {
+          throw new Error(emailResult.error || 'Unable to deliver verification code to your email. Please try again.');
+        }
 
         return {
           user: {
@@ -79,12 +83,22 @@ export class AuthService {
       provider: 'local',
     });
 
-    // Dispatch verification email in background — do not block HTTP response on SMTP
-    EmailService.sendVerificationEmail({
+    // Await email dispatch via Brevo HTTPS API.
+    // If delivery fails, remove the newly created unverified record so user is never stuck in a zombie state
+    const emailResult = await EmailService.sendVerificationEmail({
       toEmail: normalizedEmail,
       userName: name,
       code: verificationCode,
-    }).catch((e) => console.error('[OTP] Verification email failed (new user):', e));
+    });
+
+    if (!emailResult.success) {
+      try {
+        await User.deleteById(user._id.toString());
+      } catch (delErr) {
+        console.warn('[Register] Failed to roll back unverified user:', delErr);
+      }
+      throw new Error(emailResult.error || 'Failed to dispatch verification code to your email. Please try again.');
+    }
 
     const userObj = {
       _id: user._id.toString(),
@@ -265,12 +279,16 @@ export class AuthService {
     user.verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
-    // Dispatch email in background so the HTTP response is not blocked by SMTP latency
-    EmailService.sendVerificationEmail({
+    // Dispatch email via Brevo HTTPS API
+    const emailResult = await EmailService.sendVerificationEmail({
       toEmail: normalizedEmail,
       userName: user.name,
       code: verificationCode,
-    }).catch((e) => console.error('[OTP] Resend verification email failed:', e));
+    });
+
+    if (!emailResult.success) {
+      throw new Error(emailResult.error || 'Failed to dispatch verification email. Please try again later.');
+    }
 
     return {
       message: 'A fresh verification code has been dispatched to your email.',

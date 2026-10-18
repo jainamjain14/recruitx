@@ -1,4 +1,3 @@
-import nodemailer, { Transporter } from 'nodemailer';
 import { getVerifiedCompanyHrEmail } from './linkedinService.js';
 
 export interface ApplicationEmailPayload {
@@ -15,71 +14,27 @@ export interface ApplicationEmailPayload {
 
 export class EmailService {
   /**
-   * Helper to create a nodemailer transporter if SMTP credentials exist in environment
+   * Diagnostic: log email provider status on startup
    */
-  private static getTransporter(): Transporter | null {
-    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
-    const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
-    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-    // Port 587 (STARTTLS) is preferred — port 465 (SSL) is often blocked on cloud hosting (Render, Railway etc.)
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
-    const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : smtpPort === 465;
+  static async verifyEmailConfiguration(): Promise<void> {
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    const senderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_FROM_ADDRESS || '').trim();
+    const senderName = process.env.EMAIL_FROM_NAME || 'RecruitX Platform';
 
-    if (smtpUser && smtpPass) {
-      const cleanUser = smtpUser.trim();
-      const cleanPass = smtpPass.trim().replace(/\s+/g, '');
+    console.log('[EmailService] Provider: Brevo Transactional HTTPS API (Port 443)');
+    console.log('[EmailService] BREVO_API_KEY configured:', brevoKey.length > 5 ? `yes (${brevoKey.length} chars)` : 'NO');
+    console.log('[EmailService] Sender email configured:', senderEmail || 'NOT SET (defaults to recruitxproject@gmail.com)');
+    console.log('[EmailService] Sender name:', senderName);
 
-      return nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        auth: {
-          user: cleanUser,
-          pass: cleanPass,
-        },
-        connectionTimeout: 5000,
-        greetingTimeout: 5000,
-        socketTimeout: 8000,
-      });
-    }
-
-    return null;
-  }
-
-  /**
-   * Diagnostic: verify SMTP connection and log result (call once on startup)
-   */
-  static async verifySMTPConnection(): Promise<void> {
-    const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
-    const smtpPass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
-    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
-    const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : smtpPort === 465;
-    const resendKey = (process.env.RESEND_API_KEY || '').trim();
-
-    console.log('[EmailService] Config status → host:', smtpHost, '| port:', smtpPort, '| secure:', smtpSecure, '| SMTP user configured:', !!smtpUser, '| SMTP pass configured:', !!smtpPass, '| Resend configured:', resendKey.length > 10);
-
-    if (resendKey.length > 10) {
-      console.log('[EmailService] ⚡ Resend API is active (Primary HTTPS email provider)');
-    }
-
-    if (smtpUser && smtpPass) {
-      const transporter = this.getTransporter();
-      if (transporter) {
-        try {
-          await transporter.verify();
-          console.log('[EmailService] ✅ SMTP connection verified successfully — ready to send emails');
-        } catch (err: any) {
-          console.warn('[EmailService] ⚠️ SMTP connection failed (' + (err.code || err.message) + '). Outbound SMTP ports may be blocked by host. Will use Resend HTTPS API.');
-        }
-      }
-    } else if (!resendKey || resendKey.length <= 10) {
-      console.warn('[EmailService] ⚠️ No email provider configured (no SMTP credentials and no RESEND_API_KEY). Emails will be skipped.');
+    if (!brevoKey) {
+      console.warn('[EmailService] ⚠️ BREVO_API_KEY is missing. Emails cannot be dispatched. Set BREVO_API_KEY in Render.');
     }
   }
 
   /**
-   * Send an email using Resend API (HTTPS) or SMTP as fallback
+   * Send an email using Brevo's official Transactional Email HTTPS API
+   * POST https://api.brevo.com/v3/smtp/email
+   * Operates over standard HTTPS (port 443) — never blocked by Render or other cloud providers
    */
   private static async sendMail(options: {
     to: string;
@@ -88,65 +43,72 @@ export class EmailService {
     replyTo?: string;
   }): Promise<{ success: boolean; error?: string }> {
     const { to, subject, html, replyTo } = options;
-    const resendKey = process.env.RESEND_API_KEY;
-    const fromAddress = process.env.RESEND_FROM_EMAIL || 'RecruitX Security <onboarding@resend.dev>';
-    const transporter = this.getTransporter();
-    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
-    const fromName = process.env.EMAIL_FROM_NAME || 'RecruitX Platform';
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    const senderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_FROM_ADDRESS || 'recruitxproject@gmail.com').trim();
+    const senderName = process.env.EMAIL_FROM_NAME || 'RecruitX Platform';
 
-    // 1. Primary: SMTP (Brevo / Nodemailer) — if SMTP credentials are provided
-    if (transporter && smtpUser) {
-      console.log(`[EmailService] Attempting SMTP delivery to ${to} via ${process.env.SMTP_HOST || 'smtp'}...`);
-      try {
-        const fromEmail = process.env.EMAIL_FROM_ADDRESS || (smtpUser.includes('@') ? smtpUser.trim() : 'noreply@recruitx.dev');
-        const info = await transporter.sendMail({
-          from: `"${fromName}" <${fromEmail}>`,
-          to,
-          subject,
-          html,
-          replyTo: replyTo || fromEmail,
-        });
-        console.log(`✨ Live email dispatched via SMTP to ${to}! MessageId: ${info.messageId}`);
+    if (!brevoKey) {
+      const errMsg = 'Email dispatch aborted: BREVO_API_KEY is not configured on the server';
+      console.error(`[EmailService] ❌ ${errMsg}`);
+      return { success: false, error: errMsg };
+    }
+
+    console.log(`[EmailService] Dispatching email to ${to} via Brevo HTTPS API...`);
+
+    try {
+      const payload: any = {
+        sender: {
+          name: senderName,
+          email: senderEmail,
+        },
+        to: [
+          { email: to }
+        ],
+        subject,
+        htmlContent: html,
+      };
+
+      if (replyTo) {
+        payload.replyTo = { email: replyTo };
+      }
+
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': brevoKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData: any = await response.json().catch(() => ({}));
+
+      if (response.ok && resData.messageId) {
+        console.log(`[EmailService] ✨ Live email dispatched via Brevo HTTPS to ${to}! MessageId: ${resData.messageId}`);
         return { success: true };
-      } catch (err: any) {
-        console.error('[EmailService] ❌ SMTP sendMail failed — code:', err.code, '| message:', err.message);
-        // Fall through to Resend fallback below
       }
-    }
 
-    // 2. Secondary / Fallback: Resend API via HTTPS
-    if (resendKey && resendKey.trim().length > 10) {
-      console.log(`[EmailService] Attempting fallback to Resend HTTPS API for ${to}...`);
-      try {
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${resendKey.trim()}`,
-          },
-          body: JSON.stringify({
-            from: fromAddress,
-            to: [to],
-            subject,
-            html,
-            reply_to: replyTo,
-          }),
-        });
+      const status = response.status;
+      const apiCode = resData.code || 'UNKNOWN_ERROR';
+      const apiMsg = resData.message || response.statusText || 'Unknown Brevo API error';
 
-        const resData: any = await response.json();
-        if (resData.id) {
-          console.log(`✨ Live email sent via Resend to ${to}! MessageId: ${resData.id}`);
-          return { success: true };
-        } else {
-          console.error('[EmailService] ❌ Resend API response error:', JSON.stringify(resData));
-        }
-      } catch (err: any) {
-        console.error('[EmailService] ❌ Resend fetch error:', err.message || err);
+      console.error(`[EmailService] ❌ Brevo API error (HTTP ${status}) [${apiCode}]: ${apiMsg}`);
+
+      let userFriendlyError = 'Failed to deliver verification email.';
+      if (status === 401 || status === 403) {
+        userFriendlyError = 'Email service authentication failed. Please verify BREVO_API_KEY.';
+      } else if (status === 400 && apiMsg.toLowerCase().includes('sender')) {
+        userFriendlyError = `Sender email "${senderEmail}" is not verified in Brevo. Please verify it in Brevo senders.`;
+      } else if (apiMsg) {
+        userFriendlyError = apiMsg;
       }
-    }
 
-    console.warn(`[EmailService] ⚠️ No email provider available — email for ${to} (subject: "${subject}") was NOT sent`);
-    return { success: false, error: 'No email provider configured' };
+      return { success: false, error: userFriendlyError };
+    } catch (networkErr: any) {
+      console.error('[EmailService] ❌ Network request to Brevo API failed:', networkErr.message || networkErr);
+      return { success: false, error: 'Could not connect to email service: ' + (networkErr.message || 'Network error') };
+    }
   }
 
   /**

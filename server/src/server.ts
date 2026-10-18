@@ -30,9 +30,9 @@ const startServer = async () => {
       // Start the interview reminder cron (fires every minute)
       startReminderService();
 
-      // Diagnostic SMTP verification
-      EmailService.verifySMTPConnection().catch((err) => {
-        logger.error("SMTP verify error:", err);
+      // Diagnostic Email configuration verification
+      EmailService.verifyEmailConfiguration().catch((err) => {
+        logger.error("Email service verify error:", err);
       });
     });
   } catch (error) {
