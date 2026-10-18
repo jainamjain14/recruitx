@@ -21,6 +21,7 @@ router.get('/stats', getAdminStats);
 router.get('/users', getUsers);
 router.patch('/users/:id/toggle-status', toggleUserStatus);
 router.delete('/users/:id', deleteUser);
+router.post('/users/:id/delete', deleteUser);
 router.get('/health', getSystemHealth);
 router.get('/audit-logs', getAuditLogs);
 router.get('/eligibility-rules', getEligibilityRules);

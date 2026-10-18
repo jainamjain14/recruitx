@@ -82,11 +82,20 @@ export const toggleUserStatus = async (req: AuthenticatedRequest, res: Response)
 
 export const deleteUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = rawId?.trim();
+
+    if (!id) {
+      sendError(res, 'User ID is required', null, 400);
+      return;
+    }
+
     const user = await User.findById(id);
 
     if (!user) {
-      sendError(res, 'User not found', null, 404);
+      // Even if user not found by findById, delete document directly to ensure idempotency
+      await User.deleteById(id);
+      sendSuccess(res, 'User deleted or already removed', { id });
       return;
     }
 
