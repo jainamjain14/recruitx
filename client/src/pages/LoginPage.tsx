@@ -111,7 +111,7 @@ export const LoginPage: React.FC = () => {
   return (
     <Card className="w-full">
       {/* Header section */}
-      <div className="text-center mb-6">
+      <div className="text-center mb-5">
         <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
           Welcome back
         </h1>
@@ -138,6 +138,26 @@ export const LoginPage: React.FC = () => {
           className="mb-4"
         />
       )}
+
+      {/* ── Social Sign-In (TOP) ── */}
+      <SocialAuthButtons
+        role={selectedRole}
+        mode="signin"
+        onSuccess={(path) => navigate(path, { replace: true })}
+        onError={(err) => setErrorMessage(err)}
+      />
+
+      {/* "or continue with email" divider */}
+      <div className="relative my-4">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-slate-200" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="px-3 bg-white text-slate-500 font-medium tracking-wide">
+            or continue with email
+          </span>
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         {/* Role Selector */}
@@ -209,14 +229,6 @@ export const LoginPage: React.FC = () => {
           Sign in
         </Button>
       </form>
-
-      {/* Social Sign-In Stack (Google & GitHub) */}
-      <SocialAuthButtons
-        role={selectedRole}
-        mode="signin"
-        onSuccess={(path) => navigate(path, { replace: true })}
-        onError={(err) => setErrorMessage(err)}
-      />
 
       {/* Link to Register */}
       <div className="mt-5 pt-4 border-t border-neutral-100 text-center">

@@ -120,6 +120,23 @@ export const RegisterPage: React.FC = () => {
         />
       )}
 
+      {/* Social Sign-up Buttons — TOP, primary option */}
+      <SocialAuthButtons
+        role={selectedRole}
+        mode="signup"
+        onSuccess={(path) => navigate(path, { replace: true })}
+        onError={(err) => setErrorMessage(err)}
+      />
+
+      {/* Divider — or continue with email */}
+      <div className="relative flex items-center gap-3 my-1">
+        <div className="flex-1 h-px bg-neutral-200" />
+        <span className="text-[11px] font-medium text-neutral-400 tracking-wide uppercase whitespace-nowrap">
+          or continue with email
+        </span>
+        <div className="flex-1 h-px bg-neutral-200" />
+      </div>
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         {/* Role Selector (Admin excluded from public registration) */}
         <RoleSelector
@@ -232,14 +249,6 @@ export const RegisterPage: React.FC = () => {
           Create account
         </Button>
       </form>
-
-      {/* Social Registration Stack (Google & GitHub) */}
-      <SocialAuthButtons
-        role={selectedRole}
-        mode="signup"
-        onSuccess={(path) => navigate(path, { replace: true })}
-        onError={(err) => setErrorMessage(err)}
-      />
 
       {/* Link to Login */}
       <div className="mt-6 pt-4 border-t border-neutral-100 text-center">
