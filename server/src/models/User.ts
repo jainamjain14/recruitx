@@ -202,6 +202,7 @@ export class User {
     password?: string;
     role?: UserRole;
     emailVerified?: boolean;
+    isSuspended?: boolean;
     verificationCode?: string;
     verificationExpires?: Date;
     provider?: string;
@@ -238,7 +239,7 @@ export class User {
       password: hashedPassword,
       role: data.role || 'student',
       emailVerified: data.emailVerified ?? false,
-      isSuspended: false,
+      isSuspended: data.isSuspended ?? false,
       verificationCode: data.verificationCode || null,
       verificationExpires: data.verificationExpires || null,
       provider: data.provider || 'local',
