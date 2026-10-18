@@ -13,6 +13,8 @@ import { Alert } from '../components/ui/Alert';
 import { RoleSelector } from '../components/ui/RoleSelector';
 import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter';
 import { User as UserIcon, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { EmailVerificationModal } from '../components/auth/EmailVerificationModal';
+import { SocialAuthButtons } from '../components/auth/SocialAuthButtons';
 
 const registerSchema = z
   .object({
@@ -44,6 +46,11 @@ export const RegisterPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Email verification state
+  const [isVerificationOpen, setIsVerificationOpen] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [pendingDemoCode, setPendingDemoCode] = useState<string | undefined>(undefined);
+
   const {
     register,
     handleSubmit,
@@ -67,15 +74,21 @@ export const RegisterPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await registerAuth({
+      const res = await registerAuth({
         name: values.name,
         email: values.email,
         password: values.password,
         role: selectedRole,
       });
 
-      const redirectPath = selectedRole === 'recruiter' ? '/recruiter' : '/student';
-      navigate(redirectPath, { replace: true });
+      if (res?.requiresVerification) {
+        setPendingEmail(values.email);
+        setPendingDemoCode(res.demoCode);
+        setIsVerificationOpen(true);
+      } else {
+        const redirectPath = selectedRole === 'recruiter' ? '/recruiter' : '/student';
+        navigate(redirectPath, { replace: true });
+      }
     } catch (err: any) {
       setErrorMessage(
         err.response?.data?.message || err.message || 'Registration failed. Please try again.'
@@ -220,6 +233,14 @@ export const RegisterPage: React.FC = () => {
         </Button>
       </form>
 
+      {/* Social Registration Stack (Google & GitHub) */}
+      <SocialAuthButtons
+        role={selectedRole}
+        mode="signup"
+        onSuccess={(path) => navigate(path, { replace: true })}
+        onError={(err) => setErrorMessage(err)}
+      />
+
       {/* Link to Login */}
       <div className="mt-6 pt-4 border-t border-neutral-100 text-center">
         <p className="text-xs text-neutral-600">
@@ -232,6 +253,20 @@ export const RegisterPage: React.FC = () => {
           </Link>
         </p>
       </div>
+
+      {/* 6-Digit Email Verification Modal */}
+      <EmailVerificationModal
+        isOpen={isVerificationOpen}
+        email={pendingEmail}
+        demoCode={pendingDemoCode}
+        role={selectedRole}
+        onSuccess={() => {
+          setIsVerificationOpen(false);
+          const redirectPath = selectedRole === 'recruiter' ? '/recruiter' : '/student';
+          navigate(redirectPath, { replace: true });
+        }}
+        onCancel={() => setIsVerificationOpen(false)}
+      />
     </Card>
   );
 };

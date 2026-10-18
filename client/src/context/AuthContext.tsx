@@ -9,7 +9,17 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (params: LoginParams) => Promise<User>;
-  register: (params: RegisterParams) => Promise<User>;
+  register: (params: RegisterParams) => Promise<{ user: User; requiresVerification?: boolean; demoCode?: string }>;
+  verifyEmail: (email: string, code: string) => Promise<User>;
+  resendVerification: (email: string) => Promise<{ demoCode?: string }>;
+  socialLogin: (payload: {
+    email: string;
+    name: string;
+    provider: 'google' | 'github';
+    providerId?: string;
+    role: UserRole;
+    avatar?: string;
+  }) => Promise<User>;
   logout: () => Promise<void>;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   updateUser: (updatedUser: Partial<User>) => void;
@@ -66,16 +76,60 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (params: RegisterParams): Promise<User> => {
+  const register = async (params: RegisterParams): Promise<{ user: User; requiresVerification?: boolean; demoCode?: string }> => {
     const response = await authService.register(params);
     if (response.success && response.data) {
-      const { user: registeredUser, token: authToken } = response.data;
-      tokenStorage.setToken(authToken);
-      setToken(authToken);
-      setUser(registeredUser);
-      return registeredUser;
+      const { user: registeredUser, token: authToken, requiresVerification, demoCode } = response.data;
+      if (authToken) {
+        tokenStorage.setToken(authToken);
+        setToken(authToken);
+        setUser(registeredUser);
+      }
+      return { user: registeredUser, requiresVerification, demoCode };
     } else {
       throw new Error(response.message || 'Registration failed');
+    }
+  };
+
+  const verifyEmail = async (email: string, code: string): Promise<User> => {
+    const response = await authService.verifyEmail(email, code);
+    if (response.success && response.data) {
+      const { user: verifiedUser, token: authToken } = response.data;
+      tokenStorage.setToken(authToken);
+      setToken(authToken);
+      setUser(verifiedUser);
+      return verifiedUser;
+    } else {
+      throw new Error(response.message || 'Verification failed');
+    }
+  };
+
+  const resendVerification = async (email: string): Promise<{ demoCode?: string }> => {
+    const response = await authService.resendVerification(email);
+    if (response.success) {
+      return { demoCode: response.data?.demoCode };
+    } else {
+      throw new Error(response.message || 'Failed to resend code');
+    }
+  };
+
+  const socialLogin = async (payload: {
+    email: string;
+    name: string;
+    provider: 'google' | 'github';
+    providerId?: string;
+    role: UserRole;
+    avatar?: string;
+  }): Promise<User> => {
+    const response = await authService.socialLogin(payload);
+    if (response.success && response.data) {
+      const { user: socialUser, token: authToken } = response.data;
+      tokenStorage.setToken(authToken);
+      setToken(authToken);
+      setUser(socialUser);
+      return socialUser;
+    } else {
+      throw new Error(response.message || 'Social login failed');
     }
   };
 
@@ -104,6 +158,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLoading,
         login,
         register,
+        verifyEmail,
+        resendVerification,
+        socialLogin,
         logout,
         setUser,
         updateUser,

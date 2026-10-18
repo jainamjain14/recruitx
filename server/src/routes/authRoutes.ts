@@ -8,6 +8,9 @@ import {
   logout,
   updateProfile,
   updatePassword,
+  verifyEmail,
+  resendVerification,
+  socialLogin,
 } from '../controllers/authController.js';
 import {
   validateRegister,
@@ -22,6 +25,9 @@ const router = Router();
 
 router.post('/register', authLimiter, validateRegister, register);
 router.post('/login', authLimiter, validateLogin, login);
+router.post('/verify-email', verifyEmail);
+router.post('/resend-verification', authLimiter, resendVerification);
+router.post('/social-login', authLimiter, socialLogin);
 router.get('/me', authenticate, getMe);
 router.put('/profile', authenticate, updateProfile);
 router.put('/password', authenticate, updatePassword);

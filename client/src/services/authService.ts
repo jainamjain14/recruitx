@@ -26,6 +26,28 @@ export const authService = {
     return response.data;
   },
 
+  verifyEmail: async (email: string, code: string): Promise<ApiResponse<AuthResponse>> => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/verify-email', { email, code });
+    return response.data;
+  },
+
+  resendVerification: async (email: string): Promise<ApiResponse<{ demoCode?: string }>> => {
+    const response = await api.post<ApiResponse<{ demoCode?: string }>>('/auth/resend-verification', { email });
+    return response.data;
+  },
+
+  socialLogin: async (payload: {
+    email: string;
+    name: string;
+    provider: 'google' | 'github';
+    providerId?: string;
+    role?: UserRole;
+    avatar?: string;
+  }): Promise<ApiResponse<AuthResponse>> => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/social-login', payload);
+    return response.data;
+  },
+
   getMe: async (): Promise<ApiResponse<{ user: User }>> => {
     const response = await api.get<ApiResponse<{ user: User }>>('/auth/me');
     return response.data;

@@ -411,34 +411,145 @@ export const StudentRoadmap: React.FC = () => {
   };
 
   const generateMilestonesForCompany = (company: string): MilestoneItem[] => {
+    const key = company.toLowerCase().replace(/\s+/g, '');
+
+    // Google
+    if (key.includes('google')) return [
+      { title: 'Data Structures & Algorithms Mastery', desc: 'Master arrays, trees, graphs, dynamic programming, and greedy algorithms to crack Google\'s rigorous Leetcode-style coding rounds. Aim for 200+ problems.', actionUrl: '/student/resume', actionLabel: 'Add DSA Skills' },
+      { title: 'System Design & Scalability (Google Scale)', desc: 'Study distributed systems, consistent hashing, load balancing, Bigtable, Spanner, MapReduce, and Pub/Sub. Practice designing Search, YouTube, Gmail at scale.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'Google-Style Coding Interview Prep', desc: 'Practice 4 rounds of coding interviews: 2 technical coding, 1 system design, 1 behavioral ("Googleyness"). Mock interview with structured STAR answers.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Open Source & Portfolio Projects', desc: 'Contribute to Google-backed open source (Android, TensorFlow, Kubernetes, Angular). Build a portfolio of 3+ deployable projects with clean code and documentation.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Google Hiring Process & Offer Acceptance', desc: 'Submit application via Google Careers, complete the phone screen, on-site loop (4-5 rounds), and receive offer letter from Google Recruitment team.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Microsoft
+    if (key.includes('microsoft')) return [
+      { title: 'Core CS Fundamentals & OOP Principles', desc: 'Solidify Object-Oriented Programming (C#, Java, or Python), SOLID principles, design patterns (Factory, Observer, Singleton), and data structures fundamentals.', actionUrl: '/student/resume', actionLabel: 'Add CS Skills' },
+      { title: 'Azure Cloud & DevOps Certification', desc: 'Earn AZ-900 (Azure Fundamentals) or AZ-204 (Azure Developer). Study cloud services, microservices architecture, CI/CD pipelines, and DevOps with GitHub Actions.', actionUrl: '/student/roadmap', actionLabel: 'View Azure Courses' },
+      { title: 'Coding Round Preparation (LeetCode + HackerRank)', desc: 'Practice Microsoft\'s OA (Online Assessment): arrays, strings, trees, BFS/DFS, and two-pointer problems. Microsoft typically asks 2 medium Leetcode-style questions.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: '.NET / Full Stack Development Project', desc: 'Build a full-stack web application using ASP.NET Core, React/Angular, SQL Server, and Azure deployment. Focus on clean architecture, unit testing, and CI/CD setup.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Microsoft Interview Loop & Offer', desc: 'Complete Microsoft\'s hiring loop: OA → Phone Screen → 3-4 Technical Rounds (coding + design) → HR Discussion. Receive and accept offer via Microsoft Careers portal.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Amazon
+    if (key.includes('amazon')) return [
+      { title: 'Amazon Leadership Principles (LPs) Mastery', desc: 'Study all 16 Amazon Leadership Principles deeply. Prepare 3 STAR stories per LP. Amazon\'s behavioral rounds are as critical as coding — each interviewer covers 2 LPs.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
+      { title: 'Coding & Problem Solving (OA Focus)', desc: 'Crack Amazon\'s Online Assessment: 2 coding questions (Medium-Hard LeetCode) + Work Simulation. Practice arrays, hash maps, sliding window, and graph traversals.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'AWS Cloud Architecture Knowledge', desc: 'Learn core AWS services: EC2, S3, Lambda, DynamoDB, SQS/SNS, API Gateway. Understand distributed systems, eventual consistency, and event-driven architecture.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'E-Commerce & Scalable System Design', desc: 'Practice designing Amazon-scale systems: product catalog, shopping cart, order management, recommendation engine, and real-time delivery tracking.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Amazon Virtual Loop & Offer Acceptance', desc: 'Complete 4-5 virtual interview rounds (2 coding + 1 system design + 2 behavioral). Receive offer from Amazon Recruiting — negotiate total compensation (base + RSUs + sign-on).', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // TCS
+    if (key.includes('tcs')) return [
+      { title: 'TCS NQT (National Qualifier Test) Preparation', desc: 'Clear TCS NQT: Verbal Ability, Reasoning Ability, Numerical Ability, Programming Logic, and Coding rounds. Score 70%+ in all sections to qualify for interview.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
+      { title: 'Core Java / Python Programming Proficiency', desc: 'Master Java or Python fundamentals — OOP, Collections, Exception Handling, JDBC. TCS interviews test core programming, not competitive DSA. Build 2-3 projects.', actionUrl: '/student/roadmap', actionLabel: 'View Java Courses' },
+      { title: 'Database & SQL Skills (Oracle/MySQL)', desc: 'Study SQL queries (joins, aggregations, subqueries), database normalization, stored procedures, and triggers. TCS heavily uses Oracle DB in their projects.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Communication & MR (Management Round) Prep', desc: 'Prepare for TCS Technical + HR rounds: explain projects, career goals, and situational questions. Practice "Tell me about yourself" and project explanations clearly.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'TCS Campus Drive & Digital / Prime Selection', desc: 'Appear for TCS Campus Drive or TCS Smart Hiring. Qualify Digital/Prime/Ninja role based on scores. Receive offer letter and complete joining formalities.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Infosys
+    if (key.includes('infosys')) return [
+      { title: 'Infosys InfyTQ & HackWithInfy Preparation', desc: 'Register on InfyTQ platform. Complete Infosys courses in Java, Python, and data structures. Score 65%+ to get shortlisted for HackWithInfy coding competition.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
+      { title: 'Programming & Aptitude Test (PseudoCode + Coding)', desc: 'Clear Infosys Online Test: Pseudocode questions, Data Interpretation, Logical Reasoning, and 2 coding problems. Practice HackerRank and Infosys sample papers.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'Java Full Stack or Python Track Certification', desc: 'Complete Infosys Springboard Java Full Stack certification or Python Developer track. Infosys trains selected candidates in Spring Boot, React, and Microservices.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Communication Skills & HR Round Readiness', desc: 'Infosys evaluates English fluency heavily. Practice GD (Group Discussion) topics, situational judgment, and "Why Infosys?" question with concrete career alignment answers.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Infosys Campus Offer & Mysore Training', desc: 'Accept Infosys offer, complete documentation, and prepare for the Mysore Foundation Training Program (6 weeks). Map to a stream (Java/Python/Testing/Mainframe) based on assessment.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Meta / Facebook
+    if (key.includes('meta') || key.includes('facebook')) return [
+      { title: 'Competitive Programming & LeetCode Grind', desc: 'Solve 300+ LeetCode problems — focus on Graph algorithms, Dynamic Programming, Binary Search, and Sliding Window. Meta\'s coding bar is very high (Hard-level problems common).', actionUrl: '/student/resume', actionLabel: 'Add CP Skills' },
+      { title: 'System Design for Social Scale', desc: 'Practice designing Facebook News Feed, Instagram feed ranking, WhatsApp messaging, Facebook Messenger, and Ads auction system. Study consistency, partitioning, and caching.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'React & Frontend Engineering Excellence', desc: 'Master React (Meta\'s own framework), JavaScript runtime, V8 internals, CSS performance, and Web accessibility. Build a production-quality frontend application.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Behavioral Rounds & Culture Fit (Move Fast)', desc: 'Prepare for Meta\'s "Move Fast" culture. Practice conflict resolution, failure scenarios, cross-functional collaboration, and innovation examples. Meta cares deeply about impact.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Meta Hiring Loop & Offer Negotiation', desc: 'Complete Meta\'s loop: 2 coding + 1 system design + 2 behavioral rounds. Meta offers equity-heavy packages — negotiate base salary, RSUs, and signing bonus with recruiter.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Wipro
+    if (key.includes('wipro')) return [
+      { title: 'Wipro NLTH (National Level Talent Hunt) Prep', desc: 'Prepare for Wipro\'s online test: Aptitude, Logical, Verbal, Essay Writing, and Coding rounds. Score above cutoff in all sections to clear to the interview stage.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
+      { title: 'Core Programming & IT Fundamentals', desc: 'Strengthen Java/Python/C++ basics, DBMS, OS, Computer Networks, and Software Engineering concepts. Wipro technical interviews test fundamentals more than advanced DSA.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'Project Presentation & Technical Interview Prep', desc: 'Prepare to explain your final year project clearly in 5 minutes — tech stack, challenges, architecture, and your individual contribution. Wipro gives weight to project experience.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Communication Skills & HR Readiness', desc: 'Practice HR round questions: strengths/weaknesses, relocation readiness, career goals, and team scenarios. Wipro places emphasis on communication and adaptability.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Wipro Offer & Velocity/Wilp Training', desc: 'Accept Wipro offer and complete documentation. Attend WILP (Work Integrated Learning Program) or Velocity training. Get allocated to a project/account based on skills.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Accenture
+    if (key.includes('accenture')) return [
+      { title: 'Accenture Cognitive & Technical Assessment', desc: 'Clear Accenture\'s 3-section online assessment: Cognitive Ability, Technical (IT fundamentals), and Coding Test. Score 70%+ in all sections — no negative marking.', actionUrl: '/student/resume', actionLabel: 'Update Profile' },
+      { title: 'SAP / Salesforce / Cloud Skills Certification', desc: 'Get certified in SAP Fundamentals, Salesforce Admin, or AWS Cloud Practitioner. Accenture heavily places graduates in ERP, CRM, and Cloud consulting projects.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'Technical Interview & Communication Round', desc: 'Prepare for Accenture\'s Technical Interview: explain your project, basic coding questions (sorting, searching), and IT concepts. Practice clear and structured communication.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'HR Round & Digital Fluency Preparation', desc: 'Prepare HR questions: adaptability, remote work, diversity stories. Accenture tests "Digital Fluency" — awareness of AI/ML trends, blockchain, and metaverse concepts.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Accenture Offer & Role Allocation', desc: 'Receive Accenture offer letter (ASE role or Consulting Analyst). Complete documentation, background verification, and 3-month foundation training at Accenture Solutions Pvt. Ltd.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Roy Kapur Films
+    if (key.includes('roykapur') || key.includes('roy kapur')) return [
+      { title: 'Film Industry Fundamentals & Portfolio', desc: 'Build a strong creative portfolio: screenwriting samples, short films, production stills, or editing reels. Roy Kapur Films evaluates creative output above academic qualifications.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Scriptwriting & Storytelling Certification', desc: 'Complete coursework in screenplay writing, narrative structure, and story development. Practice writing 10-page short film scripts and feature film treatments.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'Film Production Knowledge & Role Clarity', desc: 'Study pre-production, production, and post-production workflows. Identify your role: Director\'s Assistant, Production Coordinator, Content Researcher, or Marketing & PR.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Digital Marketing & Film Promotions', desc: 'Learn film marketing strategies, OTT platform content distribution, social media campaigns for film releases, trailer marketing, and influencer collaborations in Bollywood.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Roy Kapur Films Interview & Internship Offer', desc: 'Submit creative portfolio and cover letter tailored to Roy Kapur Films\' upcoming projects. Attend creative interview, pitching sessions, and receive internship or placement offer.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Elance Group
+    if (key.includes('elance')) return [
+      { title: 'Freelance & Digital Services Portfolio', desc: 'Build a strong portfolio of digital work: web development projects, graphic design samples, content writing pieces, or digital marketing case studies relevant to Elance clients.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Client Communication & Project Management', desc: 'Complete courses in client communication, proposal writing, project scoping, and remote collaboration tools (Slack, Trello, Asana). Elance values strong client management skills.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'Specialization Track (Dev/Design/Content/Marketing)', desc: 'Choose your specialization and earn a relevant certification: Web Development (React/Node), UI/UX Design (Figma), SEO & Content, or Digital Marketing (Google Ads, Meta Ads).', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Live Project Execution & Client Testimonials', desc: 'Complete 2-3 live freelance projects, collect client testimonials, and build measurable case studies showing business impact. Elance Group values proven delivery track records.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Elance Group Interview & Talent Onboarding', desc: 'Apply through Elance Group\'s recruitment portal, present your portfolio, complete a skills test relevant to your track, and receive placement confirmation with project assignment.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Shiv IT
+    if (key.includes('shivit') || key.includes('shiv it')) return [
+      { title: 'Core Web Development & IT Stack Proficiency', desc: 'Master HTML, CSS, JavaScript, and at least one backend framework (Node.js, PHP, or .NET). Shiv IT Solutions focuses on full-stack web development and enterprise software delivery.', actionUrl: '/student/resume', actionLabel: 'Add Tech Skills' },
+      { title: 'Database Design & Backend APIs', desc: 'Build proficiency in MySQL/PostgreSQL, REST API design, authentication flows (JWT/OAuth), and server-side logic. Practice building CRUD applications end-to-end.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'Project-Based Interview Preparation', desc: 'Prepare to demonstrate a live project during the interview. Shiv IT gives practical coding exercises. Practice debugging, code review readiness, and explaining architectural decisions.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Team Collaboration & Version Control Skills', desc: 'Get comfortable with Git, GitHub workflows (branching, PRs, code reviews), and agile project workflows. Shiv IT works in small agile teams — collaborative skills are essential.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Shiv IT Solutions Offer & Onboarding', desc: 'Clear the technical round (live coding task + project discussion) and HR round. Receive offer letter, complete documentation, and get assigned to a live client project on joining.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // HAWKSTAR
+    if (key.includes('hawkstar')) return [
+      { title: 'Media Production & Content Creation Portfolio', desc: 'Build a portfolio of media projects: video production, photography, graphic design, or content writing. HAWKSTAR MEDIA evaluates creative talent first and academic scores second.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'Digital Media Tools & Software Proficiency', desc: 'Learn Adobe Creative Suite (Premiere Pro, After Effects, Photoshop, Illustrator), Canva Pro, and DaVinci Resolve. Obtain at least one Adobe certification for credibility.', actionUrl: '/student/roadmap', actionLabel: 'View Courses' },
+      { title: 'Social Media Strategy & Content Marketing', desc: 'Study content strategy, Instagram/YouTube algorithm optimization, influencer marketing, and brand storytelling. Practice creating viral content briefs and social media calendars.', actionUrl: '/student/messages', actionLabel: 'Schedule Mock' },
+      { title: 'Live Campaign Execution & Analytics', desc: 'Run a real social media campaign (even personal/college-level) and document metrics: reach, engagement rate, CTR, and conversions. HAWKSTAR values data-backed creativity.', actionUrl: '/student/resume', actionLabel: 'Update Portfolio' },
+      { title: 'HAWKSTAR MEDIA Interview & Creative Role Offer', desc: 'Submit your creative reel/portfolio, attend a creative brief presentation round, and receive placement offer for Content Creator, Video Editor, or Social Media Manager role.', actionUrl: '/student/applications', actionLabel: 'View Applications' },
+    ];
+
+    // Default — generic but still directional
     return [
       {
-        title: `Foundational Skill Baseline & Profile Verification for ${company}`,
-        desc: `Verify core technical competencies and Coursera certifications matching ${company}'s recruitment prerequisites.`,
+        title: `Research ${company}'s Hiring Process & Requirements`,
+        desc: `Study ${company}'s official careers page, Glassdoor interview reviews, and LinkedIn job postings to understand exact skill requirements, interview rounds, and assessment formats.`,
         actionUrl: '/student/resume',
-        actionLabel: 'Verify Tech Skills',
+        actionLabel: 'Update Profile',
       },
       {
-        title: `${company}-Specific Architectural & Core Problem Solving`,
-        desc: `Master system design patterns, full-stack pipelines, and algorithmic problem-solving commonly tested at ${company}.`,
+        title: `Build Required Technical Skills for ${company}`,
+        desc: `Identify skill gaps between your current profile and ${company}'s job requirements. Complete targeted Coursera certifications and projects to fill those gaps with proof.`,
         actionUrl: '/student/roadmap',
-        actionLabel: 'Review Missing Skills',
+        actionLabel: 'View Courses',
       },
       {
-        title: `Hands-On Projects & Production Portfolio for ${company}`,
-        desc: `Build deployable production applications, clean architecture repositories, and documentation aligned with ${company}'s domain.`,
+        title: `Portfolio & Project Alignment for ${company}`,
+        desc: `Build or update 2-3 projects that directly reflect ${company}'s domain and product focus. Include live deployment links, GitHub repos, and measurable impact metrics in your resume.`,
         actionUrl: '/student/resume',
         actionLabel: 'Update Portfolio',
       },
       {
-        title: `Technical Screenings & Mock Assessment for ${company}`,
-        desc: `Conduct live technical assessments, coding rounds, and behavioral questions tailored to ${company}'s hiring rubric.`,
+        title: `Mock Interviews & Assessment Practice for ${company}`,
+        desc: `Practice technical and behavioral interview questions specific to ${company}'s hiring rubric. Use AI mock interview, peer practice, and coding platforms to sharpen your performance.`,
         actionUrl: '/student/messages',
-        actionLabel: 'Message Recruiters',
+        actionLabel: 'Schedule Mock Interview',
       },
       {
-        title: `Final Interview & Placement Offer Drive at ${company}`,
-        desc: `Submit verified candidate application, attend scheduled video interview rounds, and receive placement offer from ${company}.`,
+        title: `Apply & Complete ${company}'s Hiring Process`,
+        desc: `Submit your verified application through ${company}'s official careers portal or via RecruitX campus placements. Track interview rounds, collect feedback, and respond promptly to offers.`,
         actionUrl: '/student/applications',
         actionLabel: 'View Applications',
       },

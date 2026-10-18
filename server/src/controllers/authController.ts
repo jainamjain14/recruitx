@@ -9,22 +9,36 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password, role } = req.body;
 
   try {
-    const { user, token } = await AuthService.registerUser({
+    const result = await AuthService.registerUser({
       name,
       email,
       password,
       role,
     });
 
-    // Set cookie
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    // Set cookie only if token is issued (not in pending verification)
+    if (result.token) {
+      res.cookie('token', result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+    }
 
-    sendSuccess(res, 'Registration successful', { user, token }, 201);
+    sendSuccess(
+      res,
+      result.requiresVerification
+        ? 'Account created! Please enter the 6-digit confirmation code sent to your email.'
+        : 'Registration successful',
+      {
+        user: result.user,
+        token: result.token,
+        requiresVerification: result.requiresVerification,
+        demoCode: result.demoCode,
+      },
+      201
+    );
   } catch (error: any) {
     sendError(res, error.message || 'Registration failed', null, 400);
   }
@@ -54,6 +68,15 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
     sendSuccess(res, 'Login successful', { user, token });
   } catch (error: any) {
+    if (error.requiresVerification) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+        requiresVerification: true,
+        email: error.email,
+        role: error.role,
+      });
+    }
     sendError(res, error.message || 'Authentication failed', null, 401);
   }
 });
@@ -183,4 +206,76 @@ export const updatePassword = asyncHandler(async (req: AuthenticatedRequest, res
   await user.save();
   sendSuccess(res, 'Password changed successfully');
 });
+
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    sendError(res, 'Email and 6-digit verification code are required.', null, 400);
+    return;
+  }
+
+  try {
+    const { user, token } = await AuthService.verifyEmail(email, code);
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    sendSuccess(res, 'Email verified successfully! Welcome to RecruitX.', { user, token });
+  } catch (error: any) {
+    sendError(res, error.message || 'Email verification failed', null, 400);
+  }
+});
+
+export const resendVerification = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    sendError(res, 'Email is required to resend verification code.', null, 400);
+    return;
+  }
+
+  try {
+    const result = await AuthService.resendVerificationCode(email);
+    sendSuccess(res, result.message, { demoCode: result.demoCode });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to resend verification email', null, 400);
+  }
+});
+
+export const socialLogin = asyncHandler(async (req: Request, res: Response) => {
+  const { email, name, provider, providerId, role, avatar } = req.body;
+
+  if (!email) {
+    sendError(res, 'Email is required for social authentication.', null, 400);
+    return;
+  }
+
+  try {
+    const { user, token } = await AuthService.socialLogin({
+      email,
+      name,
+      provider: provider || 'google',
+      providerId,
+      role: role || 'student',
+      avatar,
+    });
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    sendSuccess(res, `Signed in successfully with ${provider || 'social account'}`, { user, token });
+  } catch (error: any) {
+    sendError(res, error.message || 'Social authentication failed', null, 400);
+  }
+});
+
 

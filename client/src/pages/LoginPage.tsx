@@ -12,6 +12,8 @@ import { Checkbox } from '../components/ui/Checkbox';
 import { Alert } from '../components/ui/Alert';
 import { RoleSelector } from '../components/ui/RoleSelector';
 import { Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
+import { EmailVerificationModal } from '../components/auth/EmailVerificationModal';
+import { SocialAuthButtons } from '../components/auth/SocialAuthButtons';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
@@ -31,6 +33,10 @@ export const LoginPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Email verification modal state (triggered if account is unverified)
+  const [isVerificationOpen, setIsVerificationOpen] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+
   // Read message from location state if redirected from register/reset password
   const successNotice = (location.state as any)?.message;
 
@@ -46,7 +52,6 @@ export const LoginPage: React.FC = () => {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -88,8 +93,15 @@ export const LoginPage: React.FC = () => {
 
       navigate(redirectPath, { replace: true });
     } catch (err: any) {
+      const data = err.response?.data;
+      // Backend returns requiresVerification: true when email not verified
+      if (data?.requiresVerification) {
+        setPendingEmail(data.email || values.email);
+        setIsVerificationOpen(true);
+        return;
+      }
       setErrorMessage(
-        err.response?.data?.message || err.message || 'Failed to sign in. Please check your credentials.'
+        data?.message || err.message || 'Failed to sign in. Please check your credentials.'
       );
     } finally {
       setIsLoading(false);
@@ -198,8 +210,16 @@ export const LoginPage: React.FC = () => {
         </Button>
       </form>
 
+      {/* Social Sign-In Stack (Google & GitHub) */}
+      <SocialAuthButtons
+        role={selectedRole}
+        mode="signin"
+        onSuccess={(path) => navigate(path, { replace: true })}
+        onError={(err) => setErrorMessage(err)}
+      />
+
       {/* Link to Register */}
-      <div className="mt-6 pt-4 border-t border-neutral-100 text-center">
+      <div className="mt-5 pt-4 border-t border-neutral-100 text-center">
         <p className="text-xs text-neutral-600">
           Don't have an account?{' '}
           <Link
@@ -210,6 +230,24 @@ export const LoginPage: React.FC = () => {
           </Link>
         </p>
       </div>
+
+      {/* Verification modal – opens when user tries to log in with unverified email */}
+      <EmailVerificationModal
+        isOpen={isVerificationOpen}
+        email={pendingEmail}
+        onSuccess={() => {
+          setIsVerificationOpen(false);
+          const redirectPath =
+            selectedRole === 'admin'
+              ? '/admin'
+              : selectedRole === 'recruiter'
+              ? '/recruiter'
+              : '/student';
+          navigate(redirectPath, { replace: true });
+        }}
+        onCancel={() => setIsVerificationOpen(false)}
+      />
     </Card>
   );
 };
+

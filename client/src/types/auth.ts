@@ -6,6 +6,8 @@ export interface User {
   email: string;
   role: UserRole;
   emailVerified: boolean;
+  provider?: string;
+  avatar?: string;
   company?: string;
   website?: string;
   location?: string;
@@ -27,6 +29,8 @@ export interface User {
 export interface AuthResponse {
   user: User;
   token: string;
+  requiresVerification?: boolean;
+  demoCode?: string;
 }
 
 export interface ApiResponse<T = any> {

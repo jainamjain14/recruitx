@@ -10,6 +10,11 @@ export interface IUserDocument {
   password?: string;
   role: UserRole;
   emailVerified: boolean;
+  verificationCode?: string;
+  verificationExpires?: Date;
+  provider?: string;
+  providerId?: string;
+  avatar?: string;
   company?: string;
   website?: string;
   location?: string;
@@ -40,6 +45,11 @@ export class UserDoc implements IUserDocument {
   password?: string;
   role: UserRole;
   emailVerified: boolean;
+  verificationCode?: string;
+  verificationExpires?: Date;
+  provider?: string;
+  providerId?: string;
+  avatar?: string;
   company?: string;
   website?: string;
   location?: string;
@@ -67,7 +77,12 @@ export class UserDoc implements IUserDocument {
     this.email = (data.email || '').toLowerCase().trim();
     this.password = data.password;
     this.role = data.role || 'student';
-    this.emailVerified = data.emailVerified ?? true;
+    this.emailVerified = data.emailVerified ?? false;
+    this.verificationCode = data.verificationCode;
+    this.verificationExpires = data.verificationExpires ? dateFromFirestore(data.verificationExpires) : undefined;
+    this.provider = data.provider || 'local';
+    this.providerId = data.providerId;
+    this.avatar = data.avatar;
     this.company = data.company;
     this.website = data.website;
     this.location = data.location;
@@ -112,6 +127,11 @@ export class UserDoc implements IUserDocument {
       password: this.password,
       role: this.role,
       emailVerified: this.emailVerified,
+      verificationCode: this.verificationCode || null,
+      verificationExpires: this.verificationExpires || null,
+      provider: this.provider || 'local',
+      providerId: this.providerId || null,
+      avatar: this.avatar || null,
       company: this.company || null,
       website: this.website || null,
       location: this.location || null,
@@ -126,8 +146,8 @@ export class UserDoc implements IUserDocument {
       companySize: this.companySize || null,
       industry: this.industry || null,
       onboardingCompleted: this.onboardingCompleted ?? false,
-      resetPasswordToken: this.resetPasswordToken,
-      resetPasswordExpires: this.resetPasswordExpires,
+      resetPasswordToken: this.resetPasswordToken || null,
+      resetPasswordExpires: this.resetPasswordExpires || null,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });
@@ -173,6 +193,11 @@ export class User {
     password?: string;
     role?: UserRole;
     emailVerified?: boolean;
+    verificationCode?: string;
+    verificationExpires?: Date;
+    provider?: string;
+    providerId?: string;
+    avatar?: string;
     company?: string;
     website?: string;
     location?: string;
@@ -203,7 +228,12 @@ export class User {
       email,
       password: hashedPassword,
       role: data.role || 'student',
-      emailVerified: data.emailVerified ?? true,
+      emailVerified: data.emailVerified ?? false,
+      verificationCode: data.verificationCode || null,
+      verificationExpires: data.verificationExpires || null,
+      provider: data.provider || 'local',
+      providerId: data.providerId || null,
+      avatar: data.avatar || null,
       company: data.company || null,
       website: data.website || null,
       location: data.location || null,
