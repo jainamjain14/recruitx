@@ -98,32 +98,55 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response): Prom
     const deletedEmail = user.email;
     const deletedRole = user.role;
 
-    // Delete user document from Firestore
+    // 1. Delete user document from Firestore (primary operation)
     await User.deleteById(id);
 
-    // Delete related applications
-    const userApps = await Application.find({ student: id });
-    for (const app of userApps) {
-      await db.collection(Collections.APPLICATIONS).doc(app._id).delete();
+    // 2. Safely clean up associated applications without failing the request
+    try {
+      const appsSnap = await db.collection(Collections.APPLICATIONS).where('student', '==', id).get();
+      const batch = db.batch();
+      appsSnap.docs.forEach((doc) => batch.delete(doc.ref));
+      if (!appsSnap.empty) {
+        await batch.commit();
+      }
+    } catch (cleanupErr) {
+      console.warn('[Admin deleteUser] Error cleaning applications:', cleanupErr);
     }
 
-    // Record audit event
-    await AuditLog.create({
-      actorId: req.user?._id || 'admin',
-      actorName: req.user?.name || 'Administrator',
-      actorRole: req.user?.role || 'admin',
-      action: 'USER_DELETED',
-      targetResource: 'users',
-      targetId: id,
-      details: {
-        deletedEmail,
-        deletedRole,
-      },
-      ipAddress: req.ip,
-    });
+    // 3. Safely clean up associated resume without failing the request
+    try {
+      const resumeSnap = await db.collection(Collections.RESUMES).where('student', '==', id).get();
+      const batch = db.batch();
+      resumeSnap.docs.forEach((doc) => batch.delete(doc.ref));
+      if (!resumeSnap.empty) {
+        await batch.commit();
+      }
+    } catch (cleanupErr) {
+      console.warn('[Admin deleteUser] Error cleaning resume:', cleanupErr);
+    }
+
+    // 4. Safely record audit event
+    try {
+      await AuditLog.create({
+        actorId: req.user?._id || 'admin',
+        actorName: req.user?.name || 'Administrator',
+        actorRole: req.user?.role || 'admin',
+        action: 'USER_DELETED',
+        targetResource: 'users',
+        targetId: id,
+        details: {
+          deletedEmail,
+          deletedRole,
+        },
+        ipAddress: req.ip,
+      });
+    } catch (auditErr) {
+      console.warn('[Admin deleteUser] Error creating audit log:', auditErr);
+    }
 
     sendSuccess(res, `Account for ${deletedEmail} (${deletedRole}) was permanently deleted`, { id });
   } catch (error: any) {
+    console.error('[Admin deleteUser] Critical error:', error);
     sendError(res, error.message || 'Failed to delete user account', null, 500);
   }
 };
