@@ -361,7 +361,7 @@ export const StudentApplications: React.FC = () => {
                           Upcoming Interview: {matchedInterview.title}
                         </span>
                         <span className="text-purple-700 text-[11px]">
-                          {new Date(matchedInterview.scheduledAt).toLocaleString()} ({matchedInterview.durationMinutes} mins)
+                          {new Date(matchedInterview.scheduledAt).toLocaleString()}
                         </span>
                       </div>
                     </div>

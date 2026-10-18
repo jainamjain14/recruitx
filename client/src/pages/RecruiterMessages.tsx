@@ -273,42 +273,51 @@ export const RecruiterMessages: React.FC = () => {
     setProposingMeeting(true);
     try {
       const dt = new Date(`${meetingDate}T${meetingTime}`);
-      const meetingId = Math.random().toString(36).substring(2, 10).toUpperCase();
-      const meetingLink =
-        meetingPlatform === 'google_meet'
-          ? `https://meet.google.com/${meetingId.toLowerCase().substring(0, 3)}-${meetingId.toLowerCase().substring(3, 7)}-${meetingId.toLowerCase().substring(7, 10)}`
-          : `https://meet.jit.si/RecruitX-Interview-${meetingId}`;
-
+      const meetingId = Math.random().toString(36).substring(2, 9);
+      const meetingLink = `/meeting/recruitx-${meetingId.toLowerCase()}`;
       const meetingNote = `Interview scheduled for ${dt.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} at ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
-      // Keep this object aligned with the IMeetingInfo interface in messageService.ts.
+      // 1. Create official interview record on the server so it appears in Scheduled Interviews
+      try {
+        await api.post('/interviews', {
+          studentId: selectedContact._id,
+          title: 'Candidate Interview',
+          scheduledAt: dt.toISOString(),
+          meetingLink,
+        });
+      } catch (errSched) {
+        console.warn('Recruiter interview creation note:', errSched);
+      }
+
+      // 2. Send the interactive chat card message
       const meetingInfo = {
         title: 'Interview Meeting',
         scheduledAt: dt.toISOString(),
-        durationMinutes: 30,
         meetingLink,
-        platform: meetingPlatform === 'google_meet' ? 'Google Meet' : 'Jitsi Meet',
+        platform: 'RecruitX Video',
         status: 'proposed' as const,
       };
 
       const sentMessage = await messageService.sendMessage(
         selectedContact._id,
-        `📅 Interview Meeting Proposed\n\nDate: ${meetingNote}\nPlatform: ${meetingInfo.platform}\nMeeting Link: ${meetingLink}`,
+        `📅 Interview Meeting Scheduled\n\nDate: ${meetingNote}\nMeeting Link: ${meetingLink}`,
         meetingInfo
       );
       setMessages((prev) => [...prev, sentMessage]);
       setContacts((prev) =>
         prev.map((c) =>
           c._id === selectedContact._id
-            ? { ...c, lastMessageText: 'Interview Meeting Proposed', lastMessageTime: formatMessageTime(new Date().toISOString()) }
+            ? { ...c, lastMessageText: 'Interview Meeting Scheduled', lastMessageTime: formatMessageTime(new Date().toISOString()) }
             : c
         )
       );
       setMeetingModalOpen(false);
       setMeetingDate('');
       setMeetingTime('');
+      alert('🎉 Interview invitation scheduled and dispatched to candidate!');
     } catch (err) {
       console.error('Failed to propose meeting:', err);
+      alert('Failed to schedule meeting. Please try again.');
     } finally {
       setProposingMeeting(false);
     }
@@ -511,15 +520,52 @@ export const RecruiterMessages: React.FC = () => {
                         key={m._id}
                         className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                       >
-                        <div
-                          className={`max-w-md px-4 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap ${
+                        {m.meetingInfo ? (
+                          <div className={`max-w-sm p-4 rounded-2xl border shadow-sm space-y-2.5 text-xs ${
                             isMe
-                              ? 'bg-neutral-900 text-white rounded-br-xs shadow-xs'
-                              : 'bg-white text-neutral-800 border border-neutral-200 shadow-xs rounded-bl-xs'
-                          }`}
-                        >
-                          {m.content}
-                        </div>
+                              ? 'bg-neutral-900 text-white border-neutral-800'
+                              : 'bg-white text-neutral-900 border-neutral-200'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <div className={`p-1.5 rounded-lg ${isMe ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-800'}`}>
+                                <Video className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="font-bold">{m.meetingInfo.title}</p>
+                                <p className={`text-[10px] ${isMe ? 'text-neutral-400' : 'text-neutral-500'}`}>{m.meetingInfo.platform || 'Online Video Meeting'}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-1 text-[11px] pt-1 border-t border-neutral-700/50">
+                              <p className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                                <span>{m.meetingInfo.scheduledAt}</span>
+                              </p>
+                            </div>
+                            <a
+                              href={m.meetingInfo.meetingLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`mt-2 w-full py-1.5 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                                isMe
+                                  ? 'bg-white text-neutral-900 hover:bg-neutral-100'
+                                  : 'bg-neutral-900 text-white hover:bg-neutral-800'
+                              }`}
+                            >
+                              <span>Join Online Meeting</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        ) : (
+                          <div
+                            className={`max-w-md px-4 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap ${
+                              isMe
+                                ? 'bg-neutral-900 text-white rounded-br-xs shadow-xs'
+                                : 'bg-white text-neutral-800 border border-neutral-200 shadow-xs rounded-bl-xs'
+                            }`}
+                          >
+                            {m.content}
+                          </div>
+                        )}
                         <div className="flex items-center gap-1 text-[9px] text-neutral-400 mt-1 px-1">
                           <span>{isMe ? 'You' : selectedContact.name}</span>
                           <span>•</span>

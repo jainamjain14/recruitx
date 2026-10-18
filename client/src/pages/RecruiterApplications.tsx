@@ -123,7 +123,6 @@ export const RecruiterApplications: React.FC = () => {
   // Schedule Interview Modal
   const [interviewModalOpen, setInterviewModalOpen] = useState(false);
   const [interviewDate, setInterviewDate] = useState('');
-  const [interviewDuration, setInterviewDuration] = useState('45');
   const [interviewMeetingLink, setInterviewMeetingLink] = useState('https://meet.google.com/recruitx-live');
   const [interviewNotes, setInterviewNotes] = useState('');
   const [schedulingInterview, setSchedulingInterview] = useState(false);
@@ -249,7 +248,6 @@ export const RecruiterApplications: React.FC = () => {
         studentId: studentId || undefined,
         title: `Interview: ${activeCandidate.jobTitle || activeCandidate.job?.title || 'Technical Role'}`,
         scheduledAt: new Date(interviewDate).toISOString(),
-        durationMinutes: parseInt(interviewDuration, 10) || 45,
         meetingLink: interviewMeetingLink,
         notes: interviewNotes,
       });
@@ -971,19 +969,6 @@ export const RecruiterApplications: React.FC = () => {
                   onChange={(e) => setInterviewDate(e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-purple-600"
                 />
-              </div>
-
-              <div>
-                <label className="font-bold text-neutral-700 block mb-1">Duration (Minutes)</label>
-                <select
-                  value={interviewDuration}
-                  onChange={(e) => setInterviewDuration(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                >
-                  <option value="30">30 Minutes (Quick Screen)</option>
-                  <option value="45">45 Minutes (Technical Standard)</option>
-                  <option value="60">60 Minutes (Deep Dive / Architecture)</option>
-                </select>
               </div>
 
               <div>

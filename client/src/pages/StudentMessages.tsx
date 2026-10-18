@@ -346,18 +346,32 @@ export const StudentMessages: React.FC = () => {
       const scheduledDateTime = meetingDate ? `${meetingDate} at ${meetingTime}` : `Tomorrow at ${meetingTime}`;
       const roomId = `recruitx-${Math.random().toString(36).substring(2, 9)}`;
       const meetingLink =
-        meetingPlatform === 'google_meet'
-          ? `https://meet.google.com/${roomId}`
-          : meetingPlatform === 'jitsi'
-          ? `https://meet.jit.si/${roomId}`
-          : customMeetingUrl || `https://meet.google.com/${roomId}`;
+        meetingPlatform === 'custom' && customMeetingUrl
+          ? customMeetingUrl
+          : `/meeting/${roomId}`;
 
+      // 1. Create official interview record on the server so it notifies recruiter
+      try {
+        const scheduledAtDate = meetingDate
+          ? new Date(`${meetingDate}T${meetingTime || '11:00'}`)
+          : new Date(Date.now() + 86400000);
+
+        await api.post('/interviews', {
+          recruiterId: selectedContact._id,
+          title: meetingTitle || 'Online Technical Interview',
+          scheduledAt: scheduledAtDate.toISOString(),
+          meetingLink,
+        });
+      } catch (schedErr) {
+        console.warn('Interview record creation note:', schedErr);
+      }
+
+      // 2. Send the interactive chat card message
       const meetingInfo = {
         title: meetingTitle || 'Online Technical Interview',
         scheduledAt: scheduledDateTime,
-        durationMinutes: 45,
         meetingLink,
-        platform: meetingPlatform === 'google_meet' ? 'Google Meet' : meetingPlatform === 'jitsi' ? 'Jitsi Meet' : 'Online Conference',
+        platform: meetingPlatform === 'google_meet' ? 'Google Meet' : meetingPlatform === 'jitsi' ? 'Jitsi Meet' : 'RecruitX Video',
         status: 'proposed' as const,
       };
 
@@ -368,8 +382,10 @@ export const StudentMessages: React.FC = () => {
       setShowMeetingModal(false);
       setMeetingDate('');
       setCustomMeetingUrl('');
+      alert('🎉 Meeting schedule sent to recruiter! They will receive a notification and calendar invite.');
     } catch (err) {
       console.error('Failed to propose meeting:', err);
+      alert('Failed to send meeting invite. Please try again.');
     } finally {
       setProposingMeeting(false);
     }
@@ -628,10 +644,6 @@ export const StudentMessages: React.FC = () => {
                               <p className="flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5 text-blue-400" />
                                 <span>{m.meetingInfo.scheduledAt}</span>
-                              </p>
-                              <p className="flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                                <span>Duration: {m.meetingInfo.durationMinutes} mins</span>
                               </p>
                             </div>
                             <a

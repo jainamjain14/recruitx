@@ -12,7 +12,7 @@ export interface ChatContact {
 export interface IMeetingInfo {
   title: string;
   scheduledAt: string;
-  durationMinutes: number;
+  durationMinutes?: number;
   meetingLink: string;
   platform?: string;
   status: 'proposed' | 'accepted' | 'declined';

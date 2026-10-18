@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types/index.js';
 import { Interview } from '../models/Interview.js';
 import { Application } from '../models/Application.js';
+import { Job } from '../models/Job.js';
 import { Notification } from '../models/Notification.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { AIService } from '../services/aiService.js';
@@ -9,57 +10,122 @@ import { emitToUser } from '../socket.js';
 
 export const scheduleInterview = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    if (req.user?.role !== 'recruiter' && req.user?.role !== 'admin') {
-      sendError(res, 'Only recruiters can schedule interviews', null, 403);
+    if (!req.user) {
+      sendError(res, 'Authentication required to schedule interviews', null, 401);
       return;
     }
 
-    const { jobId, applicationId, studentId, title, scheduledAt, durationMinutes, meetingLink, notes } = req.body;
+    const isStudent = req.user.role === 'student';
+    const isRecruiterOrAdmin = req.user.role === 'recruiter' || req.user.role === 'admin';
+
+    if (!isStudent && !isRecruiterOrAdmin) {
+      sendError(res, 'Authentication required to schedule interviews', null, 403);
+      return;
+    }
+
+    const { jobId, applicationId, studentId, recruiterId, title, scheduledAt, meetingLink, notes } = req.body;
 
     let targetStudentId = studentId;
-    if (!targetStudentId && applicationId) {
-      const appDoc = await Application.findById(applicationId);
-      targetStudentId = typeof appDoc?.student === 'object' && appDoc?.student?._id
-        ? appDoc.student._id.toString()
-        : appDoc?.student?.toString();
+    let targetRecruiterId = recruiterId;
+
+    if (isStudent) {
+      targetStudentId = req.user._id;
+
+      // Resolve recruiter from application or job if not directly passed
+      if (!targetRecruiterId && applicationId) {
+        const appDoc = await Application.findById(applicationId);
+        targetRecruiterId = typeof appDoc?.recruiter === 'object' && appDoc?.recruiter?._id
+          ? appDoc.recruiter._id.toString()
+          : appDoc?.recruiter?.toString();
+
+        if (!targetRecruiterId && appDoc?.job) {
+          const jobDoc = await Job.findById(typeof appDoc.job === 'object' && appDoc.job?._id ? appDoc.job._id : appDoc.job);
+          targetRecruiterId = typeof jobDoc?.recruiter === 'object' && jobDoc?.recruiter?._id
+            ? jobDoc.recruiter._id.toString()
+            : jobDoc?.recruiter?.toString();
+        }
+      } else if (!targetRecruiterId && jobId) {
+        const jobDoc = await Job.findById(jobId);
+        targetRecruiterId = typeof jobDoc?.recruiter === 'object' && jobDoc?.recruiter?._id
+          ? jobDoc.recruiter._id.toString()
+          : jobDoc?.recruiter?.toString();
+      }
+
+      if (!targetRecruiterId) {
+        sendError(res, 'Target Recruiter ID is required to schedule an interview', null, 400);
+        return;
+      }
+    } else {
+      // Recruiter scheduling
+      targetRecruiterId = req.user._id;
+      if (!targetStudentId && applicationId) {
+        const appDoc = await Application.findById(applicationId);
+        targetStudentId = typeof appDoc?.student === 'object' && appDoc?.student?._id
+          ? appDoc.student._id.toString()
+          : appDoc?.student?.toString();
+      }
+
+      if (!targetStudentId) {
+        sendError(res, 'Candidate Student ID is required to schedule an interview', null, 400);
+        return;
+      }
     }
 
-    if (!targetStudentId) {
-      sendError(res, 'Candidate Student ID is required to schedule an interview', null, 400);
-      return;
-    }
+    const code = Math.random().toString(36).substring(2, 8);
+    const finalMeetingLink = meetingLink || `/meeting/recruitx-${code}`;
 
     const interview = await Interview.create({
       job: jobId || undefined,
       application: applicationId || undefined,
       student: targetStudentId,
-      recruiter: req.user._id,
-      title: title || 'Candidate Interview',
+      recruiter: targetRecruiterId,
+      title: title || (isStudent ? `Meeting with ${req.user.name || 'Candidate'}` : 'Candidate Interview'),
       scheduledAt: new Date(scheduledAt || Date.now() + 86400000),
-      durationMinutes: durationMinutes || 45,
-      meetingLink: meetingLink || `/meeting/recruitx-${targetStudentId.slice(-6)}`,
+      durationMinutes: 0,
+      meetingLink: finalMeetingLink,
       notes,
       status: 'scheduled',
     });
 
-    // Notify student with high-priority interview invite
-    const notif = await Notification.create({
-      recipient: targetStudentId,
-      title: 'Interview Scheduled!',
-      message: `You have an interview for "${title || 'your application'}" on ${new Date(scheduledAt || Date.now() + 86400000).toLocaleString()}`,
-      type: 'interview_invite',
-      format: 'modal',
-      priority: 'urgent',
-      actionText: 'Join Meeting / View Application',
-      actionUrl: '/student/applications',
-      link: '/student/applications',
-      metadata: {
-        meetingLink: meetingLink || `/meeting/recruitx-${targetStudentId.slice(-6)}`,
-        scheduledAt,
-      },
-    });
-
-    emitToUser(targetStudentId, 'notification:new', { notification: notif });
+    if (isStudent) {
+      // Notify recruiter with high-priority interview proposal
+      const notif = await Notification.create({
+        recipient: targetRecruiterId,
+        title: 'Meeting Scheduled by Candidate!',
+        message: `${req.user.name || 'A candidate'} scheduled a video meeting for "${title || 'Interview'}" on ${new Date(scheduledAt || Date.now() + 86400000).toLocaleString()}`,
+        type: 'interview_invite',
+        format: 'modal',
+        priority: 'urgent',
+        actionText: 'Join as Host / View Interviews',
+        actionUrl: '/recruiter/interviews',
+        link: '/recruiter/interviews',
+        metadata: {
+          meetingLink: finalMeetingLink,
+          scheduledAt,
+          interviewId: interview._id,
+        },
+      });
+      emitToUser(targetRecruiterId, 'notification:new', { notification: notif });
+    } else {
+      // Notify student with high-priority interview invite
+      const notif = await Notification.create({
+        recipient: targetStudentId,
+        title: 'Interview Scheduled!',
+        message: `You have an interview for "${title || 'your application'}" on ${new Date(scheduledAt || Date.now() + 86400000).toLocaleString()}`,
+        type: 'interview_invite',
+        format: 'modal',
+        priority: 'urgent',
+        actionText: 'Join Meeting / View Application',
+        actionUrl: '/student/applications',
+        link: '/student/applications',
+        metadata: {
+          meetingLink: finalMeetingLink,
+          scheduledAt,
+          interviewId: interview._id,
+        },
+      });
+      emitToUser(targetStudentId, 'notification:new', { notification: notif });
+    }
 
     sendSuccess(res, 'Interview scheduled successfully', { interview }, 201);
   } catch (error: any) {

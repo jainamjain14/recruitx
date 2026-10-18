@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   X,
   BookOpen,
+  Building2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -257,6 +258,22 @@ export const StudentRoadmap: React.FC = () => {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [isAiGenerated, setIsAiGenerated] = useState(false);
 
+  // Target Company Selection State
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const [customCompanyInput, setCustomCompanyInput] = useState<string>('');
+  const [availableCompanies, setAvailableCompanies] = useState<string[]>([
+    'Shiv IT',
+    'Roy Kapur Films',
+    'Google',
+    'Microsoft',
+    'TCS',
+    'Infosys',
+    'Amazon',
+    'Meta',
+    'Accenture',
+    'Wipro',
+  ]);
+
   // Coursera Courses Integrated State
   const [courses, setCourses] = useState<CourseraCourseItem[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
@@ -268,23 +285,29 @@ export const StudentRoadmap: React.FC = () => {
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
 
-  const storageKey = `recruitx_roadmap_progress_${activeDomain}`;
+  const storageKey = selectedCompany
+    ? `recruitx_roadmap_progress_${selectedCompany.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+    : `recruitx_roadmap_progress_${activeDomain}`;
 
   useEffect(() => {
     fetchStudentStatus();
     fetchCourseraCourses();
   }, []);
 
-  // Sync completion count with localStorage whenever domain changes
+  // Sync completion count with localStorage whenever target company or domain changes
   useEffect(() => {
     const saved = localStorage.getItem(storageKey);
     if (saved !== null) {
       const parsed = parseInt(saved, 10);
       if (!isNaN(parsed) && parsed >= 0 && parsed <= 5) {
         setCompletedCount(parsed);
+      } else {
+        setCompletedCount(0);
       }
+    } else {
+      setCompletedCount(0);
     }
-  }, [activeDomain, storageKey]);
+  }, [selectedCompany, activeDomain, storageKey]);
 
   const fetchCourseraCourses = async () => {
     setCoursesLoading(true);
@@ -335,6 +358,12 @@ export const StudentRoadmap: React.FC = () => {
 
       if (appRes.status === 'fulfilled' && (appRes.value.data?.data?.applications?.length || 0) > 0) {
         hasApplied = true;
+        const appCompanies = appRes.value.data.data.applications
+          .map((a: any) => a.companyName || a.job?.company)
+          .filter(Boolean);
+        if (appCompanies.length > 0) {
+          setAvailableCompanies((prev) => Array.from(new Set([...appCompanies, ...prev])));
+        }
       }
 
       setActiveDomain(domainKey);
@@ -353,9 +382,7 @@ export const StudentRoadmap: React.FC = () => {
       if (savedCount !== null) {
         setCompletedCount(Math.min(5, Math.max(0, parseInt(savedCount, 10) || 0)));
       } else {
-        const initialCount = hasApplied ? 4 : hasProfile ? 1 : 0;
-        setCompletedCount(initialCount);
-        localStorage.setItem(`recruitx_roadmap_progress_${domainKey}`, String(initialCount));
+        setCompletedCount(0);
       }
     } catch (err) {
       console.error('Failed to load roadmap status:', err);
@@ -380,6 +407,55 @@ export const StudentRoadmap: React.FC = () => {
       console.error('Failed to generate AI roadmap:', err);
     } finally {
       setGeneratingAI(false);
+    }
+  };
+
+  const generateMilestonesForCompany = (company: string): MilestoneItem[] => {
+    return [
+      {
+        title: `Foundational Skill Baseline & Profile Verification for ${company}`,
+        desc: `Verify core technical competencies and Coursera certifications matching ${company}'s recruitment prerequisites.`,
+        actionUrl: '/student/resume',
+        actionLabel: 'Verify Tech Skills',
+      },
+      {
+        title: `${company}-Specific Architectural & Core Problem Solving`,
+        desc: `Master system design patterns, full-stack pipelines, and algorithmic problem-solving commonly tested at ${company}.`,
+        actionUrl: '/student/roadmap',
+        actionLabel: 'Review Missing Skills',
+      },
+      {
+        title: `Hands-On Projects & Production Portfolio for ${company}`,
+        desc: `Build deployable production applications, clean architecture repositories, and documentation aligned with ${company}'s domain.`,
+        actionUrl: '/student/resume',
+        actionLabel: 'Update Portfolio',
+      },
+      {
+        title: `Technical Screenings & Mock Assessment for ${company}`,
+        desc: `Conduct live technical assessments, coding rounds, and behavioral questions tailored to ${company}'s hiring rubric.`,
+        actionUrl: '/student/messages',
+        actionLabel: 'Message Recruiters',
+      },
+      {
+        title: `Final Interview & Placement Offer Drive at ${company}`,
+        desc: `Submit verified candidate application, attend scheduled video interview rounds, and receive placement offer from ${company}.`,
+        actionUrl: '/student/applications',
+        actionLabel: 'View Applications',
+      },
+    ];
+  };
+
+  const handleSelectCompany = (comp: string) => {
+    const trimmed = comp.trim();
+    if (!trimmed) return;
+    setSelectedCompany(trimmed);
+    const key = `recruitx_roadmap_progress_${trimmed.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const saved = localStorage.getItem(key);
+    if (saved !== null) {
+      setCompletedCount(Math.min(5, Math.max(0, parseInt(saved, 10) || 0)));
+    } else {
+      setCompletedCount(0);
+      localStorage.setItem(key, '0');
     }
   };
 
@@ -449,17 +525,21 @@ export const StudentRoadmap: React.FC = () => {
     }
   };
 
-  const activeMilestones: MilestoneItem[] =
-    customMilestones && isAiGenerated
-      ? customMilestones
-      : (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).milestones;
+  const activeMilestones: MilestoneItem[] = selectedCompany
+    ? generateMilestonesForCompany(selectedCompany)
+    : customMilestones && isAiGenerated
+    ? customMilestones
+    : (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).milestones;
 
-  const currentTrackLabel =
-    customTrackTitle && isAiGenerated
-      ? customTrackTitle
-      : (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).label;
+  const currentTrackLabel = selectedCompany
+    ? `${selectedCompany} Placement Preparation Track`
+    : customTrackTitle && isAiGenerated
+    ? customTrackTitle
+    : (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).label;
 
-  const DomainIcon = (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).icon;
+  const DomainIcon = selectedCompany
+    ? Building2
+    : (DOMAIN_ROADMAPS[activeDomain] || DOMAIN_ROADMAPS.software).icon;
 
   const milestones: Milestone[] = activeMilestones.map((m, idx) => {
     let status: 'completed' | 'in_progress' | 'pending';
@@ -474,6 +554,20 @@ export const StudentRoadmap: React.FC = () => {
   });
 
   const markCurrentComplete = () => {
+    const stepCourses = getCoursesForStep(completedCount);
+    const hasVerifiedCourse = stepCourses.some((c) => c.isCompleted);
+
+    // If this milestone has courses and none have been verified, block completion!
+    if (stepCourses.length > 0 && !hasVerifiedCourse) {
+      alert(
+        `⚠️ Certificate Verification Required:\n\nPlease complete or authenticate at least one Coursera certificate for Step ${completedCount + 1} by clicking "Verify / Complete" before marking this milestone complete.`
+      );
+      if (stepCourses[0]) {
+        openVerifyModal(stepCourses[0]);
+      }
+      return;
+    }
+
     if (completedCount < 5) {
       const next = completedCount + 1;
       setCompletedCount(next);
@@ -520,112 +614,155 @@ export const StudentRoadmap: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-neutral-500 mt-1">
-            Step-by-step career milestones integrated directly with authorized university Coursera courses.
+            {selectedCompany
+              ? `Personalized placement roadmap and Coursera skill milestones for ${selectedCompany}.`
+              : 'Select a target hiring company to generate its specific placement milestones.'}
           </p>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRegenerateWithAI}
-            disabled={generatingAI}
-            className="text-xs gap-1.5"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${generatingAI ? 'animate-spin' : ''}`} />
-            {generatingAI ? 'Generating...' : 'Regenerate with Gemini AI'}
-          </Button>
-
-          {/* Domain Switcher */}
-          <div className="hidden lg:flex flex-wrap gap-1">
-            {Object.entries(DOMAIN_ROADMAPS).map(([key, item]) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={key}
-                  onClick={() => {
-                    setActiveDomain(key);
-                    setIsAiGenerated(false);
-                    setCustomMilestones(null);
-                  }}
-                  className={`text-xs px-2.5 py-1.5 rounded-md font-medium flex items-center gap-1.5 transition-colors ${
-                    activeDomain === key && !isAiGenerated
-                      ? 'bg-neutral-900 text-white'
-                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                  }`}
-                >
-                  <Icon className="w-3 h-3" />
-                  <span>{item.label.split(' ')[0]}</span>
-                </button>
-              );
-            })}
+        {selectedCompany && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedCompany(null);
+                setCustomCompanyInput('');
+              }}
+              className="text-xs gap-1.5 h-8 border-neutral-300 hover:bg-neutral-100"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Change Target Company</span>
+            </Button>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Active Track Banner & Progress Bar */}
-      <Card className="p-4 bg-neutral-50 border-neutral-300 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-neutral-900 text-white">
-              <DomainIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-neutral-900">{currentTrackLabel}</h2>
-                {isAiGenerated && (
-                  <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded">
-                    Live AI Generated
-                  </span>
-                )}
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
-                  <BookOpen className="w-3 h-3" />
-                  Coursera Powered
-                </span>
-              </div>
-              <p className="text-xs text-neutral-500">
-                {completedCount === 5
-                  ? 'All 5 milestones completed! Your placement profile is market-ready.'
-                  : `Milestone ${completedCount + 1} of 5 in progress. Complete it or verify its Coursera courses to unlock the next milestone.`}
-              </p>
+      {/* Target Company Selector (shown when no company is selected) */}
+      {!selectedCompany ? (
+        <Card className="p-8 text-center space-y-6 max-w-2xl mx-auto border-neutral-200 shadow-sm">
+          <div className="w-14 h-14 bg-purple-50 text-purple-700 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+            <Building2 className="w-7 h-7" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-neutral-900">Select a Target Company</h2>
+            <p className="text-xs text-neutral-500 max-w-md mx-auto leading-relaxed">
+              Placement preparation milestones and Coursera course requirements are tailored to each hiring organization. Choose a company to view its preparation roadmap.
+            </p>
+          </div>
+
+          {/* Quick Select Buttons */}
+          <div className="space-y-2 text-left">
+            <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider block">
+              Active &amp; Verified Campus Recruiters:
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {availableCompanies.map((comp) => (
+                <button
+                  key={comp}
+                  type="button"
+                  onClick={() => handleSelectCompany(comp)}
+                  className="text-xs px-3 py-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-900 hover:text-white hover:border-neutral-900 font-medium transition-all shadow-2xs flex items-center gap-1.5"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>{comp}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
-            {completedCount > 0 && (
-              <button
-                onClick={rollbackStep}
-                className="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-neutral-200 transition-colors"
-                title="Undo last completed step"
+          {/* Custom Company Search / Input */}
+          <div className="pt-4 border-t border-neutral-200 text-left space-y-2">
+            <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider block">
+              Or Enter Any Target Company Name:
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="e.g. Netflix, Oracle, Adobe, Samsung..."
+                value={customCompanyInput}
+                onChange={(e) => setCustomCompanyInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customCompanyInput.trim()) {
+                    handleSelectCompany(customCompanyInput.trim());
+                  }
+                }}
+                className="flex-1 text-xs p-2.5 rounded-lg border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-neutral-900"
+              />
+              <Button
+                disabled={!customCompanyInput.trim()}
+                onClick={() => handleSelectCompany(customCompanyInput.trim())}
+                size="sm"
+                className="text-xs gap-1.5 h-10 px-4"
               >
-                <RotateCcw className="w-3 h-3" />
-                Undo Step
-              </button>
-            )}
-            <button
-              onClick={resetAll}
-              className="text-[11px] text-neutral-400 hover:text-neutral-700 px-2 py-1 rounded hover:bg-neutral-200 transition-colors"
-            >
-              Reset
-            </button>
+                <span>View Roadmap</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           </div>
-        </div>
+        </Card>
+      ) : (
+        <>
+          {/* Active Track Banner & Progress Bar */}
+          <Card className="p-4 bg-neutral-50 border-neutral-300 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-neutral-900 text-white">
+                  <DomainIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-neutral-900">{currentTrackLabel}</h2>
+                    <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded">
+                      Target Company
+                    </span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                      <BookOpen className="w-3 h-3" />
+                      Coursera Powered
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-500">
+                    {completedCount === 5
+                      ? `All 5 milestones completed! Your placement profile is market-ready for ${selectedCompany}.`
+                      : `Milestone ${completedCount + 1} of 5 in progress. Verify its Coursera course to unlock the next milestone.`}
+                  </p>
+                </div>
+              </div>
 
-        {/* Progress Bar */}
-        <div className="space-y-1.5 pt-1">
-          <div className="flex justify-between text-xs font-semibold text-neutral-700">
-            <span>Overall Career Readiness</span>
-            <span>{progressPercent}% Completed ({completedCount}/5 Milestones)</span>
-          </div>
-          <div className="w-full h-2.5 bg-neutral-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-neutral-900 rounded-full transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </div>
-      </Card>
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                {completedCount > 0 && (
+                  <button
+                    onClick={rollbackStep}
+                    className="text-[11px] text-neutral-500 hover:text-neutral-900 flex items-center gap-1 px-2 py-1 rounded hover:bg-neutral-200 transition-colors"
+                    title="Undo last completed step"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Undo Step
+                  </button>
+                )}
+                <button
+                  onClick={resetAll}
+                  className="text-[11px] text-neutral-400 hover:text-neutral-700 px-2 py-1 rounded hover:bg-neutral-200 transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between text-xs font-semibold text-neutral-700">
+                <span>{selectedCompany} Placement Readiness</span>
+                <span>{progressPercent}% Completed ({completedCount}/5 Milestones)</span>
+              </div>
+              <div className="w-full h-2.5 bg-neutral-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-neutral-900 rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+          </Card>
 
       {/* Sequential Milestone Steps with Embedded Coursera Courses */}
       <Card className="p-6">
@@ -827,6 +964,8 @@ export const StudentRoadmap: React.FC = () => {
           })}
         </div>
       </Card>
+    </>
+  )}
 
       {/* ============================================================== */}
       {/* COURSERA VERIFICATION MODAL IN ROADMAP */}

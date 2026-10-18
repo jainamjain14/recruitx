@@ -74,7 +74,6 @@ export const RecruiterInterviews: React.FC = () => {
                 <p className="text-xs text-neutral-500">Candidate: {item.student?.name} ({item.student?.email})</p>
                 <div className="flex items-center gap-4 text-[10px] text-neutral-400 mt-1">
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(item.scheduledAt).toLocaleString()}</span>
-                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{item.durationMinutes} mins</span>
                 </div>
               </div>
 
