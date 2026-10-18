@@ -211,17 +211,25 @@ export class Interview {
   /**
    * Fetch scheduled interviews whose scheduledAt is between `from` and `to`
    * and reminderSent === false. Used by the reminder cron job.
+   * Filters in-memory to avoid requiring Firestore composite indexes.
    */
   static async findUpcomingUnreminded(from: Date, to: Date): Promise<IInterviewDocument[]> {
     const snap = await db
       .collection(Collections.INTERVIEWS)
       .where('status', '==', 'scheduled')
-      .where('reminderSent', '==', false)
-      .where('scheduledAt', '>=', from)
-      .where('scheduledAt', '<=', to)
       .get();
 
-    return snap.docs.map((d: any) => new InterviewDoc(d.data(), d.id));
+    const fromTime = from.getTime();
+    const toTime = to.getTime();
+
+    return snap.docs
+      .map((d: any) => new InterviewDoc(d.data(), d.id))
+      .filter((interview: IInterviewDocument) => {
+        if (interview.reminderSent) return false;
+        if (!interview.scheduledAt) return false;
+        const time = new Date(interview.scheduledAt).getTime();
+        return time >= fromTime && time <= toTime;
+      });
   }
 
   /** Mark a single interview's reminderSent = true */
