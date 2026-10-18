@@ -64,7 +64,13 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({
         return;
       }
       if (authError.code === 'auth/unauthorized-domain') {
-        onError('This domain is not authorized for OAuth. Please contact support.');
+        onError('This domain is not authorized for OAuth. Please add it to Authorized Domains in Firebase Console.');
+        return;
+      }
+      if (authError.code === 'auth/configuration-not-found') {
+        onError(
+          `${provider === 'google' ? 'Google' : 'GitHub'} Sign-in is not enabled in Firebase Console. Go to Firebase Console > Authentication > Sign-in method and toggle ${provider === 'google' ? 'Google' : 'GitHub'} to Enabled.`
+        );
         return;
       }
 
