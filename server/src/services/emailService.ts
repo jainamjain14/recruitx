@@ -21,7 +21,8 @@ export class EmailService {
     const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
     const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
+    // Port 587 (STARTTLS) is preferred — port 465 (SSL) is often blocked on cloud hosting (Render, Railway etc.)
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : smtpPort === 465;
 
     if (smtpUser && smtpPass) {
@@ -33,6 +34,9 @@ export class EmailService {
           user: smtpUser.trim(),
           pass: smtpPass.trim(),
         },
+        connectionTimeout: 10000, // 10s max connection attempt
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
       });
     }
 

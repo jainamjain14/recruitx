@@ -55,7 +55,8 @@ export const toggleUserStatus = async (req: AuthenticatedRequest, res: Response)
       return;
     }
 
-    user.emailVerified = !user.emailVerified;
+    // Toggle suspension state explicitly without touching emailVerified
+    user.isSuspended = !user.isSuspended;
     await user.save();
 
     // Log administrative action
@@ -68,14 +69,62 @@ export const toggleUserStatus = async (req: AuthenticatedRequest, res: Response)
       targetId: user._id,
       details: {
         targetEmail: user.email,
-        newStatus: user.emailVerified ? 'Active' : 'Suspended',
+        newStatus: user.isSuspended ? 'Suspended' : 'Active',
       },
       ipAddress: req.ip,
     });
 
-    sendSuccess(res, `User ${user.emailVerified ? 'activated' : 'suspended'} successfully`, { user });
+    sendSuccess(res, `User ${user.isSuspended ? 'suspended' : 'activated'} successfully`, { user });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to toggle user status', null, 500);
+  }
+};
+
+export const deleteUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+
+    if (!user) {
+      sendError(res, 'User not found', null, 404);
+      return;
+    }
+
+    if (user.role === 'admin') {
+      sendError(res, 'Administrator accounts cannot be deleted', null, 403);
+      return;
+    }
+
+    const deletedEmail = user.email;
+    const deletedRole = user.role;
+
+    // Delete user document from Firestore
+    await User.deleteById(id);
+
+    // Delete related applications
+    const userApps = await Application.find({ student: id });
+    for (const app of userApps) {
+      await db.collection(Collections.APPLICATIONS).doc(app._id).delete();
+    }
+
+    // Record audit event
+    await AuditLog.create({
+      actorId: req.user?._id || 'admin',
+      actorName: req.user?.name || 'Administrator',
+      actorRole: req.user?.role || 'admin',
+      action: 'USER_DELETED',
+      targetResource: 'users',
+      targetId: id,
+      details: {
+        deletedEmail,
+        deletedRole,
+      },
+      ipAddress: req.ip,
+    });
+
+    sendSuccess(res, `Account for ${deletedEmail} (${deletedRole}) was permanently deleted`, { id });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to delete user account', null, 500);
   }
 };
 
@@ -211,7 +260,7 @@ export const getAccreditationStats = async (req: AuthenticatedRequest, res: Resp
     const jobSalaryMap: Record<string, number> = {};
 
     jobs.forEach((j: any) => {
-      let lpa = 6.0;
+      let lpa = 0;
       if (typeof j.salary === 'string') {
         const text = j.salary.toLowerCase().replace(/,/g, '');
         const match = text.match(/([0-9]+(?:\.[0-9]+)?)/);
@@ -224,14 +273,18 @@ export const getAccreditationStats = async (req: AuthenticatedRequest, res: Resp
           }
         }
       }
-      jobSalaryMap[j._id] = lpa;
+      if (lpa > 0) {
+        jobSalaryMap[j._id] = lpa;
+      }
     });
 
     const ctcValues: number[] = [];
     offeredApps.forEach((app: any) => {
       const jobId = typeof app.job === 'object' && app.job?._id ? app.job._id : app.job;
-      const val = jobSalaryMap[jobId] || 7.5;
-      ctcValues.push(val);
+      const val = jobSalaryMap[jobId];
+      if (typeof val === 'number' && val > 0) {
+        ctcValues.push(val);
+      }
     });
 
     const hasOffers = ctcValues.length > 0;

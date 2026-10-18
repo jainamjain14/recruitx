@@ -72,26 +72,36 @@ export const AdminPlacements: React.FC = () => {
         </Card>
       </div>
 
-      {/* Salary & CTC Metrics — only displayed when verified placement offers exist */}
-      {stats.placedStudents > 0 && accreditation?.salaryMetrics && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="p-4 bg-neutral-900 text-white space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Highest CTC Offered</span>
-            <p className="text-2xl font-black">{accreditation.salaryMetrics.highestCtc}</p>
-            <p className="text-[10px] text-neutral-400">Super Dream Tier Placement</p>
-          </Card>
-          <Card className="p-4 bg-neutral-900 text-white space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Average Drive Package</span>
-            <p className="text-2xl font-black">{accreditation.salaryMetrics.averageCtc}</p>
-            <p className="text-[10px] text-neutral-400">Across all verified academic departments</p>
-          </Card>
-          <Card className="p-4 bg-neutral-900 text-white space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Median Batch Package</span>
-            <p className="text-2xl font-black">{accreditation.salaryMetrics.medianCtc}</p>
-            <p className="text-[10px] text-neutral-400">Statistical center point of verified hires</p>
-          </Card>
-        </div>
-      )}
+      {/* Salary & CTC Metrics — live metrics calculated from actual student placement offers */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="p-4 bg-neutral-900 text-white space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Highest CTC Offered</span>
+          <p className="text-2xl font-black">
+            {stats.placedStudents > 0 && accreditation?.salaryMetrics?.highestCtc ? accreditation.salaryMetrics.highestCtc : '—'}
+          </p>
+          <p className="text-[10px] text-neutral-400">
+            {stats.placedStudents > 0 ? 'Super Dream Tier Placement' : 'Calculated once offers are recorded'}
+          </p>
+        </Card>
+        <Card className="p-4 bg-neutral-900 text-white space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Average Drive Package</span>
+          <p className="text-2xl font-black">
+            {stats.placedStudents > 0 && accreditation?.salaryMetrics?.averageCtc ? accreditation.salaryMetrics.averageCtc : '—'}
+          </p>
+          <p className="text-[10px] text-neutral-400">
+            {stats.placedStudents > 0 ? 'Across all verified academic departments' : 'Calculated across placed students'}
+          </p>
+        </Card>
+        <Card className="p-4 bg-neutral-900 text-white space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Median Batch Package</span>
+          <p className="text-2xl font-black">
+            {stats.placedStudents > 0 && accreditation?.salaryMetrics?.medianCtc ? accreditation.salaryMetrics.medianCtc : '—'}
+          </p>
+          <p className="text-[10px] text-neutral-400">
+            {stats.placedStudents > 0 ? 'Statistical center point of verified hires' : 'Midpoint of confirmed packages'}
+          </p>
+        </Card>
+      </div>
 
       {/* Verified Placement Offers List */}
       <Card className="p-0 overflow-hidden">

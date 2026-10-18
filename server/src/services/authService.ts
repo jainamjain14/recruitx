@@ -41,11 +41,12 @@ export class AuthService {
         existingUser.role = role;
         await existingUser.save();
 
-        await EmailService.sendVerificationEmail({
+        // Fire-and-forget: send email in background so the HTTP response is not blocked by SMTP latency
+        EmailService.sendVerificationEmail({
           toEmail: normalizedEmail,
           userName: name,
           code: verificationCode,
-        });
+        }).catch((e) => console.error('[OTP] Verification email failed (existing user):', e));
 
         return {
           user: {
@@ -78,12 +79,12 @@ export class AuthService {
       provider: 'local',
     });
 
-    // Dispatch verification email
-    await EmailService.sendVerificationEmail({
+    // Dispatch verification email in background — do not block HTTP response on SMTP
+    EmailService.sendVerificationEmail({
       toEmail: normalizedEmail,
       userName: name,
       code: verificationCode,
-    });
+    }).catch((e) => console.error('[OTP] Verification email failed (new user):', e));
 
     const userObj = {
       _id: user._id.toString(),
@@ -142,6 +143,11 @@ export class AuthService {
     // Verify role if specified
     if (role && user.role !== role) {
       throw new Error(`This account is not registered as a '${role}'. Selected role does not match.`);
+    }
+
+    // Check if account has been suspended by an administrator
+    if (user.isSuspended) {
+      throw new Error('Your account has been suspended by an administrator. You do not have access to this portal.');
     }
 
     // Enforce email verification (accounts created with manual sign-up must be verified)
@@ -239,11 +245,15 @@ export class AuthService {
   /**
    * Resend 6-digit verification code
    */
-  static async resendVerificationCode(email: string): Promise<{ message: string; demoCode?: string }> {
+  static async resendVerificationCode(email: string): Promise<{ message: string }> {
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       throw new Error('No account found with this email address.');
+    }
+
+    if (user.isSuspended) {
+      throw new Error('This account has been suspended by an administrator.');
     }
 
     if (user.emailVerified) {
@@ -255,11 +265,12 @@ export class AuthService {
     user.verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
-    await EmailService.sendVerificationEmail({
+    // Dispatch email in background so the HTTP response is not blocked by SMTP latency
+    EmailService.sendVerificationEmail({
       toEmail: normalizedEmail,
       userName: user.name,
       code: verificationCode,
-    });
+    }).catch((e) => console.error('[OTP] Resend verification email failed:', e));
 
     return {
       message: 'A fresh verification code has been dispatched to your email.',

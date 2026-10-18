@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { api } from '../services/api';
-import { Building2 } from 'lucide-react';
+import { Building2, Trash2 } from 'lucide-react';
 
 export const AdminRecruiters: React.FC = () => {
   const [recruiters, setRecruiters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRecruiters();
@@ -26,9 +27,26 @@ export const AdminRecruiters: React.FC = () => {
   const toggleStatus = async (id: string) => {
     try {
       const res = await api.patch(`/admin/users/${id}/toggle-status`);
-      setRecruiters(recruiters.map((r) => (r._id === id ? { ...r, emailVerified: res.data.data.user.emailVerified } : r)));
+      const updatedUser = res.data.data.user;
+      setRecruiters(recruiters.map((r) => (r._id === id ? { ...r, isSuspended: updatedUser.isSuspended } : r)));
     } catch (err) {
       alert('Failed to update status');
+    }
+  };
+
+  const deleteRecruiter = async (r: any) => {
+    const confirmed = window.confirm(
+      `Permanently delete recruiter "${r.name}" (${r.email})?\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
+    setDeletingId(r._id);
+    try {
+      await api.delete(`/admin/users/${r._id}`);
+      setRecruiters((prev) => prev.filter((x) => x._id !== r._id));
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to delete recruiter. Please try again.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -55,12 +73,22 @@ export const AdminRecruiters: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${r.emailVerified ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                  {r.emailVerified ? 'Verified' : 'Pending'}
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${r.isSuspended ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                  {r.isSuspended ? 'Suspended' : 'Active'}
                 </span>
                 <Button size="sm" variant="secondary" onClick={() => toggleStatus(r._id)}>
-                  {r.emailVerified ? 'Deactivate' : 'Verify'}
+                  {r.isSuspended ? 'Activate' : 'Suspend'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => deleteRecruiter(r)}
+                  disabled={deletingId === r._id}
+                  className="text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  {deletingId === r._id ? 'Deleting…' : 'Delete'}
                 </Button>
               </div>
             </Card>

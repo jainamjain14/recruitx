@@ -9,9 +9,9 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (params: LoginParams) => Promise<User>;
-  register: (params: RegisterParams) => Promise<{ user: User; requiresVerification?: boolean; demoCode?: string }>;
+  register: (params: RegisterParams) => Promise<{ user: User; requiresVerification?: boolean }>;
   verifyEmail: (email: string, code: string) => Promise<User>;
-  resendVerification: (email: string) => Promise<{ demoCode?: string }>;
+  resendVerification: (email: string) => Promise<{ message?: string }>;
   socialLogin: (payload: {
     email: string;
     name: string;
@@ -104,10 +104,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const resendVerification = async (email: string): Promise<{ demoCode?: string }> => {
+  const resendVerification = async (email: string): Promise<{ message?: string }> => {
     const response = await authService.resendVerification(email);
     if (response.success) {
-      return { demoCode: response.data?.demoCode };
+      return { message: response.message };
     } else {
       throw new Error(response.message || 'Failed to resend code');
     }

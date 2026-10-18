@@ -56,9 +56,9 @@ export const AdminReports: React.FC = () => {
         `Total Eligible Enrolled Students,${accreditationData.totalEligibleStudents}`,
         `Total Verified Placed Candidates,${accreditationData.totalPlacedStudents}`,
         `Overall Placement Percentage,${accreditationData.overallPlacementRate}%`,
-        `Highest Package (CTC),${accreditationData.salaryMetrics.highestCtc}`,
-        `Average Package (CTC),${accreditationData.salaryMetrics.averageCtc}`,
-        `Median Package (CTC),${accreditationData.salaryMetrics.medianCtc}`,
+        `Highest Package (CTC),${accreditationData.totalPlacedStudents > 0 ? accreditationData.salaryMetrics.highestCtc : 'N/A'}`,
+        `Average Package (CTC),${accreditationData.totalPlacedStudents > 0 ? accreditationData.salaryMetrics.averageCtc : 'N/A'}`,
+        `Median Package (CTC),${accreditationData.totalPlacedStudents > 0 ? accreditationData.salaryMetrics.medianCtc : 'N/A'}`,
         '',
         '2. CTC TIER DISTRIBUTION',
         `Super Dream Offers (>= 10 LPA),${accreditationData.salaryTiers.superDreamOffers}`,
@@ -240,15 +240,21 @@ Official Audit Document - Verified by RecruitX Admin Engine
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Highest Package</span>
-              <p className="text-lg font-black text-neutral-900">{accreditationData.salaryMetrics.highestCtc}</p>
+              <p className="text-lg font-black text-neutral-900">
+                {accreditationData.totalPlacedStudents > 0 ? accreditationData.salaryMetrics.highestCtc : '—'}
+              </p>
             </div>
             <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Average Package</span>
-              <p className="text-lg font-black text-neutral-900">{accreditationData.salaryMetrics.averageCtc}</p>
+              <p className="text-lg font-black text-neutral-900">
+                {accreditationData.totalPlacedStudents > 0 ? accreditationData.salaryMetrics.averageCtc : '—'}
+              </p>
             </div>
             <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Median Package</span>
-              <p className="text-lg font-black text-neutral-900">{accreditationData.salaryMetrics.medianCtc}</p>
+              <p className="text-lg font-black text-neutral-900">
+                {accreditationData.totalPlacedStudents > 0 ? accreditationData.salaryMetrics.medianCtc : '—'}
+              </p>
             </div>
             <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Placement %</span>

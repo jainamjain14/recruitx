@@ -7,7 +7,6 @@ interface EmailVerificationModalProps {
   isOpen: boolean;
   email: string;
   role?: UserRole;
-  demoCode?: string;
   onSuccess: (user: User) => void;
   onCancel?: () => void;
 }
@@ -15,7 +14,6 @@ interface EmailVerificationModalProps {
 export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   isOpen,
   email,
-  demoCode,
   onSuccess,
   onCancel,
 }) => {
@@ -27,11 +25,6 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [countdown, setCountdown] = useState(60);
-  const [activeDemoCode, setActiveDemoCode] = useState<string | undefined>(demoCode);
-
-  useEffect(() => {
-    setActiveDemoCode(demoCode);
-  }, [demoCode]);
 
   // Countdown timer for resend
   useEffect(() => {
@@ -76,10 +69,7 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     setIsResending(true);
 
     try {
-      const result = await resendVerification(email);
-      if (result.demoCode) {
-        setActiveDemoCode(result.demoCode);
-      }
+      await resendVerification(email);
       setSuccessMsg('A new verification code has been dispatched to your email.');
       setCountdown(60);
     } catch (err: any) {

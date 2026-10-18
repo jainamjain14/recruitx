@@ -230,8 +230,8 @@ export const AdminDashboard: React.FC = () => {
                       <p className="text-xs font-semibold text-neutral-900">{s.name}</p>
                       <p className="text-[11px] text-neutral-400 mt-0.5">{s.email}</p>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${s.emailVerified ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                      {s.emailVerified ? 'Active' : 'Suspended'}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${s.isSuspended ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                      {s.isSuspended ? 'Suspended' : 'Active'}
                     </span>
                   </div>
                 ))}
@@ -260,8 +260,8 @@ export const AdminDashboard: React.FC = () => {
                       <p className="text-xs font-semibold text-neutral-900">{r.name}</p>
                       <p className="text-[11px] text-neutral-400 mt-0.5">{r.company || 'Direct Recruiter'} • {r.email}</p>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${r.emailVerified ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                      {r.emailVerified ? 'Verified' : 'Pending'}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${r.isSuspended ? 'bg-red-50 text-red-700 border-red-200' : r.emailVerified ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                      {r.isSuspended ? 'Suspended' : r.emailVerified ? 'Verified' : 'Pending'}
                     </span>
                   </div>
                 ))}

@@ -5,6 +5,7 @@ import {
   getAdminStats,
   getUsers,
   toggleUserStatus,
+  deleteUser,
   getEligibilityRules,
   updateEligibilityRules,
   bulkImportStudents,
@@ -19,6 +20,7 @@ router.use(authenticate, authorize('admin'));
 router.get('/stats', getAdminStats);
 router.get('/users', getUsers);
 router.patch('/users/:id/toggle-status', toggleUserStatus);
+router.delete('/users/:id', deleteUser);
 router.get('/health', getSystemHealth);
 router.get('/audit-logs', getAuditLogs);
 router.get('/eligibility-rules', getEligibilityRules);

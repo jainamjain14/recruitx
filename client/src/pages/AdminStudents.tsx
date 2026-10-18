@@ -14,6 +14,7 @@ import {
   Loader2,
   X,
   Users,
+  Trash2,
 } from 'lucide-react';
 
 interface ParsedStudent {
@@ -30,6 +31,7 @@ export const AdminStudents: React.FC = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Bulk CSV Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
@@ -57,9 +59,26 @@ export const AdminStudents: React.FC = () => {
   const toggleStatus = async (id: string) => {
     try {
       const res = await api.patch(`/admin/users/${id}/toggle-status`);
-      setStudents(students.map((s) => (s._id === id ? { ...s, emailVerified: res.data.data.user.emailVerified } : s)));
+      const updatedUser = res.data.data.user;
+      setStudents(students.map((s) => (s._id === id ? { ...s, isSuspended: updatedUser.isSuspended } : s)));
     } catch (err) {
       alert('Failed to update status');
+    }
+  };
+
+  const deleteStudent = async (s: any) => {
+    const confirmed = window.confirm(
+      `Permanently delete student "${s.name}" (${s.email})?\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
+    setDeletingId(s._id);
+    try {
+      await api.delete(`/admin/users/${s._id}`);
+      setStudents((prev) => prev.filter((x) => x._id !== s._id));
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to delete student. Please try again.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -245,18 +264,28 @@ export const AdminStudents: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                    s.emailVerified
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-red-50 text-red-700 border-red-200'
+                    s.isSuspended
+                      ? 'bg-red-50 text-red-700 border-red-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   }`}
                 >
-                  {s.emailVerified ? 'Active' : 'Suspended'}
+                  {s.isSuspended ? 'Suspended' : 'Active'}
                 </span>
                 <Button size="sm" variant="secondary" onClick={() => toggleStatus(s._id)}>
-                  {s.emailVerified ? 'Suspend' : 'Activate'}
+                  {s.isSuspended ? 'Activate' : 'Suspend'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => deleteStudent(s)}
+                  disabled={deletingId === s._id}
+                  className="text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  {deletingId === s._id ? 'Deleting…' : 'Delete'}
                 </Button>
               </div>
             </Card>

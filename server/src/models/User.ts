@@ -10,6 +10,7 @@ export interface IUserDocument {
   password?: string;
   role: UserRole;
   emailVerified: boolean;
+  isSuspended?: boolean;
   verificationCode?: string;
   verificationExpires?: Date;
   provider?: string;
@@ -36,6 +37,7 @@ export interface IUserDocument {
   matchPassword(enteredPassword: string): Promise<boolean>;
   setPassword(newPassword: string): void;
   save(): Promise<IUserDocument>;
+  deleteOne(): Promise<void>;
 }
 
 export class UserDoc implements IUserDocument {
@@ -45,6 +47,7 @@ export class UserDoc implements IUserDocument {
   password?: string;
   role: UserRole;
   emailVerified: boolean;
+  isSuspended?: boolean;
   verificationCode?: string;
   verificationExpires?: Date;
   provider?: string;
@@ -78,6 +81,7 @@ export class UserDoc implements IUserDocument {
     this.password = data.password;
     this.role = data.role || 'student';
     this.emailVerified = data.emailVerified ?? false;
+    this.isSuspended = data.isSuspended ?? false;
     this.verificationCode = data.verificationCode;
     this.verificationExpires = data.verificationExpires ? dateFromFirestore(data.verificationExpires) : undefined;
     this.provider = data.provider || 'local';
@@ -127,6 +131,7 @@ export class UserDoc implements IUserDocument {
       password: this.password,
       role: this.role,
       emailVerified: this.emailVerified,
+      isSuspended: this.isSuspended ?? false,
       verificationCode: this.verificationCode || null,
       verificationExpires: this.verificationExpires || null,
       provider: this.provider || 'local',
@@ -154,6 +159,10 @@ export class UserDoc implements IUserDocument {
 
     await db.collection(Collections.USERS).doc(this._id).set(dataToSave, { merge: true });
     return this;
+  }
+
+  async deleteOne(): Promise<void> {
+    await db.collection(Collections.USERS).doc(this._id).delete();
   }
 }
 
@@ -229,6 +238,7 @@ export class User {
       password: hashedPassword,
       role: data.role || 'student',
       emailVerified: data.emailVerified ?? false,
+      isSuspended: false,
       verificationCode: data.verificationCode || null,
       verificationExpires: data.verificationExpires || null,
       provider: data.provider || 'local',
@@ -339,5 +349,11 @@ export class User {
     }
     const snap = await q.get();
     return snap.size;
+  }
+
+  static async deleteById(id: string): Promise<boolean> {
+    if (!id) return false;
+    await db.collection(Collections.USERS).doc(id).delete();
+    return true;
   }
 }
