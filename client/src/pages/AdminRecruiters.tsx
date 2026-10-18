@@ -44,7 +44,10 @@ export const AdminRecruiters: React.FC = () => {
       await api.delete(`/admin/users/${r._id}`);
       setRecruiters((prev) => prev.filter((x) => x._id !== r._id));
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to delete recruiter. Please try again.');
+      console.error('Delete recruiter request failed:', err);
+      const status = err?.response?.status;
+      const backendMsg = err?.response?.data?.message || err?.message;
+      alert(`Delete failed (${status || 'Network Error'}): ${backendMsg || 'Server is restarting or route unavailable. Please wait 30 seconds.'}`);
     } finally {
       setDeletingId(null);
     }
