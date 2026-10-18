@@ -113,10 +113,10 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response): Prom
     // 2. Safely clean up associated applications without failing the request
     try {
       const appsSnap = await db.collection(Collections.APPLICATIONS).where('student', '==', id).get();
-      const batch = db.batch();
-      appsSnap.docs.forEach((doc) => batch.delete(doc.ref));
       if (!appsSnap.empty) {
-        await batch.commit();
+        await Promise.all(
+          appsSnap.docs.map((doc) => db.collection(Collections.APPLICATIONS).doc(doc.id).delete())
+        );
       }
     } catch (cleanupErr) {
       console.warn('[Admin deleteUser] Error cleaning applications:', cleanupErr);
@@ -125,10 +125,10 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response): Prom
     // 3. Safely clean up associated resume without failing the request
     try {
       const resumeSnap = await db.collection(Collections.RESUMES).where('student', '==', id).get();
-      const batch = db.batch();
-      resumeSnap.docs.forEach((doc) => batch.delete(doc.ref));
       if (!resumeSnap.empty) {
-        await batch.commit();
+        await Promise.all(
+          resumeSnap.docs.map((doc) => db.collection(Collections.RESUMES).doc(doc.id).delete())
+        );
       }
     } catch (cleanupErr) {
       console.warn('[Admin deleteUser] Error cleaning resume:', cleanupErr);
