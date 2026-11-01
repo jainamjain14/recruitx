@@ -9,12 +9,31 @@ export type ApplicationSubmissionStatus =
   | 'submitted'
   | 'submission_failed'
   | 'requires_manual_application'
+  | 'external_awaiting_verification'
   | 'unable_to_verify';
+
+export type VerificationLifecycleStage =
+  | 'recorded'
+  | 'dispatched'
+  | 'external_accepted'
+  | 'employer_receipt_confirmed'
+  | 'employer_status_updated';
 
 export type ApplicationSubmissionType =
   | 'platform_recruiter'
   | 'direct_hr_dispatch'
   | 'external_portal';
+
+export interface EmployerReceipt {
+  receiptSource: 'recruiter_in_app_review' | 'employer_confirmation_email' | 'external_ats_reference' | 'authorized_integration_sync';
+  externalReferenceNumber?: string;
+  employerSenderEmail?: string;
+  employerConfirmationSnippet?: string;
+  acknowledgedBy?: string;
+  receiptHash?: string;
+  confirmedAt: Date;
+  verifiedNotes?: string;
+}
 
 export interface SubmissionConfirmation {
   confirmationId?: string;
@@ -38,6 +57,10 @@ export interface IApplicationDocument {
   applicationDestination: string;
   destinationUrl?: string;
   confirmationDetails?: SubmissionConfirmation;
+  verificationLifecycleStage: VerificationLifecycleStage;
+  employerReceipt?: EmployerReceipt;
+  externalAtsName?: string;
+  externalStatus?: string;
   submissionError?: string;
   resumeTransmitted: boolean;
   candidateContactTransmitted: boolean;
@@ -69,6 +92,10 @@ export class ApplicationDoc implements IApplicationDocument {
   applicationDestination: string;
   destinationUrl?: string;
   confirmationDetails?: SubmissionConfirmation;
+  verificationLifecycleStage: VerificationLifecycleStage;
+  employerReceipt?: EmployerReceipt;
+  externalAtsName?: string;
+  externalStatus?: string;
   submissionError?: string;
   resumeTransmitted: boolean;
   candidateContactTransmitted: boolean;
@@ -98,6 +125,17 @@ export class ApplicationDoc implements IApplicationDocument {
     this.applicationDestination = data.applicationDestination || (data.recruiter ? 'RecruitX Verified Recruiter Portal' : 'Platform Application System');
     this.destinationUrl = data.destinationUrl || '';
     this.confirmationDetails = data.confirmationDetails || undefined;
+    this.verificationLifecycleStage = data.verificationLifecycleStage || (
+      data.employerReceipt ? 'employer_receipt_confirmed' :
+      (data.submissionStatus === 'submitted' ? (data.recruiter ? 'external_accepted' : 'employer_receipt_confirmed') :
+      (data.submissionStatus === 'external_awaiting_verification' ? 'dispatched' : 'recorded'))
+    );
+    this.employerReceipt = data.employerReceipt ? {
+      ...data.employerReceipt,
+      confirmedAt: dateFromFirestore(data.employerReceipt.confirmedAt),
+    } : undefined;
+    this.externalAtsName = data.externalAtsName || undefined;
+    this.externalStatus = data.externalStatus || undefined;
     this.submissionError = data.submissionError || '';
     this.resumeTransmitted = data.resumeTransmitted !== undefined ? Boolean(data.resumeTransmitted) : true;
     this.candidateContactTransmitted = data.candidateContactTransmitted !== undefined ? Boolean(data.candidateContactTransmitted) : true;
@@ -136,6 +174,10 @@ export class ApplicationDoc implements IApplicationDocument {
       applicationDestination: this.applicationDestination,
       destinationUrl: this.destinationUrl || null,
       confirmationDetails: this.confirmationDetails || null,
+      verificationLifecycleStage: this.verificationLifecycleStage,
+      employerReceipt: this.employerReceipt || null,
+      externalAtsName: this.externalAtsName || null,
+      externalStatus: this.externalStatus || null,
       submissionError: this.submissionError || null,
       resumeTransmitted: this.resumeTransmitted,
       candidateContactTransmitted: this.candidateContactTransmitted,
@@ -225,6 +267,10 @@ export class Application {
     applicationDestination?: string;
     destinationUrl?: string;
     confirmationDetails?: SubmissionConfirmation;
+    verificationLifecycleStage?: VerificationLifecycleStage;
+    employerReceipt?: EmployerReceipt;
+    externalAtsName?: string;
+    externalStatus?: string;
     submissionError?: string;
     resumeTransmitted?: boolean;
     candidateContactTransmitted?: boolean;
@@ -250,6 +296,14 @@ export class Application {
       applicationDestination: data.applicationDestination || (recruiterId ? 'RecruitX Verified Recruiter Portal' : 'Platform Application System'),
       destinationUrl: data.destinationUrl || null,
       confirmationDetails: data.confirmationDetails || null,
+      verificationLifecycleStage: data.verificationLifecycleStage || (
+        data.employerReceipt ? 'employer_receipt_confirmed' :
+        (data.submissionStatus === 'submitted' ? (recruiterId ? 'external_accepted' : 'employer_receipt_confirmed') :
+        (data.submissionStatus === 'external_awaiting_verification' ? 'dispatched' : 'recorded'))
+      ),
+      employerReceipt: data.employerReceipt || null,
+      externalAtsName: data.externalAtsName || null,
+      externalStatus: data.externalStatus || null,
       submissionError: data.submissionError || null,
       resumeTransmitted: data.resumeTransmitted !== undefined ? Boolean(data.resumeTransmitted) : true,
       candidateContactTransmitted: data.candidateContactTransmitted !== undefined ? Boolean(data.candidateContactTransmitted) : true,

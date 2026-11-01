@@ -24,6 +24,10 @@ import {
   User,
   Check,
   Send,
+  ShieldCheck,
+  Hash,
+  Mail,
+  BadgeCheck,
 } from 'lucide-react';
 
 export type ApplicationStatus =
@@ -48,6 +52,38 @@ const PROGRESS_STEPS: ProgressStep[] = [
   { key: 'offered', label: 'Offer', description: 'Offer letter extended' },
 ];
 
+export interface VerificationLifecycleStep {
+  key: string;
+  label: string;
+  desc: string;
+}
+
+const VERIFICATION_LIFECYCLE_STEPS: VerificationLifecycleStep[] = [
+  { key: 'recorded', label: '1. Recorded', desc: 'Application recorded in RecruitX candidate database.' },
+  { key: 'dispatched', label: '2. Dispatched', desc: 'Dispatched to employer career portal / recruiter queue.' },
+  { key: 'external_accepted', label: '3. Gateway Accepted', desc: 'Transmission accepted by receiving employer gateway.' },
+  { key: 'employer_receipt_confirmed', label: '4. Employer Receipt', desc: 'Authentic ATS reference number or employer email receipt confirmed.' },
+  { key: 'employer_status_updated', label: '5. Employer Action', desc: 'Hiring team actively progressing candidate through ATS screening.' },
+];
+
+const getLifecycleStepIdx = (app: any): number => {
+  if (!app) return 0;
+  const stage = app.verificationLifecycleStage;
+  switch (stage) {
+    case 'employer_status_updated': return 4;
+    case 'employer_receipt_confirmed': return 3;
+    case 'external_accepted': return 2;
+    case 'dispatched': return 1;
+    case 'recorded': return 0;
+    default:
+      if (app.status && app.status !== 'applied') return 4;
+      if (app.employerReceipt) return 3;
+      if (app.submissionStatus === 'submitted') return 2;
+      if (app.submissionStatus === 'external_awaiting_verification') return 1;
+      return 0;
+  }
+};
+
 export const StudentApplications: React.FC = () => {
   const navigate = useNavigate();
   const [applications, setApplications] = useState<any[]>([]);
@@ -60,19 +96,86 @@ export const StudentApplications: React.FC = () => {
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
   const [confirmingAppId, setConfirmingAppId] = useState<string | null>(null);
 
+  // Link Employer Receipt Modal State
+  const [receiptModalApp, setReceiptModalApp] = useState<any | null>(null);
+  const [receiptRefNumber, setReceiptRefNumber] = useState('');
+  const [receiptSenderEmail, setReceiptSenderEmail] = useState('');
+  const [receiptSnippet, setReceiptSnippet] = useState('');
+  const [receiptDate, setReceiptDate] = useState('');
+  const [linkingReceipt, setLinkingReceipt] = useState(false);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [receiptSuccess, setReceiptSuccess] = useState<string | null>(null);
+
+  const openReceiptModal = (app: any) => {
+    setReceiptModalApp(app);
+    setReceiptRefNumber(app.employerReceipt?.externalReferenceNumber || '');
+    setReceiptSenderEmail(app.employerReceipt?.employerSenderEmail || '');
+    setReceiptSnippet(app.employerReceipt?.employerConfirmationSnippet || '');
+    setReceiptDate(
+      app.employerReceipt?.confirmedAt
+        ? new Date(app.employerReceipt.confirmedAt).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0]
+    );
+    setReceiptError(null);
+    setReceiptSuccess(null);
+  };
+
+  const handleLinkReceiptSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!receiptModalApp) return;
+
+    if (!receiptRefNumber.trim() && !receiptSenderEmail.trim()) {
+      setReceiptError('Please enter either an Employer ATS Reference Number or Employer Confirmation Email sender.');
+      return;
+    }
+
+    setLinkingReceipt(true);
+    setReceiptError(null);
+    setReceiptSuccess(null);
+
+    try {
+      const res = await api.post(`/applications/${receiptModalApp._id}/link-employer-receipt`, {
+        externalReferenceNumber: receiptRefNumber.trim(),
+        employerSenderEmail: receiptSenderEmail.trim(),
+        employerConfirmationSnippet: receiptSnippet.trim(),
+        receivedAt: receiptDate || new Date().toISOString(),
+      });
+
+      if (res.data?.success) {
+        const updated = res.data.data?.application;
+        setApplications((prev) =>
+          prev.map((a) => (a._id === receiptModalApp._id ? { ...a, ...updated } : a))
+        );
+        if (selectedApp && selectedApp._id === receiptModalApp._id) {
+          setSelectedApp((prev: any) => ({ ...prev, ...updated }));
+        }
+        setReceiptSuccess('Employer confirmation receipt verified and linked successfully!');
+        setTimeout(() => {
+          setReceiptModalApp(null);
+          setReceiptSuccess(null);
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error('Failed to link employer receipt:', err);
+      setReceiptError(err.response?.data?.message || err.message || 'Failed to verify employer confirmation receipt.');
+    } finally {
+      setLinkingReceipt(false);
+    }
+  };
+
   const handleConfirmManualApplication = async (appId: string) => {
     try {
       setConfirmingAppId(appId);
       const res = await api.patch(`/applications/${appId}/confirm-manual`, {
-        note: 'Candidate confirmed manual submission on official employer career portal',
+        note: 'Candidate completed external career portal submission — External Submission Awaiting Verification.',
       });
       if (res.data?.success) {
         const updated = res.data.data?.application || res.data.data;
         setApplications((prev) =>
-          prev.map((a) => (a._id === appId ? { ...a, ...updated, submissionStatus: 'submitted' } : a))
+          prev.map((a) => (a._id === appId ? { ...a, ...updated, submissionStatus: 'external_awaiting_verification' } : a))
         );
         if (selectedApp && selectedApp._id === appId) {
-          setSelectedApp((prev: any) => ({ ...prev, ...updated, submissionStatus: 'submitted' }));
+          setSelectedApp((prev: any) => ({ ...prev, ...updated, submissionStatus: 'external_awaiting_verification' }));
         }
       }
     } catch (err: any) {
@@ -83,8 +186,21 @@ export const StudentApplications: React.FC = () => {
     }
   };
 
-  const getSubmissionBadge = (submissionStatus?: string) => {
+  const getSubmissionBadge = (submissionStatus?: string, employerReceipt?: any) => {
+    if (employerReceipt) {
+      return {
+        label: 'Employer Receipt Confirmed',
+        bg: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold',
+        icon: '✓',
+      };
+    }
     switch (submissionStatus) {
+      case 'external_awaiting_verification':
+        return {
+          label: 'External Submission — Awaiting Verification',
+          bg: 'bg-amber-50 text-amber-900 border-amber-300 font-bold',
+          icon: '⏳',
+        };
       case 'submitted':
         return {
           label: 'Confirmed Submitted',
@@ -337,7 +453,7 @@ export const StudentApplications: React.FC = () => {
                         {app.status.replace('_', ' ')}
                       </span>
                       {(() => {
-                        const sb = getSubmissionBadge(app.submissionStatus);
+                        const sb = getSubmissionBadge(app.submissionStatus, app.employerReceipt);
                         return (
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${sb.bg}`}>
                             <span>{sb.icon}</span>
@@ -365,6 +481,19 @@ export const StudentApplications: React.FC = () => {
                       >
                         <Video className="w-3.5 h-3.5" />
                         Join Video Interview
+                      </button>
+                    )}
+                    {!app.employerReceipt && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openReceiptModal(app);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-bold hover:bg-emerald-100 transition-colors"
+                        title="Link verified employer confirmation email or ATS reference number"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="hidden sm:inline">Link Receipt</span>
                       </button>
                     )}
                     <Button
@@ -454,9 +583,57 @@ export const StudentApplications: React.FC = () => {
                         disabled={confirmingAppId === app._id}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-100 transition-colors"
                       >
-                        {confirmingAppId === app._id ? 'Updating...' : '✓ Mark as Submitted'}
+                        {confirmingAppId === app._id ? 'Updating...' : '✓ I Applied on Portal'}
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* External Portal Awaiting Verification Banner */}
+                {app.submissionStatus === 'external_awaiting_verification' && (
+                  <div className="p-3 bg-amber-50/80 border border-amber-300 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-start gap-2">
+                      <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-amber-950">External Submission — Awaiting Verification</p>
+                        <p className="text-amber-800 text-[11px]">
+                          Submitted on {company}'s portal. Once you receive your confirmation email or ATS reference number (e.g. Workday, Greenhouse, Taleo), link it here to confirm receipt with cryptographic evidence.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => openReceiptModal(app)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-700 text-white font-bold text-xs hover:bg-emerald-800 transition-colors shadow-xs"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" /> Link Employer Receipt
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confirmed Employer Receipt Card Banner */}
+                {app.employerReceipt && (
+                  <div className="p-2.5 bg-emerald-50/80 border border-emerald-300 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      <BadgeCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-emerald-950">Employer Receipt Confirmed:</span>
+                        {app.employerReceipt.externalReferenceNumber && (
+                          <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded border border-emerald-300/60">
+                            Ref: {app.employerReceipt.externalReferenceNumber}
+                          </span>
+                        )}
+                        {app.employerReceipt.employerSenderEmail && (
+                          <span className="text-[11px] text-emerald-800 font-medium">
+                            via {app.employerReceipt.employerSenderEmail}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-emerald-700 font-medium">
+                      Verified {new Date(app.employerReceipt.confirmedAt).toLocaleDateString()}
+                    </span>
                   </div>
                 )}
 
@@ -585,6 +762,175 @@ export const StudentApplications: React.FC = () => {
                 );
               })()}
 
+              {/* 5-Stage Verification Lifecycle Stepper */}
+              <div className="space-y-3 p-4 rounded-xl border border-neutral-200 bg-white shadow-xs">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    Employer Verification Lifecycle
+                  </h3>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 font-bold border border-neutral-200">
+                    Stage {getLifecycleStepIdx(selectedApp) + 1} of 5
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-5 gap-1.5 pt-1">
+                  {VERIFICATION_LIFECYCLE_STEPS.map((step, idx) => {
+                    const currentIdx = getLifecycleStepIdx(selectedApp);
+                    const isDone = idx < currentIdx;
+                    const isCurrent = idx === currentIdx;
+                    return (
+                      <div key={step.key} className="space-y-1.5 text-center">
+                        <div
+                          className={`h-1.5 rounded-full transition-all ${
+                            isCurrent
+                              ? 'bg-purple-600 ring-2 ring-purple-300 animate-pulse'
+                              : isDone
+                              ? 'bg-emerald-600'
+                              : 'bg-neutral-200'
+                          }`}
+                        />
+                        <div className="hidden sm:block">
+                          <span
+                            className={`text-[9.5px] font-bold block leading-tight ${
+                              isCurrent
+                                ? 'text-purple-700 font-extrabold'
+                                : isDone
+                                ? 'text-emerald-700'
+                                : 'text-neutral-400'
+                            }`}
+                          >
+                            {step.label}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-neutral-50 border border-neutral-200 text-[11px] text-neutral-700 flex items-center gap-2">
+                  <span className="font-bold text-neutral-900 shrink-0">
+                    Current Stage:
+                  </span>
+                  <span>{VERIFICATION_LIFECYCLE_STEPS[getLifecycleStepIdx(selectedApp)].desc}</span>
+                </div>
+              </div>
+
+              {/* Genuine Employer-Side Verification Evidence Card */}
+              <div className="space-y-3 p-4 rounded-xl border border-emerald-200 bg-emerald-50/40">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <BadgeCheck className="w-4 h-4 text-emerald-700" />
+                    Employer-Side Verification Evidence
+                  </h3>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                    selectedApp.employerReceipt
+                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                      : selectedApp.submissionType === 'platform_recruiter'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : selectedApp.submissionStatus === 'external_awaiting_verification'
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : 'bg-neutral-100 text-neutral-700 border-neutral-300'
+                  }`}>
+                    {selectedApp.employerReceipt
+                      ? 'Employer Receipt Confirmed ✓'
+                      : selectedApp.submissionType === 'platform_recruiter'
+                      ? 'Verified Recruiter ATS Queue'
+                      : selectedApp.submissionStatus === 'external_awaiting_verification'
+                      ? 'Awaiting Employer Verification ⏳'
+                      : 'Unverified External Portal'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-2.5 rounded-lg bg-white border border-emerald-200">
+                    <span className="text-[10px] text-neutral-500 font-medium block">Verification Source</span>
+                    <span className="font-bold text-neutral-900 block truncate">
+                      {selectedApp.atsVerification?.verificationSource || (
+                        selectedApp.employerReceipt
+                          ? (selectedApp.employerReceipt.receiptSource === 'employer_confirmation_email'
+                              ? 'Employer Confirmation Email Receipt'
+                              : 'External ATS Application Reference')
+                          : (selectedApp.submissionType === 'platform_recruiter'
+                              ? 'RecruitX Verified Recruiter Portal'
+                              : selectedApp.submissionStatus === 'external_awaiting_verification'
+                              ? 'Candidate Self-Reported External Dispatch'
+                              : 'Candidate Web Portal Dispatch')
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-emerald-200">
+                    <span className="text-[10px] text-neutral-500 font-medium block">ATS / Gateway System</span>
+                    <span className="font-bold text-neutral-900 block truncate">
+                      {selectedApp.externalAtsName || (selectedApp.submissionType === 'platform_recruiter' ? 'RecruitX Verified Recruiter ATS' : 'Employer Career Portal')}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-emerald-200">
+                    <span className="text-[10px] text-neutral-500 font-medium block">External Application / Ref #</span>
+                    <span className="font-mono text-[11px] font-bold text-neutral-900 block truncate">
+                      {selectedApp.employerReceipt?.externalReferenceNumber || (
+                        selectedApp.submissionType === 'platform_recruiter'
+                          ? `RCX-ATS-${(selectedApp._id || '').substring(0, 10).toUpperCase()}`
+                          : selectedApp.submissionStatus === 'external_awaiting_verification'
+                          ? 'Awaiting Candidate Receipt Link'
+                          : 'Not Provided'
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-emerald-200">
+                    <span className="text-[10px] text-neutral-500 font-medium block">Employer Acknowledged By</span>
+                    <span className="font-bold text-neutral-900 block truncate">
+                      {selectedApp.employerReceipt?.acknowledgedBy || (
+                        selectedApp.recruiter?.name
+                          ? `${selectedApp.recruiter.name} (Hiring Team)`
+                          : selectedApp.submissionStatus === 'external_awaiting_verification'
+                          ? 'Pending Employer Email/ATS Acknowledgment'
+                          : 'Pending Employer Confirmation'
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedApp.employerReceipt?.receiptHash && (
+                  <div className="p-2.5 rounded-lg bg-white border border-emerald-200 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-neutral-500 font-medium">Receipt Integrity Fingerprint (SHA-256)</span>
+                      <span className="text-[10px] font-bold text-emerald-700">Tamper-Proof Audit ✓</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-neutral-700 block truncate select-all pt-0.5">
+                      {selectedApp.employerReceipt.receiptHash}
+                    </span>
+                  </div>
+                )}
+
+                {selectedApp.employerReceipt?.employerConfirmationSnippet && (
+                  <div className="p-2.5 rounded-lg bg-white border border-emerald-200 text-xs space-y-1">
+                    <span className="text-[10px] text-neutral-500 font-medium block">Employer Confirmation Snippet</span>
+                    <p className="text-neutral-700 text-[11px] italic bg-neutral-50 p-2 rounded border border-neutral-100">
+                      "{selectedApp.employerReceipt.employerConfirmationSnippet}"
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center justify-between gap-2 border-t border-emerald-200">
+                  <span className="text-[11px] text-emerald-800 font-medium">
+                    {selectedApp.employerReceipt
+                      ? '✓ Authentic company-side evidence on file.'
+                      : 'Have an ATS reference number or confirmation email?'}
+                  </span>
+                  <button
+                    onClick={() => openReceiptModal(selectedApp)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-700 text-white font-bold text-xs hover:bg-emerald-800 transition-colors shadow-xs shrink-0"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    {selectedApp.employerReceipt ? 'Update Employer Receipt' : 'Link Employer Receipt'}
+                  </button>
+                </div>
+              </div>
+
               {/* Verifiable Transmission & Delivery Audit Section */}
               <div className="space-y-3 p-4 rounded-xl border border-neutral-200 bg-neutral-50/80">
                 <div className="flex items-center justify-between">
@@ -593,13 +939,17 @@ export const StudentApplications: React.FC = () => {
                     Application Transmission & Delivery Audit
                   </h3>
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
-                    selectedApp.submissionStatus === 'requires_manual_application'
+                    selectedApp.employerReceipt
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : selectedApp.submissionStatus === 'requires_manual_application'
                       ? 'bg-amber-50 text-amber-800 border-amber-300'
                       : selectedApp.submissionStatus === 'submission_failed'
                       ? 'bg-rose-50 text-rose-800 border-rose-300'
                       : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                   }`}>
-                    {selectedApp.submissionStatus === 'requires_manual_application'
+                    {selectedApp.employerReceipt
+                      ? 'Employer Receipt Confirmed ✓'
+                      : selectedApp.submissionStatus === 'requires_manual_application'
                       ? 'Action Required: Official Portal'
                       : selectedApp.submissionStatus === 'submission_failed'
                       ? 'Submission Failed'
@@ -745,6 +1095,132 @@ export const StudentApplications: React.FC = () => {
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Employer Confirmation Receipt Modal */}
+      {receiptModalApp && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-neutral-200">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                  Link Genuine Employer Confirmation Receipt
+                </h2>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Associate verifiable company-side proof of application receipt for{' '}
+                  <span className="font-semibold text-neutral-800">
+                    {decodeHtmlEntities(receiptModalApp.companyName || receiptModalApp.job?.company || 'Employer')}
+                  </span>.
+                </p>
+              </div>
+              <button
+                onClick={() => setReceiptModalApp(null)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {receiptError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{receiptError}</span>
+              </div>
+            )}
+
+            {receiptSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2 font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{receiptSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleLinkReceiptSubmit} className="space-y-3.5 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-neutral-800 flex items-center gap-1.5">
+                  <Hash className="w-3.5 h-3.5 text-neutral-500" />
+                  Employer ATS Reference Number / Application ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. WD-2026-98124, REQ-449102, GH-88219"
+                  value={receiptRefNumber}
+                  onChange={(e) => setReceiptRefNumber(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 font-mono text-xs"
+                />
+                <p className="text-[10.5px] text-neutral-400">
+                  Located in your confirmation email or employer portal (Workday, Greenhouse, Lever, Taleo, etc.).
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-neutral-800 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-neutral-500" />
+                  Employer Sender Email Address
+                </label>
+                <input
+                  type="email"
+                  placeholder="e.g. careers@company.com or jobs-noreply@workday.com"
+                  value={receiptSenderEmail}
+                  onChange={(e) => setReceiptSenderEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-xs"
+                />
+                <p className="text-[10.5px] text-neutral-400">
+                  The official corporate domain that dispatched the acknowledgement email.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-neutral-800 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-neutral-500" />
+                  Employer Confirmation Snippet / Message Text
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder='e.g. "Thank you for applying to the position of Software Engineer. Your application has been received and our hiring team is currently reviewing your profile."'
+                  value={receiptSnippet}
+                  onChange={(e) => setReceiptSnippet(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-xs resize-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-neutral-800 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-neutral-500" />
+                  Date of Confirmation Received
+                </label>
+                <input
+                  type="date"
+                  value={receiptDate}
+                  onChange={(e) => setReceiptDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-xs"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-neutral-200">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setReceiptModalApp(null)}
+                  disabled={linkingReceipt}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={linkingReceipt}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  {linkingReceipt ? 'Verifying Receipt...' : 'Verify & Link Receipt'}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

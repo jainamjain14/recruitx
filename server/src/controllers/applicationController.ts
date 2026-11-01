@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types/index.js';
 import { Application, ApplicationSubmissionStatus } from '../models/Application.js';
+import { AtsVerificationService } from '../services/atsVerificationService.js';
 import { Job } from '../models/Job.js';
 import { Resume } from '../models/Resume.js';
 import { PlacementEligibilityRule } from '../models/PlacementEligibilityRule.js';
@@ -372,25 +373,162 @@ export const confirmManualSubmission = async (req: AuthenticatedRequest, res: Re
       return;
     }
 
-    application.submissionStatus = 'submitted';
+    // Mark as External Submission — Awaiting Verification
+    application.submissionStatus = 'external_awaiting_verification';
+    application.verificationLifecycleStage = 'dispatched';
     application.statusHistory.push({
       status: application.status,
       changedAt: new Date(),
-      note: 'Candidate completed submission on official external portal and verified application status.',
+      note: 'Candidate completed external career portal submission — External Submission Awaiting Verification.',
     });
 
     application.confirmationDetails = {
-      confirmationId: `RCX-PORTAL-CONFIRM-${application._id}`,
+      confirmationId: `EXT-DISPATCH-${application._id}`,
       recipient: application.companyName || 'Official Career Portal',
-      dispatchMethod: 'Candidate Self-Verified Portal Submission',
+      dispatchMethod: 'Candidate External Portal Dispatch',
       timestamp: new Date(),
+      verifiedAt: new Date(),
     };
 
     await application.save();
 
-    sendSuccess(res, 'Application submission confirmed successfully! Tracker updated to Confirmed Submitted.', { application });
+    sendSuccess(res, 'Application marked as External Submission — Awaiting Verification. Please link your employer confirmation email or ATS reference once received.', { application });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to confirm application submission', null, 500);
+  }
+};
+
+/**
+ * Associates an authentic employer-side confirmation email or ATS reference number with an application
+ */
+export const linkEmployerReceipt = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'student') {
+      sendError(res, 'Only candidates can link employer confirmation receipts', null, 403);
+      return;
+    }
+
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const application = await Application.findById(id);
+
+    if (!application) {
+      sendError(res, 'Application not found', null, 404);
+      return;
+    }
+
+    const studentIdStr = typeof application.student === 'object' && application.student?._id
+      ? application.student._id.toString()
+      : application.student?.toString();
+
+    if (studentIdStr !== req.user._id.toString()) {
+      sendError(res, 'Not authorized to update this application', null, 403);
+      return;
+    }
+
+    const {
+      externalReferenceNumber,
+      employerSenderEmail,
+      employerConfirmationSnippet,
+      receivedAt,
+    } = req.body;
+
+    const verification = AtsVerificationService.verifyEmployerConfirmation({
+      applicationId: application._id,
+      companyName: application.companyName || 'Employer',
+      externalReferenceNumber,
+      employerSenderEmail,
+      employerConfirmationSnippet,
+      receivedAt,
+    });
+
+    if (!verification.valid || !verification.receipt) {
+      sendError(res, verification.error || 'Invalid employer confirmation details', null, 400);
+      return;
+    }
+
+    application.employerReceipt = verification.receipt;
+    application.submissionStatus = 'submitted';
+    application.verificationLifecycleStage = 'employer_receipt_confirmed';
+    application.externalAtsName = AtsVerificationService.detectAtsProvider(externalReferenceNumber, employerSenderEmail);
+    application.externalStatus = 'Application Received by Employer';
+
+    application.confirmationDetails = {
+      confirmationId: verification.receipt.externalReferenceNumber || `EXT-CONFIRMED-${application._id}`,
+      recipient: verification.receipt.employerSenderEmail || application.companyName || 'Employer ATS',
+      dispatchMethod: `Verified Employer Confirmation Receipt [${application.externalAtsName}]`,
+      timestamp: verification.receipt.confirmedAt,
+      verifiedAt: new Date(),
+    };
+
+    application.statusHistory.push({
+      status: application.status,
+      changedAt: new Date(),
+      note: `Employer-side receipt confirmed: ATS Reference #${verification.receipt.externalReferenceNumber || 'CONFIRMED'} via ${verification.receipt.employerSenderEmail || 'employer confirmation'}.`,
+    });
+
+    await application.save();
+
+    sendSuccess(res, 'Employer confirmation receipt verified and linked successfully! Application stage updated to Employer Receipt Confirmed.', {
+      application,
+      receipt: verification.receipt,
+    });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to link employer confirmation receipt', null, 500);
+  }
+};
+
+/**
+ * On-platform recruiter acknowledgment of application receipt
+ */
+export const acknowledgeEmployerReceipt = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'recruiter') {
+      sendError(res, 'Only recruiters can acknowledge application receipt', null, 403);
+      return;
+    }
+
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const application = await Application.findById(id);
+
+    if (!application) {
+      sendError(res, 'Application not found', null, 404);
+      return;
+    }
+
+    const recCompany = ((req.user as any)?.company || '').toLowerCase().trim();
+    const appCompany = (application.companyName || '').toLowerCase().trim();
+    const appRecruiterId = typeof application.recruiter === 'object' && application.recruiter?._id
+      ? application.recruiter._id.toString()
+      : application.recruiter?.toString();
+
+    const isAuthorized = appRecruiterId === req.user._id.toString() || (recCompany && recCompany === appCompany);
+    if (!isAuthorized) {
+      sendError(res, 'Not authorized to review this application', null, 403);
+      return;
+    }
+
+    if (!application.employerReceipt) {
+      application.employerReceipt = {
+        receiptSource: 'recruiter_in_app_review',
+        externalReferenceNumber: `RCX-REV-${application._id}`,
+        acknowledgedBy: `${req.user.name} (${(req.user as any).company || 'Hiring Manager'})`,
+        confirmedAt: new Date(),
+        verifiedNotes: 'Hiring team accessed and reviewed candidate profile in RecruitX ATS',
+      };
+      if (application.verificationLifecycleStage !== 'employer_status_updated') {
+        application.verificationLifecycleStage = 'employer_receipt_confirmed';
+      }
+      application.statusHistory.push({
+        status: application.status,
+        changedAt: new Date(),
+        note: `Employer-side receipt confirmed: Recruiter ${req.user.name} opened and reviewed candidate application in ATS.`,
+      });
+      await application.save();
+    }
+
+    sendSuccess(res, 'Application receipt acknowledged', { application });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to acknowledge receipt', null, 500);
   }
 };
 
@@ -464,9 +602,11 @@ export const getApplications = async (req: AuthenticatedRequest, res: Response):
           }
         }
 
+        const atsEval = AtsVerificationService.evaluateApplicationVerification(app);
         return {
           ...app,
           recruiter: recruiterData,
+          atsVerification: atsEval,
           candidateProfile: r ? {
             headline: r.headline || 'Applicant',
             skills: r.skills || [],
@@ -497,10 +637,20 @@ export const updateApplicationStatus = async (req: AuthenticatedRequest, res: Re
 
     if (status && status !== application.status) {
       application.status = status;
+      application.verificationLifecycleStage = 'employer_status_updated';
+      if (!application.employerReceipt && req.user?.role === 'recruiter') {
+        application.employerReceipt = {
+          receiptSource: 'recruiter_in_app_review',
+          externalReferenceNumber: `RCX-REV-${application._id}`,
+          acknowledgedBy: `${req.user.name} (${(req.user as any).company || 'Hiring Manager'})`,
+          confirmedAt: new Date(),
+          verifiedNotes: `Employer advanced candidate hiring stage to ${status.replace('_', ' ').toUpperCase()}`,
+        };
+      }
       application.statusHistory.push({
         status,
         changedAt: new Date(),
-        note: note || `Status updated to ${status.replace('_', ' ')}`,
+        note: note || `Employer updated status to ${status.replace('_', ' ')}`,
       });
 
       // Create real-time notification for student
