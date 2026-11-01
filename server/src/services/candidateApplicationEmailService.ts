@@ -526,3 +526,4 @@ Verified via RecruitX Career Platform: https://recruitx-eosin.vercel.app
 function jobTitleToQuery(company: string): string {
   return company.replace(/[^a-zA-Z0-9 ]/g, ' ').trim();
 }
+

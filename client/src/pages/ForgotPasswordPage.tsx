@@ -75,25 +75,37 @@ export const ForgotPasswordPage: React.FC = () => {
         <div className="flex flex-col gap-4 text-center py-2">
           <Alert
             type="success"
-            title="Reset Token Generated"
-            message="We have generated password reset instructions for your account."
+            title="Instructions Dispatched"
+            message="If an account with that email exists, we have sent instructions to reset your password. Please check your inbox and spam folder."
           />
-          <div className="bg-neutral-50 border border-neutral-200 rounded-md p-3.5 text-left text-xs space-y-2">
-            <span className="font-semibold text-neutral-800 block">Reset Token:</span>
-            <code className="block p-2 bg-white border border-neutral-200 rounded text-[11px] font-mono break-all text-neutral-800">
-              {successPayload.resetToken}
-            </code>
-          </div>
-          <Button
-            variant="primary"
-            size="md"
-            className="w-full"
-            onClick={() =>
-              navigate(`/reset-password?token=${encodeURIComponent(successPayload.resetToken)}`)
-            }
-          >
-            Proceed to Reset Password
-          </Button>
+          {successPayload.resetToken && (
+            <div className="bg-neutral-50 border border-neutral-200 rounded-md p-3.5 text-left text-xs space-y-2">
+              <span className="font-semibold text-neutral-800 block">Development Reset Token:</span>
+              <code className="block p-2 bg-white border border-neutral-200 rounded text-[11px] font-mono break-all text-neutral-800">
+                {successPayload.resetToken}
+              </code>
+              <Button
+                variant="primary"
+                size="md"
+                className="w-full mt-2"
+                onClick={() =>
+                  navigate(`/reset-password?token=${encodeURIComponent(successPayload.resetToken)}`)
+                }
+              >
+                Proceed to Reset Password
+              </Button>
+            </div>
+          )}
+          {!successPayload.resetToken && (
+            <Button
+              variant="outline"
+              size="md"
+              className="w-full"
+              onClick={() => navigate('/login')}
+            >
+              Return to Login
+            </Button>
+          )}
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>

@@ -8,6 +8,9 @@ import { PlacementEligibilityRule } from '../models/PlacementEligibilityRule.js'
 import { Notification } from '../models/Notification.js';
 import { EmailService } from '../services/emailService.js';
 import { CandidateApplicationEmailService } from '../services/candidateApplicationEmailService.js';
+import { AutomatedApplicationService } from '../services/automatedApplicationService.js';
+import { InboxMonitoringService } from '../services/inboxMonitoringService.js';
+import { ApplicationEvent } from '../models/ApplicationEvent.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { User } from '../models/User.js';
 import { emitToUser } from '../socket.js';
@@ -859,5 +862,231 @@ export const updateApplicationStatus = async (req: AuthenticatedRequest, res: Re
     sendSuccess(res, 'Application updated successfully', { application });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to update application status', null, 500);
+  }
+};
+
+/**
+ * Execute the autonomous application engine for the authenticated student
+ */
+export const runAutoApply = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'student') {
+      sendError(res, 'Only students can execute autonomous applications', null, 403);
+      return;
+    }
+
+    const { consentGranted = true, dailyLimit, minMatchScore, targetRoles, remoteOnly } = req.body;
+
+    const result = await AutomatedApplicationService.runAutonomousPipeline({
+      studentId: req.user._id.toString(),
+      consentGranted: Boolean(consentGranted),
+      dailyLimit: dailyLimit ? Number(dailyLimit) : (req.user as any).autoApplyDailyLimit || 5,
+      minMatchScore: minMatchScore ? Number(minMatchScore) : (req.user as any).autoApplyMinScore || 70,
+      targetRoles: Array.isArray(targetRoles) ? targetRoles : (req.user as any).autoApplyTargetRoles || [],
+      remoteOnly: remoteOnly !== undefined ? Boolean(remoteOnly) : (req.user as any).autoApplyRemoteOnly || false,
+    });
+
+    if (!result.success) {
+      sendError(res, result.message, result, 400);
+      return;
+    }
+
+    sendSuccess(res, result.message, result);
+  } catch (error: any) {
+    sendError(res, error.message || 'Autonomous application execution failed', null, 500);
+  }
+};
+
+/**
+ * Get candidate's autonomous auto-apply preferences
+ */
+export const getAutoApplyPreferences = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      sendError(res, 'Not authenticated', null, 401);
+      return;
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      sendError(res, 'User not found', null, 404);
+      return;
+    }
+
+    sendSuccess(res, 'Auto-apply preferences retrieved', {
+      autoApplyEnabled: user.autoApplyEnabled ?? false,
+      autoApplyDailyLimit: user.autoApplyDailyLimit ?? 5,
+      autoApplyMinScore: user.autoApplyMinScore ?? 70,
+      autoApplyTargetRoles: user.autoApplyTargetRoles || [],
+      autoApplyRemoteOnly: user.autoApplyRemoteOnly ?? false,
+      lastAutoApplyRunAt: user.lastAutoApplyRunAt,
+      inboxSyncLastRunAt: user.inboxSyncLastRunAt,
+      isEmailSendingAuthorized: user.isEmailSendingAuthorized ?? false,
+      authorizedSendingEmail: user.authorizedSendingEmail,
+      authorizedSendingProvider: user.authorizedSendingProvider,
+    });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to get preferences', null, 500);
+  }
+};
+
+/**
+ * Update candidate's autonomous auto-apply preferences
+ */
+export const updateAutoApplyPreferences = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'student') {
+      sendError(res, 'Only students can configure auto-apply preferences', null, 403);
+      return;
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      sendError(res, 'User not found', null, 404);
+      return;
+    }
+
+    const {
+      autoApplyEnabled,
+      autoApplyDailyLimit,
+      autoApplyMinScore,
+      autoApplyTargetRoles,
+      autoApplyRemoteOnly,
+    } = req.body;
+
+    if (autoApplyEnabled !== undefined) user.autoApplyEnabled = Boolean(autoApplyEnabled);
+    if (autoApplyDailyLimit !== undefined) user.autoApplyDailyLimit = Math.max(1, Math.min(50, Number(autoApplyDailyLimit)));
+    if (autoApplyMinScore !== undefined) user.autoApplyMinScore = Math.max(50, Math.min(95, Number(autoApplyMinScore)));
+    if (Array.isArray(autoApplyTargetRoles)) user.autoApplyTargetRoles = autoApplyTargetRoles;
+    if (autoApplyRemoteOnly !== undefined) user.autoApplyRemoteOnly = Boolean(autoApplyRemoteOnly);
+
+    await user.save();
+
+    sendSuccess(res, 'Auto-apply preferences updated successfully', {
+      autoApplyEnabled: user.autoApplyEnabled,
+      autoApplyDailyLimit: user.autoApplyDailyLimit,
+      autoApplyMinScore: user.autoApplyMinScore,
+      autoApplyTargetRoles: user.autoApplyTargetRoles,
+      autoApplyRemoteOnly: user.autoApplyRemoteOnly,
+    });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to update preferences', null, 500);
+  }
+};
+
+/**
+ * Autonomous inbox synchronization for employer acknowledgements and status updates
+ */
+export const syncCandidateInbox = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'student') {
+      sendError(res, 'Only students can sync employer inboxes', null, 403);
+      return;
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      sendError(res, 'User not found', null, 404);
+      return;
+    }
+
+    const summary = await InboxMonitoringService.syncCandidateInbox(user);
+    if (!summary.success && summary.provider === 'none') {
+      sendError(res, summary.message || 'No authorized email account connected', summary, 400);
+      return;
+    }
+
+    sendSuccess(res, summary.message || 'Inbox synchronized successfully', summary);
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to sync candidate inbox', null, 500);
+  }
+};
+
+/**
+ * Retrieve immutable telemetry events for an application
+ */
+export const getApplicationEvents = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const application = await Application.findById(id);
+
+    if (!application) {
+      sendError(res, 'Application not found', null, 404);
+      return;
+    }
+
+    // Verify user authorization (must be owner student, assigned recruiter, or admin)
+    const sId = typeof application.student === 'object' && application.student?._id ? application.student._id.toString() : application.student?.toString();
+    const rId = typeof application.recruiter === 'object' && application.recruiter?._id ? application.recruiter._id.toString() : application.recruiter?.toString();
+
+    const isAuthorized =
+      req.user?.role === 'admin' ||
+      (req.user?.role === 'student' && sId === req.user._id.toString()) ||
+      (req.user?.role === 'recruiter' && rId === req.user._id.toString());
+
+    if (!isAuthorized) {
+      sendError(res, 'Not authorized to view events for this application', null, 403);
+      return;
+    }
+
+    const events = await ApplicationEvent.getEventsByApplicationId(id);
+    sendSuccess(res, 'Application events retrieved', { events, count: events.length });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to retrieve application events', null, 500);
+  }
+};
+
+/**
+ * Real-time summary statistics calculated dynamically from actual database records
+ */
+export const getApplicationSummaryStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      sendError(res, 'Not authenticated', null, 401);
+      return;
+    }
+
+    const studentId = req.user._id.toString();
+    const [applications, eventStats] = await Promise.all([
+      Application.find({ student: studentId }),
+      ApplicationEvent.getStudentEventStats(studentId),
+    ]);
+
+    const totalApplications = applications.length;
+    const autoAppliedCount = applications.filter((a) => a.autoApplied).length;
+    const directAtsCount = applications.filter((a) => a.atsPlatform === 'greenhouse' || a.atsPlatform === 'lever').length;
+    const emailsDispatchedCount = applications.filter((a) =>
+      Boolean(a.senderEmail || a.emailMessageId || a.emailSentAt || a.status === 'email_sent' || a.status === 'email_delivered')
+    ).length;
+    const employerConfirmedCount = applications.filter((a) =>
+      a.status === 'employer_receipt_confirmed' || a.primaryStatus === 'employer_receipt_confirmed' || a.isIndependentlyAuthenticated
+    ).length;
+    const interviewsCount = applications.filter((a) =>
+      a.status === 'interview_scheduled' || a.hiringStage === 'interview_scheduled'
+    ).length;
+    const actionRequiredCount = applications.filter((a) =>
+      a.status === 'external_application_required' || a.submissionStatus === 'requires_manual_application'
+    ).length;
+    const rejectedCount = applications.filter((a) =>
+      a.status === 'rejected' || a.hiringStage === 'rejected'
+    ).length;
+    const offersCount = applications.filter((a) =>
+      a.status === 'offered' || a.hiringStage === 'offered'
+    ).length;
+
+    sendSuccess(res, 'Live summary statistics calculated from Firestore', {
+      totalApplications,
+      autoAppliedCount,
+      directAtsCount,
+      emailsDispatchedCount,
+      employerConfirmedCount,
+      interviewsCount,
+      actionRequiredCount,
+      rejectedCount,
+      offersCount,
+      eventStats,
+    });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to calculate application statistics', null, 500);
   }
 };

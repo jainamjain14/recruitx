@@ -390,10 +390,10 @@ export const StudentJobs: React.FC = () => {
     setAutoApplyResult(null);
 
     try {
-      const res = await api.post('/jobs/auto-apply', {
+      const res = await api.post('/applications/auto-apply/run', {
         consentGranted: true,
         minMatchScore: autoApplyMinScore,
-        maxApplications: autoApplyMaxApps,
+        dailyLimit: autoApplyMaxApps,
       });
 
       if (res.data?.data) {

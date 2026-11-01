@@ -226,5 +226,53 @@ export class EmailService {
       html: htmlBody,
     });
   }
-}
+/**
+   * Dispatches password reset instructions with secure one-time link
+   */
+  static async sendPasswordResetEmail(payload: {
+    toEmail: string;
+    userName: string;
+    resetUrl: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    const { toEmail, userName, resetUrl } = payload;
 
+    const htmlBody = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <div style="border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 24px;">
+          <h2 style="color: #0f172a; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">RecruitX</h2>
+          <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">AI-Driven Campus Placement & Hiring Ecosystem</p>
+        </div>
+
+        <h3 style="color: #0f172a; font-size: 18px; margin: 0 0 12px 0;">Reset your password</h3>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${userName || 'there'}</strong>,<br/>
+          We received a request to reset your password for your RecruitX account. Click the button below to set a new password:
+        </p>
+
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${resetUrl}" style="background-color: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
+            Reset Password
+          </a>
+        </div>
+
+        <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0 0 24px 0;">
+          This link is valid for 1 hour. If you did not request a password reset, you can safely ignore this email — your password will remain unchanged.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 16px 0;" />
+        <div style="text-align: center;">
+          <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+            &copy; 2026 RecruitX Platform • Naynam Vakhariya • Jainam Jain • Shiv Gupta
+          </p>
+        </div>
+      </div>
+    `;
+
+    console.log(`📧 Dispatching Password Reset link to ${toEmail}...`);
+    return this.sendMail({
+      to: toEmail,
+      subject: `Reset your RecruitX password`,
+      html: htmlBody,
+    });
+  }
+}

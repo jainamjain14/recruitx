@@ -483,3 +483,4 @@ export class CandidateEmailAuthService {
     return true;
   }
 }
+

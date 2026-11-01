@@ -360,7 +360,7 @@ export class AuthService {
   /**
    * Request password reset token
    */
-  static async forgotPassword(email: string): Promise<{ resetToken: string }> {
+  static async forgotPassword(email: string): Promise<{ resetToken: string; user: IUserDocument }> {
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       // For security, don't reveal whether email exists, but return token for testing/demo
@@ -379,7 +379,7 @@ export class AuthService {
 
     await user.save();
 
-    return { resetToken };
+    return { resetToken, user };
   }
 
   /**

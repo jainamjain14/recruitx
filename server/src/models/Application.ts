@@ -125,6 +125,9 @@ export interface IApplicationDocument {
   resumeFileSize?: number;
   coverLetterIncluded?: boolean;
   portalSubmissionConfirmedAt?: Date;
+  autoApplied?: boolean;
+  atsPlatform?: string;
+  assistedAutofillManifest?: any;
   createdAt: Date;
   updatedAt: Date;
   save(): Promise<IApplicationDocument>;
@@ -176,6 +179,9 @@ export class ApplicationDoc implements IApplicationDocument {
   declare resumeFileSize?: number;
   declare coverLetterIncluded?: boolean;
   declare portalSubmissionConfirmedAt?: Date;
+  declare autoApplied?: boolean;
+  declare atsPlatform?: string;
+  declare assistedAutofillManifest?: any;
   declare createdAt: Date;
   declare updatedAt: Date;
 
@@ -288,6 +294,9 @@ export class ApplicationDoc implements IApplicationDocument {
     this.resumeFileSize = data.resumeFileSize;
     this.coverLetterIncluded = data.coverLetterIncluded !== undefined ? Boolean(data.coverLetterIncluded) : undefined;
     this.portalSubmissionConfirmedAt = data.portalSubmissionConfirmedAt ? dateFromFirestore(data.portalSubmissionConfirmedAt) : undefined;
+    this.autoApplied = data.autoApplied !== undefined ? Boolean(data.autoApplied) : false;
+    this.atsPlatform = data.atsPlatform || undefined;
+    this.assistedAutofillManifest = data.assistedAutofillManifest || undefined;
 
     this.statusHistory = Array.isArray(data.statusHistory)
       ? data.statusHistory.map((h: any) => ({
@@ -347,6 +356,9 @@ export class ApplicationDoc implements IApplicationDocument {
       resumeFileSize: this.resumeFileSize || null,
       coverLetterIncluded: this.coverLetterIncluded ?? null,
       portalSubmissionConfirmedAt: this.portalSubmissionConfirmedAt || null,
+      autoApplied: this.autoApplied ?? false,
+      atsPlatform: this.atsPlatform || null,
+      assistedAutofillManifest: this.assistedAutofillManifest || null,
       statusHistory: this.statusHistory,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -465,6 +477,10 @@ export class Application {
     resumeFileName?: string;
     resumeFileSize?: number;
     coverLetterIncluded?: boolean;
+    primaryStatus?: PrimaryApplicationStatus;
+    autoApplied?: boolean;
+    atsPlatform?: string;
+    assistedAutofillManifest?: any;
   }): Promise<IApplicationDocument> {
     const jobId = data.job ? (typeof data.job === 'object' && data.job._id ? data.job._id.toString() : data.job.toString()) : null;
     const studentId = typeof data.student === 'object' && data.student._id ? data.student._id.toString() : data.student.toString();
@@ -556,6 +572,9 @@ export class Application {
       resumeFileSize: data.resumeFileSize || null,
       coverLetterIncluded: data.coverLetterIncluded ?? null,
       portalSubmissionConfirmedAt: data.portalSubmissionConfirmedAt || null,
+      autoApplied: data.autoApplied ?? false,
+      atsPlatform: data.atsPlatform || null,
+      assistedAutofillManifest: data.assistedAutofillManifest || null,
       statusHistory,
       createdAt: now,
       updatedAt: now,

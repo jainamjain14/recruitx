@@ -56,6 +56,14 @@ export interface IUserDocument {
   authorizedSendingEmail?: string;
   authorizedSendingProvider?: 'gmail' | 'outlook' | 'smtp';
   isEmailSendingAuthorized?: boolean;
+  // Autonomous Job Applications & Inbox Sync Preferences
+  autoApplyEnabled?: boolean;
+  autoApplyDailyLimit?: number;
+  autoApplyMinScore?: number;
+  autoApplyTargetRoles?: string[];
+  autoApplyRemoteOnly?: boolean;
+  lastAutoApplyRunAt?: Date;
+  inboxSyncLastRunAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   matchPassword(enteredPassword: string): Promise<boolean>;
@@ -101,6 +109,13 @@ export class UserDoc implements IUserDocument {
   declare authorizedSendingEmail?: string;
   declare authorizedSendingProvider?: 'gmail' | 'outlook' | 'smtp';
   declare isEmailSendingAuthorized?: boolean;
+  declare autoApplyEnabled?: boolean;
+  declare autoApplyDailyLimit?: number;
+  declare autoApplyMinScore?: number;
+  declare autoApplyTargetRoles?: string[];
+  declare autoApplyRemoteOnly?: boolean;
+  declare lastAutoApplyRunAt?: Date;
+  declare inboxSyncLastRunAt?: Date;
   declare createdAt: Date;
   declare updatedAt: Date;
 
@@ -154,6 +169,13 @@ export class UserDoc implements IUserDocument {
     this.authorizedSendingEmail = data.authorizedSendingEmail;
     this.authorizedSendingProvider = data.authorizedSendingProvider;
     this.isEmailSendingAuthorized = data.isEmailSendingAuthorized ?? false;
+    this.autoApplyEnabled = data.autoApplyEnabled ?? false;
+    this.autoApplyDailyLimit = data.autoApplyDailyLimit ?? 5;
+    this.autoApplyMinScore = data.autoApplyMinScore ?? 70;
+    this.autoApplyTargetRoles = Array.isArray(data.autoApplyTargetRoles) ? data.autoApplyTargetRoles : [];
+    this.autoApplyRemoteOnly = data.autoApplyRemoteOnly ?? false;
+    this.lastAutoApplyRunAt = data.lastAutoApplyRunAt ? dateFromFirestore(data.lastAutoApplyRunAt) : undefined;
+    this.inboxSyncLastRunAt = data.inboxSyncLastRunAt ? dateFromFirestore(data.inboxSyncLastRunAt) : undefined;
 
     this.createdAt = dateFromFirestore(data.createdAt);
     this.updatedAt = dateFromFirestore(data.updatedAt);
@@ -215,6 +237,13 @@ export class UserDoc implements IUserDocument {
       authorizedSendingEmail: this.authorizedSendingEmail || null,
       authorizedSendingProvider: this.authorizedSendingProvider || null,
       isEmailSendingAuthorized: this.isEmailSendingAuthorized ?? false,
+      autoApplyEnabled: this.autoApplyEnabled ?? false,
+      autoApplyDailyLimit: this.autoApplyDailyLimit ?? 5,
+      autoApplyMinScore: this.autoApplyMinScore ?? 70,
+      autoApplyTargetRoles: this.autoApplyTargetRoles || [],
+      autoApplyRemoteOnly: this.autoApplyRemoteOnly ?? false,
+      lastAutoApplyRunAt: this.lastAutoApplyRunAt || null,
+      inboxSyncLastRunAt: this.inboxSyncLastRunAt || null,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });

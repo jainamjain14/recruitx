@@ -28,6 +28,11 @@ import {
   Hash,
   Mail,
   BadgeCheck,
+  Zap,
+  RefreshCw,
+  Settings,
+  Activity,
+  CheckCircle,
 } from 'lucide-react';
 
 export type PrimaryApplicationStatus =
@@ -245,6 +250,98 @@ export const StudentApplications: React.FC = () => {
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
   const [confirmingAppId, setConfirmingAppId] = useState<string | null>(null);
 
+  // Autonomous Engine & Inbox Sync States
+  const [autoApplyRunning, setAutoApplyRunning] = useState(false);
+  const [inboxSyncRunning, setInboxSyncRunning] = useState(false);
+  const [inboxSyncSummary, setInboxSyncSummary] = useState<any | null>(null);
+  const [autoApplySummary, setAutoApplySummary] = useState<any | null>(null);
+  const [autoApplyPreferences, setAutoApplyPreferences] = useState({
+    autoApplyEnabled: false,
+    autoApplyDailyLimit: 5,
+    autoApplyMinScore: 70,
+  });
+  const [preferencesModalOpen, setPreferencesModalOpen] = useState(false);
+  const [eventsModalApp, setEventsModalApp] = useState<any | null>(null);
+  const [appEvents, setAppEvents] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [assistedManifestModalApp, setAssistedManifestModalApp] = useState<any | null>(null);
+
+  const fetchAutoApplyPreferences = async () => {
+    try {
+      const res = await api.get('/applications/auto-apply/preferences');
+      if (res.data?.success && res.data.data) {
+        setAutoApplyPreferences(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load auto-apply preferences:', err);
+    }
+  };
+
+  const handleRunAutonomousPipeline = async () => {
+    setAutoApplyRunning(true);
+    setAutoApplySummary(null);
+    try {
+      const res = await api.post('/applications/auto-apply/run', {
+        consentGranted: true,
+        dailyLimit: autoApplyPreferences.autoApplyDailyLimit,
+        minMatchScore: autoApplyPreferences.autoApplyMinScore,
+      });
+      if (res.data?.success) {
+        setAutoApplySummary(res.data.data);
+        await fetchData();
+      }
+    } catch (err: any) {
+      console.error('Autonomous pipeline error:', err);
+      alert(err.response?.data?.message || err.message || 'Auto-apply failed.');
+    } finally {
+      setAutoApplyRunning(false);
+    }
+  };
+
+  const handleSyncCandidateInbox = async () => {
+    setInboxSyncRunning(true);
+    setInboxSyncSummary(null);
+    try {
+      const res = await api.post('/applications/inbox/sync');
+      if (res.data?.success) {
+        setInboxSyncSummary(res.data.data);
+        await fetchData();
+      }
+    } catch (err: any) {
+      console.error('Inbox sync error:', err);
+      alert(err.response?.data?.message || err.message || 'Inbox synchronization failed. Ensure Gmail or Outlook is connected in Settings.');
+    } finally {
+      setInboxSyncRunning(false);
+    }
+  };
+
+  const handleViewEvents = async (app: any) => {
+    setEventsModalApp(app);
+    setLoadingEvents(true);
+    try {
+      const res = await api.get(`/applications/${app._id}/events`);
+      if (res.data?.success) {
+        setAppEvents(res.data.data.events || []);
+      }
+    } catch (err) {
+      console.error('Failed to load application events:', err);
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+
+  const handleSavePreferences = async (newPrefs: any) => {
+    try {
+      const res = await api.put('/applications/auto-apply/preferences', newPrefs);
+      if (res.data?.success) {
+        setAutoApplyPreferences((prev) => ({ ...prev, ...res.data.data }));
+        setPreferencesModalOpen(false);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to save preferences.');
+    }
+  };
+
   // Link Employer Receipt Modal State
   const [receiptModalApp, setReceiptModalApp] = useState<any | null>(null);
   const [receiptRefNumber, setReceiptRefNumber] = useState('');
@@ -409,6 +506,7 @@ export const StudentApplications: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    fetchAutoApplyPreferences();
   }, []);
 
   const fetchData = async () => {
@@ -505,46 +603,135 @@ export const StudentApplications: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  // KPI Metrics based on mutually exclusive statuses
+  // KPI Metrics calculated dynamically from actual records
   const totalCount = applications.length;
-  const externalReqCount = applications.filter((a) => getAppStatus(a) === 'external_application_required').length;
-  const emailSentCount = applications.filter((a) => getAppStatus(a) === 'email_sent' || getAppStatus(a) === 'email_delivered').length;
+  const autoAppliedCount = applications.filter((a) => a.autoApplied).length;
+  const externalReqCount = applications.filter((a) => getAppStatus(a) === 'external_application_required' || a.submissionStatus === 'requires_manual_application').length;
+  const emailSentCount = applications.filter((a) => Boolean(a.senderEmail || a.emailMessageId || a.emailSentAt || a.status === 'email_sent' || a.status === 'email_delivered')).length;
   const awaitingCount = applications.filter((a) => getAppStatus(a) === 'awaiting_employer_verification').length;
   const verifiedCount = applications.filter(
-    (a) => getAppStatus(a) === 'employer_receipt_confirmed' || getAppStatus(a) === 'employer_status_updated'
+    (a) => getAppStatus(a) === 'employer_receipt_confirmed' || getAppStatus(a) === 'employer_status_updated' || a.isIndependentlyAuthenticated
   ).length;
+  const interviewsCount = applications.filter((a) => a.hiringStage === 'interview_scheduled' || a.status === 'interview_scheduled').length;
 
   return (
     <div className="space-y-6">
       {/* Header & Overview */}
-      <div className="border-b border-neutral-200 pb-4">
-        <h1 className="text-xl font-bold text-neutral-900">My Applications & Hiring Tracker</h1>
-        <p className="text-xs text-neutral-500 mt-0.5">
-          Real-time timeline progression, interview scheduling notifications, and recruiter communication.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 pb-4">
+        <div>
+          <h1 className="text-xl font-bold text-neutral-900">Autonomous Application &amp; Hiring Tracker</h1>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Universal AI application engine with direct ATS REST integration, verified email transmission, and automated inbox monitoring.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPreferencesModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 bg-white text-xs font-semibold text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 transition-colors shadow-xs"
+          >
+            <Settings className="w-3.5 h-3.5 text-neutral-500" />
+            <span>Preferences &amp; Quotas</span>
+          </button>
+        </div>
       </div>
 
-      {/* KPI Metric Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <Card className="p-3.5 border-neutral-200 bg-white">
-          <span className="text-[11px] font-semibold text-neutral-500 block">Tracked Roles</span>
-          <span className="text-xl font-bold text-neutral-900 mt-0.5 block">{totalCount}</span>
+      {/* AUTONOMOUS COMMAND & INBOX AUTOMATION CARD */}
+      <div className="p-4 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/80 via-blue-50/40 to-white shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                <Sparkles className="w-3 h-3 text-indigo-600" /> Autonomous Pipeline Active
+              </span>
+              <span className="text-xs text-neutral-500">
+                Daily Cap: <strong>{autoApplyPreferences.autoApplyDailyLimit} apps/day</strong> · Min Compatibility: <strong>{autoApplyPreferences.autoApplyMinScore}%</strong>
+              </span>
+            </div>
+            <p className="text-xs text-neutral-700 font-medium">
+              RecruitX autonomously matches openings across all professions, generates tailored cover letters, submits via official ATS APIs or connected email, and polls your inbox for employer acknowledgements.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <Button
+              size="sm"
+              disabled={autoApplyRunning}
+              onClick={handleRunAutonomousPipeline}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5 shadow-xs"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-300" />
+              <span>{autoApplyRunning ? 'Executing Auto-Apply...' : 'Run Autonomous Auto-Apply'}</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={inboxSyncRunning}
+              onClick={handleSyncCandidateInbox}
+              className="bg-white text-xs font-semibold gap-1.5 border-neutral-300 hover:bg-neutral-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-neutral-600 ${inboxSyncRunning ? 'animate-spin' : ''}`} />
+              <span>{inboxSyncRunning ? 'Syncing Inbox...' : 'Scan Inboxes for Confirmations'}</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Live Execution Feedback Alert */}
+        {autoApplySummary && (
+          <div className="p-3 bg-white rounded-lg border border-indigo-200 text-xs text-indigo-900 flex items-start justify-between gap-2 shadow-xs">
+            <div className="space-y-0.5">
+              <p className="font-bold flex items-center gap-1.5 text-indigo-950">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                {autoApplySummary.message}
+              </p>
+              <p className="text-[11px] text-neutral-600">
+                Direct ATS Submissions: <strong>{autoApplySummary.directAtsSubmittedCount}</strong> · Email Dispatches: <strong>{autoApplySummary.emailDispatchedCount}</strong> · Platform Recruiter Queues: <strong>{autoApplySummary.platformRecruiterCount}</strong> · Assisted Manifests: <strong>{autoApplySummary.assistedPortalCount}</strong>
+              </p>
+            </div>
+            <button onClick={() => setAutoApplySummary(null)} className="text-neutral-400 hover:text-neutral-600 text-xs font-bold">✕</button>
+          </div>
+        )}
+
+        {inboxSyncSummary && (
+          <div className="p-3 bg-white rounded-lg border border-emerald-200 text-xs text-emerald-900 flex items-start justify-between gap-2 shadow-xs">
+            <div className="space-y-0.5">
+              <p className="font-bold flex items-center gap-1.5 text-emerald-950">
+                <BadgeCheck className="w-4 h-4 text-emerald-600" />
+                {inboxSyncSummary.message}
+              </p>
+              <p className="text-[11px] text-neutral-600">
+                Acknowledgements Detected: <strong>{inboxSyncSummary.acknowledgementsDetected}</strong> · Interview Invitations: <strong>{inboxSyncSummary.interviewsDetected}</strong> · Offers: <strong>{inboxSyncSummary.offersDetected}</strong> · Rejections: <strong>{inboxSyncSummary.rejectionsDetected}</strong>
+              </p>
+            </div>
+            <button onClick={() => setInboxSyncSummary(null)} className="text-neutral-400 hover:text-neutral-600 text-xs font-bold">✕</button>
+          </div>
+        )}
+      </div>
+
+      {/* KPI Metric Summary Cards (6 Comprehensive Pillars) */}
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
+        <Card className="p-3 border-neutral-200 bg-white">
+          <span className="text-[10.5px] font-semibold text-neutral-500 block">Tracked Roles</span>
+          <span className="text-lg font-bold text-neutral-900 mt-0.5 block">{totalCount}</span>
         </Card>
-        <Card className="p-3.5 border-amber-300 bg-amber-50/40">
-          <span className="text-[11px] font-bold text-amber-900 block">External Action</span>
-          <span className="text-xl font-bold text-amber-800 mt-0.5 block">{externalReqCount}</span>
+        <Card className="p-3 border-indigo-300 bg-indigo-50/40">
+          <span className="text-[10.5px] font-bold text-indigo-900 block">Auto-Applied</span>
+          <span className="text-lg font-bold text-indigo-800 mt-0.5 block">{autoAppliedCount}</span>
         </Card>
-        <Card className="p-3.5 border-indigo-300 bg-indigo-50/40">
-          <span className="text-[11px] font-bold text-indigo-900 block">Email Sent</span>
-          <span className="text-xl font-bold text-indigo-800 mt-0.5 block">{emailSentCount}</span>
+        <Card className="p-3 border-sky-300 bg-sky-50/40">
+          <span className="text-[10.5px] font-bold text-sky-900 block">Emails Dispatched</span>
+          <span className="text-lg font-bold text-sky-800 mt-0.5 block">{emailSentCount}</span>
         </Card>
-        <Card className="p-3.5 border-sky-300 bg-sky-50/40">
-          <span className="text-[11px] font-bold text-sky-900 block">Awaiting Verification</span>
-          <span className="text-xl font-bold text-sky-800 mt-0.5 block">{awaitingCount}</span>
+        <Card className="p-3 border-emerald-300 bg-emerald-50/40">
+          <span className="text-[10.5px] font-bold text-emerald-900 block">Receipts Confirmed</span>
+          <span className="text-lg font-bold text-emerald-800 mt-0.5 block">{verifiedCount}</span>
         </Card>
-        <Card className="p-3.5 border-emerald-300 bg-emerald-50/40">
-          <span className="text-[11px] font-bold text-emerald-900 block">Employer Confirmed</span>
-          <span className="text-xl font-bold text-emerald-800 mt-0.5 block">{verifiedCount}</span>
+        <Card className="p-3 border-purple-300 bg-purple-50/40">
+          <span className="text-[10.5px] font-bold text-purple-900 block">Interviews</span>
+          <span className="text-lg font-bold text-purple-800 mt-0.5 block">{interviewsCount}</span>
+        </Card>
+        <Card className="p-3 border-amber-300 bg-amber-50/40">
+          <span className="text-[10.5px] font-bold text-amber-900 block">Action Required</span>
+          <span className="text-lg font-bold text-amber-800 mt-0.5 block">{externalReqCount}</span>
         </Card>
       </div>
 
@@ -671,6 +858,30 @@ export const StudentApplications: React.FC = () => {
                       >
                         <Video className="w-3.5 h-3.5" />
                         Join Video Interview
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewEvents(app);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 bg-white text-neutral-700 text-xs font-semibold hover:bg-neutral-50 transition-colors shadow-2xs"
+                      title="View immutable telemetry event timeline"
+                    >
+                      <Activity className="w-3.5 h-3.5 text-indigo-600" />
+                      <span className="hidden sm:inline">Event Timeline</span>
+                    </button>
+                    {app.assistedAutofillManifest && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAssistedManifestModalApp(app);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-900 text-xs font-bold hover:bg-indigo-100 transition-colors shadow-2xs"
+                        title="View pre-filled form manifest for official portal"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                        <span className="hidden sm:inline">Manifest</span>
                       </button>
                     )}
                     {!app.employerReceipt && (
@@ -1542,6 +1753,254 @@ export const StudentApplications: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL 1: EVENT TELEMETRY TIMELINE MODAL */}
+      {eventsModalApp && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-600" />
+                  Application Telemetry &amp; Event Stream
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {decodeHtmlEntities(eventsModalApp.jobTitle || 'Role')} · {decodeHtmlEntities(eventsModalApp.companyName || 'Company')}
+                </p>
+              </div>
+              <button
+                onClick={() => setEventsModalApp(null)}
+                className="text-neutral-400 hover:text-neutral-600 font-bold text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {loadingEvents ? (
+                <div className="p-8 text-center text-xs text-neutral-500">Loading immutable telemetry stream...</div>
+              ) : appEvents.length === 0 ? (
+                <div className="p-8 text-center text-xs text-neutral-500 space-y-2">
+                  <p>No telemetry events logged yet for this application.</p>
+                  <p className="text-[11px] text-neutral-400">Events are recorded automatically during job discovery, AI preparation, ATS transmission, and inbox polling.</p>
+                </div>
+              ) : (
+                <div className="space-y-3 pl-3 border-l-2 border-indigo-200">
+                  {appEvents.map((evt, idx) => {
+                    const isSuccess = ['APPLICATION_SUBMITTED', 'EMPLOYER_ACKNOWLEDGED', 'OFFER_RECEIVED', 'INTERVIEW_SCHEDULED'].includes(evt.eventType);
+                    const isWarning = evt.eventType === 'ACTION_REQUIRED' || evt.eventType === 'SUBMISSION_FAILED';
+
+                    return (
+                      <div key={idx} className="relative pl-5">
+                        <span className={`w-3 h-3 rounded-full absolute -left-[23px] top-1 border-2 border-white ${
+                          isSuccess ? 'bg-emerald-600' : isWarning ? 'bg-amber-500' : 'bg-indigo-600'
+                        }`} />
+                        <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-xs space-y-1">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="font-bold text-neutral-900">{evt.title}</span>
+                            <span className="text-[10px] text-neutral-400">
+                              {new Date(evt.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-neutral-600 text-[11.5px]">{evt.description}</p>
+                          <div className="flex items-center gap-2 pt-1 text-[10.5px] text-neutral-500 font-mono">
+                            <span className="px-1.5 py-0.5 rounded bg-white border border-neutral-200">
+                              Actor: {evt.actor}
+                            </span>
+                            {evt.metadata?.referenceNumber && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                Ref: {evt.metadata.referenceNumber}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-neutral-100 flex justify-end">
+              <Button size="sm" variant="secondary" onClick={() => setEventsModalApp(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: ASSISTED PRE-FILLED MANIFEST MODAL */}
+      {assistedManifestModalApp && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                  Pre-filled Application Manifest
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {decodeHtmlEntities(assistedManifestModalApp.jobTitle || 'Role')} · {decodeHtmlEntities(assistedManifestModalApp.companyName || 'Company')}
+                </p>
+              </div>
+              <button
+                onClick={() => setAssistedManifestModalApp(null)}
+                className="text-neutral-400 hover:text-neutral-600 font-bold text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 text-xs text-neutral-700 pr-1">
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 text-[11.5px] space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                  All Fields Pre-Compiled for Submission
+                </p>
+                <p>
+                  This employer requires human completion due to mandatory Single-Sign-On or CAPTCHA verification on their domain. RecruitX has pre-filled all candidate information and generated a tailored cover letter below.
+                </p>
+              </div>
+
+              {assistedManifestModalApp.assistedAutofillManifest?.personalInfo && (
+                <div className="p-3 rounded-lg border border-neutral-200 bg-neutral-50 space-y-1">
+                  <span className="font-bold text-neutral-900 block">Candidate Contact Manifest:</span>
+                  <p>Name: <strong>{assistedManifestModalApp.assistedAutofillManifest.personalInfo.fullName}</strong></p>
+                  <p>Email: <strong>{assistedManifestModalApp.assistedAutofillManifest.personalInfo.email}</strong></p>
+                  <p>Phone: <strong>{assistedManifestModalApp.assistedAutofillManifest.personalInfo.phone || 'Provided on profile'}</strong></p>
+                </div>
+              )}
+
+              {assistedManifestModalApp.assistedAutofillManifest?.tailoredCoverLetter && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-neutral-900">Tailored Cover Letter:</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(assistedManifestModalApp.assistedAutofillManifest.tailoredCoverLetter);
+                        alert('Cover letter copied to clipboard!');
+                      }}
+                      className="text-[11px] font-bold text-indigo-600 hover:underline"
+                    >
+                      Copy to Clipboard
+                    </button>
+                  </div>
+                  <textarea
+                    rows={6}
+                    readOnly
+                    value={assistedManifestModalApp.assistedAutofillManifest.tailoredCoverLetter}
+                    className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-[11px] font-mono resize-none focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-neutral-100 flex items-center justify-between">
+              <Button size="sm" variant="secondary" onClick={() => setAssistedManifestModalApp(null)}>
+                Close
+              </Button>
+              {assistedManifestModalApp.destinationUrl && (
+                <a
+                  href={assistedManifestModalApp.destinationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition-colors shadow-xs"
+                >
+                  <span>Open Employer Portal</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: PREFERENCES & QUOTAS MODAL */}
+      {preferencesModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <h3 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+                <Settings className="w-4 h-4 text-indigo-600" />
+                Autonomous Engine Preferences
+              </h3>
+              <button
+                onClick={() => setPreferencesModalOpen(false)}
+                className="text-neutral-400 hover:text-neutral-600 font-bold text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as any;
+                handleSavePreferences({
+                  autoApplyDailyLimit: Number(form.dailyLimit.value),
+                  autoApplyMinScore: Number(form.minScore.value),
+                  autoApplyRemoteOnly: Boolean(form.remoteOnly.checked),
+                });
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="font-bold text-neutral-800 block mb-1">
+                  Daily Application Limit (Max applications per day)
+                </label>
+                <input
+                  name="dailyLimit"
+                  type="number"
+                  min={1}
+                  max={25}
+                  defaultValue={autoApplyPreferences.autoApplyDailyLimit}
+                  className="w-full p-2.5 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 text-xs font-semibold"
+                />
+                <p className="text-[11px] text-neutral-400 mt-0.5">Prevents application spam and respects employer rate limits (Recommended: 5 to 10).</p>
+              </div>
+
+              <div>
+                <label className="font-bold text-neutral-800 block mb-1">
+                  Minimum AI Compatibility Score Threshold (%)
+                </label>
+                <input
+                  name="minScore"
+                  type="number"
+                  min={50}
+                  max={95}
+                  defaultValue={autoApplyPreferences.autoApplyMinScore}
+                  className="w-full p-2.5 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 text-xs font-semibold"
+                />
+                <p className="text-[11px] text-neutral-400 mt-0.5">Only openings exceeding this score will be considered for autonomous submission.</p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  name="remoteOnly"
+                  type="checkbox"
+                  id="remoteOnly"
+                  defaultChecked={(autoApplyPreferences as any).autoApplyRemoteOnly}
+                  className="rounded text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="remoteOnly" className="font-semibold text-neutral-800 cursor-pointer">
+                  Prioritize Remote &amp; Flexible Positions Only
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-neutral-100 flex items-center justify-end gap-2">
+                <Button size="sm" variant="secondary" type="button" onClick={() => setPreferencesModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
+                  Save Preferences
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

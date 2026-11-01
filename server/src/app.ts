@@ -145,7 +145,10 @@ app.use(
 
       }
 
-      return callback(null, true); // Permissive in deployment to avoid breaking user
+      if (process.env.NODE_ENV === 'production') {
+        return callback(new Error('Cross-Origin Request Blocked by RecruitX Security Policy'));
+      }
+      return callback(null, true);
 
     },
 

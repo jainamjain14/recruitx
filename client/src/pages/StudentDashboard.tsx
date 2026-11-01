@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Clock,
   ShieldCheck,
+  Zap,
 } from 'lucide-react';
 
 const getAppAuthoritativeStatus = (app: any): { label: string; badgeClass: string; icon: string; datePrefix: string } => {
@@ -195,33 +196,45 @@ export const StudentDashboard: React.FC = () => {
             Discipline: <span className="font-semibold text-neutral-800">{targetDomain}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => navigate('/student/roadmap')} variant="outline" size="sm" className="gap-1.5 text-xs">
-            <GraduationCap className="w-3.5 h-3.5" /> Career Roadmap & Skills
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={() => navigate('/student/applications')} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 self-start sm:self-auto text-xs shadow-xs font-bold">
+            <Zap className="w-3.5 h-3.5 text-amber-300" /> Auto-Apply &amp; Tracker
           </Button>
-          <Button onClick={() => navigate('/student/jobs')} size="sm" className="flex items-center gap-1.5 self-start sm:self-auto text-xs">
-            <Briefcase className="w-3.5 h-3.5" /> Explore Open Roles
+          <Button onClick={() => navigate('/student/roadmap')} variant="outline" size="sm" className="gap-1.5 text-xs">
+            <GraduationCap className="w-3.5 h-3.5" /> Career Roadmap
+          </Button>
+          <Button onClick={() => navigate('/student/jobs')} variant="secondary" size="sm" className="flex items-center gap-1.5 self-start sm:self-auto text-xs">
+            <Briefcase className="w-3.5 h-3.5" /> Open Roles
           </Button>
         </div>
       </div>
 
-      {/* Real Live Stats Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
+      {/* Real Live Stats Bar (4 Dynamic Pillars) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <Card className="p-4 bg-white border-neutral-200">
           <div className="flex items-center justify-between">
             <p className="text-2xl font-bold text-neutral-900">{applications.length}</p>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {applications.filter((a) => (a.authoritativeStatus || a.primaryStatus) === 'employer_receipt_confirmed').length} Confirmed
+            <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {applications.filter((a) => (a.authoritativeStatus || a.primaryStatus) === 'employer_receipt_confirmed').length} Verified
             </span>
           </div>
-          <p className="text-xs text-neutral-500 mt-1">Tracked Applications</p>
+          <p className="text-xs text-neutral-500 mt-1">Total Applications</p>
         </Card>
-        <Card className="p-4">
-          <p className="text-2xl font-bold text-neutral-900">{interviews.length}</p>
+        <Card className="p-4 bg-indigo-50/40 border-indigo-200">
+          <div className="flex items-center justify-between">
+            <p className="text-2xl font-bold text-indigo-900">{applications.filter((a) => a.autoApplied).length}</p>
+            <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+              Autonomous
+            </span>
+          </div>
+          <p className="text-xs text-neutral-500 mt-1">Autonomous Submissions</p>
+        </Card>
+        <Card className="p-4 bg-purple-50/40 border-purple-200">
+          <p className="text-2xl font-bold text-purple-900">{interviews.length}</p>
           <p className="text-xs text-neutral-500 mt-1">Interviews Scheduled</p>
         </Card>
-        <Card className="p-4">
-          <p className="text-2xl font-bold text-neutral-900">{offersCount}</p>
+        <Card className="p-4 bg-emerald-50/40 border-emerald-200">
+          <p className="text-2xl font-bold text-emerald-900">{offersCount}</p>
           <p className="text-xs text-neutral-500 mt-1">Offers Received</p>
         </Card>
       </div>

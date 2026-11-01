@@ -49,3 +49,4 @@ export function decryptToken(encryptedString: string): string {
 
   return decrypted;
 }
+

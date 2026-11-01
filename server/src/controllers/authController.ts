@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { AuthService } from '../services/authService.js';
+import { EmailService } from '../services/emailService.js';
 import { AuthenticatedRequest } from '../types/index.js';
 import { User } from '../models/User.js';
 
@@ -91,15 +92,33 @@ export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Respons
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const { email } = req.body;
 
-  try {
-    const { resetToken } = await AuthService.forgotPassword(email);
+  if (!email || typeof email !== 'string') {
+    sendError(res, 'A valid email address is required', null, 400);
+    return;
+  }
 
-    sendSuccess(res, 'Password reset token generated successfully.', {
-      resetToken,
-      resetUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`,
+  try {
+    const { resetToken, user } = await AuthService.forgotPassword(email);
+    const clientUrl = process.env.CLIENT_URL || 'https://recruitx-eosin.vercel.app';
+    const resetUrl = `${clientUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
+
+    await EmailService.sendPasswordResetEmail({
+      toEmail: user.email,
+      userName: user.name,
+      resetUrl,
+    });
+
+    // In development mode, provide token for test convenience; in production, keep secure
+    const isDev = process.env.NODE_ENV !== 'production';
+    sendSuccess(res, 'If an account with that email exists, password reset instructions have been dispatched to your email address.', {
+      emailSent: true,
+      ...(isDev ? { resetToken, resetUrl, devNotice: 'Development convenience only: Token included for local testing.' } : {}),
     });
   } catch (error: any) {
-    sendError(res, error.message || 'Error requesting password reset', null, 400);
+    // Avoid user enumeration
+    sendSuccess(res, 'If an account with that email exists, password reset instructions have been dispatched to your email address.', {
+      emailSent: true,
+    });
   }
 });
 
