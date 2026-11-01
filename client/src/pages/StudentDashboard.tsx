@@ -11,93 +11,14 @@ import {
   CheckCircle2,
   ArrowUpRight,
   Sparkles,
-  Target,
   GraduationCap,
-  X,
-  UserCheck,
-  AlertCircle,
-  Clock,
-  ShieldCheck,
+  Mail,
   Zap,
+  Building2,
+  Calendar,
+  Video,
+  ExternalLink,
 } from 'lucide-react';
-
-const getAppAuthoritativeStatus = (app: any): { label: string; badgeClass: string; icon: string; datePrefix: string } => {
-  const status = app.authoritativeStatus || app.primaryStatus || app.status;
-
-  switch (status) {
-    case 'external_application_required':
-      return {
-        label: 'Action Required ⚠️',
-        badgeClass: 'text-amber-700 bg-amber-50 border-amber-200',
-        icon: '⚠️',
-        datePrefix: 'Recorded',
-      };
-    case 'awaiting_employer_verification':
-      return {
-        label: 'Submitted ⏳',
-        badgeClass: 'text-sky-700 bg-sky-50 border-sky-200',
-        icon: '⏳',
-        datePrefix: 'Dispatched',
-      };
-    case 'email_sent':
-      return {
-        label: 'Email Sent ✉️',
-        badgeClass: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
-        icon: '✉️',
-        datePrefix: 'Sent',
-      };
-    case 'email_delivered':
-      return {
-        label: 'Email Delivered 📬',
-        badgeClass: 'text-teal-700 bg-teal-50 border-teal-200 font-bold',
-        icon: '📬',
-        datePrefix: 'Delivered',
-      };
-    case 'employer_receipt_confirmed':
-      return {
-        label: 'Receipt Confirmed ✓',
-        badgeClass: 'text-emerald-700 bg-emerald-50 border-emerald-200 font-bold',
-        icon: '✓',
-        datePrefix: 'Confirmed',
-      };
-    case 'employer_status_updated':
-      const stage = (app.hiringStage || app.status || 'review').replace(/_/g, ' ');
-      return {
-        label: `Pipeline: ${stage} ⚡`,
-        badgeClass: 'text-purple-700 bg-purple-50 border-purple-200 font-medium',
-        icon: '⚡',
-        datePrefix: 'Updated',
-      };
-    case 'saved_in_recruitx':
-      return {
-        label: 'Saved in RecruitX',
-        badgeClass: 'text-slate-600 bg-slate-50 border-slate-200',
-        icon: '💾',
-        datePrefix: 'Saved',
-      };
-    case 'submission_failed':
-      return {
-        label: 'Submission Failed',
-        badgeClass: 'text-red-700 bg-red-50 border-red-200',
-        icon: '✕',
-        datePrefix: 'Failed',
-      };
-    case 'unable_to_verify':
-      return {
-        label: 'Unable to Verify',
-        badgeClass: 'text-zinc-600 bg-zinc-50 border-zinc-200',
-        icon: '?',
-        datePrefix: 'Checked',
-      };
-    default:
-      return {
-        label: (status || 'Tracked').replace(/_/g, ' '),
-        badgeClass: 'text-neutral-600 bg-neutral-50 border-neutral-200',
-        icon: '•',
-        datePrefix: 'Recorded',
-      };
-  }
-};
 
 export const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -107,9 +28,18 @@ export const StudentDashboard: React.FC = () => {
   const [interviews, setInterviews] = useState<any[]>([]);
   const [recommendedJobs, setRecommendedJobs] = useState<any[]>([]);
   const [resumeData, setResumeData] = useState<any>(null);
-  const [skillGapScore, setSkillGapScore] = useState<number>(75);
   const [loading, setLoading] = useState(true);
-  const [breakdownModalOpen, setBreakdownModalOpen] = useState(false);
+
+  // Email connection status
+  const [emailStatus, setEmailStatus] = useState<{
+    isAuthorized: boolean;
+    email: string | null;
+    provider: string | null;
+  }>({
+    isAuthorized: false,
+    email: null,
+    provider: null,
+  });
 
   useEffect(() => {
     fetchDashboardData();
@@ -117,12 +47,12 @@ export const StudentDashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [appRes, intRes, resRes, jobRes, gapRes] = await Promise.allSettled([
+      const [appRes, intRes, resRes, jobRes, emailRes] = await Promise.allSettled([
         api.get('/applications'),
         api.get('/interviews'),
         api.get('/resume'),
         api.get('/jobs/company-matches'),
-        api.get('/resume/skill-gap'),
+        api.get('/candidate-email/status'),
       ]);
 
       if (appRes.status === 'fulfilled' && appRes.value.data?.data?.applications) {
@@ -138,11 +68,16 @@ export const StudentDashboard: React.FC = () => {
       }
 
       if (jobRes.status === 'fulfilled' && jobRes.value.data?.data?.companies) {
-        setRecommendedJobs(jobRes.value.data.data.companies.slice(0, 3));
+        setRecommendedJobs(jobRes.value.data.data.companies.slice(0, 4));
       }
 
-      if (gapRes.status === 'fulfilled' && gapRes.value.data?.data?.analysis) {
-        setSkillGapScore(gapRes.value.data.data.analysis.matchScore || 75);
+      if (emailRes.status === 'fulfilled' && emailRes.value.data?.data) {
+        const d = emailRes.value.data.data;
+        setEmailStatus({
+          isAuthorized: Boolean(d.isEmailSendingAuthorized),
+          email: d.authorizedSendingEmail || null,
+          provider: d.authorizedSendingProvider || null,
+        });
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -151,44 +86,20 @@ export const StudentDashboard: React.FC = () => {
     }
   };
 
-  /**
-   * Deterministic Job Readiness Score (0-100%)
-   * Synthesizes 2 objective pillars:
-   * 1. Profile & Resume Completeness (Max 50 pts)
-   * 2. Target Skill Alignment (Max 50 pts)
-   * 100% deterministic - no arbitrary fluctuations.
-   */
-  const calculateProfilePillar = () => {
-    let pts = 0;
-    // Basic account & headline
-    if (user?.name) pts += 5;
-    if (resumeData?.headline || user?.title) pts += 10;
-    // Technical Skills
-    if (resumeData?.skills && resumeData.skills.length >= 3) pts += 15;
-    else if (resumeData?.skills && resumeData.skills.length > 0) pts += 8;
-    // Summary / Bio
-    if (resumeData?.summary) pts += 10;
-    // Location
-    if (resumeData?.location || user?.location) pts += 5;
-    // Online profile presence (LinkedIn / GitHub / Portfolio)
-    if (user?.linkedin || user?.github || user?.portfolio) pts += 5;
-    return Math.min(50, pts);
-  };
-
-  const calculateSkillAlignmentPillar = () => {
-    return Math.min(50, Math.round((skillGapScore / 100) * 50));
-  };
-
-  const p1 = calculateProfilePillar();
-  const p2 = calculateSkillAlignmentPillar();
-  const overallReadinessScore = Math.min(100, p1 + p2);
-
+  const targetDomain = resumeData?.fieldOfInterest || user?.profession || 'All Disciplines';
+  const applicationsCount = applications.length;
+  const emailsSentCount = applications.filter(
+    (a) => Boolean(a.senderEmail || a.emailMessageId || a.emailSentAt || a.status === 'email_sent' || a.status === 'email_delivered')
+  ).length;
+  const employerConfirmedCount = applications.filter(
+    (a) => (a.authoritativeStatus || a.primaryStatus) === 'employer_receipt_confirmed' || a.employerReceipt
+  ).length;
+  const interviewsCount = interviews.length;
   const offersCount = applications.filter((a) => a.status === 'offered').length;
-  const targetDomain = resumeData?.fieldOfInterest || user?.profession || 'Not Specified (Upload Resume)';
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-neutral-900">Welcome back, {user?.name?.split(' ')[0]}</h1>
@@ -197,172 +108,262 @@ export const StudentDashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button onClick={() => navigate('/student/applications')} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 self-start sm:self-auto text-xs shadow-xs font-bold">
-            <Zap className="w-3.5 h-3.5 text-amber-300" /> Auto-Apply &amp; Tracker
+          <Button
+            onClick={() => navigate('/student/jobs')}
+            size="sm"
+            className="bg-neutral-900 hover:bg-neutral-800 text-white flex items-center gap-1.5 text-xs shadow-xs font-bold"
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-300" /> Apply Automatically
           </Button>
-          <Button onClick={() => navigate('/student/roadmap')} variant="outline" size="sm" className="gap-1.5 text-xs">
-            <GraduationCap className="w-3.5 h-3.5" /> Career Roadmap
-          </Button>
-          <Button onClick={() => navigate('/student/jobs')} variant="secondary" size="sm" className="flex items-center gap-1.5 self-start sm:self-auto text-xs">
-            <Briefcase className="w-3.5 h-3.5" /> Open Roles
+          <Button
+            onClick={() => navigate('/student/applications')}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1.5 text-xs"
+          >
+            <Briefcase className="w-3.5 h-3.5" /> Track Applications ({applicationsCount})
           </Button>
         </div>
       </div>
 
-      {/* Real Live Stats Bar (4 Dynamic Pillars) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-        <Card className="p-4 bg-white border-neutral-200">
-          <div className="flex items-center justify-between">
-            <p className="text-2xl font-bold text-neutral-900">{applications.length}</p>
-            <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {applications.filter((a) => (a.authoritativeStatus || a.primaryStatus) === 'employer_receipt_confirmed').length} Verified
-            </span>
+      {/* Connected Sending Account Banner */}
+      <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+        emailStatus.isAuthorized
+          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+          : 'bg-indigo-50/70 border-indigo-200 text-indigo-950'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg shrink-0 ${emailStatus.isAuthorized ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+            <Mail className="w-4 h-4" />
           </div>
-          <p className="text-xs text-neutral-500 mt-1">Total Applications</p>
-        </Card>
-        <Card className="p-4 bg-indigo-50/40 border-indigo-200">
-          <div className="flex items-center justify-between">
-            <p className="text-2xl font-bold text-indigo-900">{applications.filter((a) => a.autoApplied).length}</p>
-            <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
-              Autonomous
-            </span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-xs font-bold">
+                {emailStatus.isAuthorized
+                  ? `Connected Account: ${emailStatus.email}`
+                  : 'Connect Your Gmail or Outlook Account'}
+              </h3>
+              {emailStatus.isAuthorized && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                  {emailStatus.provider?.toUpperCase()} ACTIVE ✓
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-600 mt-0.5">
+              {emailStatus.isAuthorized
+                ? 'When you apply automatically, applications and your resume are dispatched directly from your email address and appear in your Sent folder.'
+                : 'Connect your Gmail or Outlook account once so RecruitX can send job applications directly from your email address with 1-click.'}
+            </p>
           </div>
-          <p className="text-xs text-neutral-500 mt-1">Autonomous Submissions</p>
+        </div>
+
+        {!emailStatus.isAuthorized && (
+          <Button
+            size="sm"
+            onClick={() => navigate('/student/settings')}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0"
+          >
+            Connect Account →
+          </Button>
+        )}
+      </div>
+
+      {/* 6 Clean KPI Counters */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card className="p-3.5 bg-white border-neutral-200">
+          <span className="text-[10.5px] font-semibold text-neutral-500 block">Companies Hiring</span>
+          <span className="text-xl font-bold text-neutral-900 mt-1 block">50+</span>
         </Card>
-        <Card className="p-4 bg-purple-50/40 border-purple-200">
-          <p className="text-2xl font-bold text-purple-900">{interviews.length}</p>
-          <p className="text-xs text-neutral-500 mt-1">Interviews Scheduled</p>
+
+        <Card className="p-3.5 bg-white border-neutral-200">
+          <span className="text-[10.5px] font-semibold text-neutral-500 block">Applications Sent</span>
+          <span className="text-xl font-bold text-neutral-900 mt-1 block">{applicationsCount}</span>
         </Card>
-        <Card className="p-4 bg-emerald-50/40 border-emerald-200">
-          <p className="text-2xl font-bold text-emerald-900">{offersCount}</p>
-          <p className="text-xs text-neutral-500 mt-1">Offers Received</p>
+
+        <Card className="p-3.5 bg-indigo-50/50 border-indigo-200">
+          <span className="text-[10.5px] font-bold text-indigo-900 block">Emails Sent</span>
+          <span className="text-xl font-bold text-indigo-800 mt-1 block">{emailsSentCount}</span>
+        </Card>
+
+        <Card className="p-3.5 bg-sky-50/50 border-sky-200">
+          <span className="text-[10.5px] font-bold text-sky-900 block">Employer Confirmed</span>
+          <span className="text-xl font-bold text-sky-800 mt-1 block">{employerConfirmedCount}</span>
+        </Card>
+
+        <Card className="p-3.5 bg-purple-50/50 border-purple-200">
+          <span className="text-[10.5px] font-bold text-purple-900 block">Interviews</span>
+          <span className="text-xl font-bold text-purple-800 mt-1 block">{interviewsCount}</span>
+        </Card>
+
+        <Card className="p-3.5 bg-emerald-50/80 border-emerald-300">
+          <span className="text-[10.5px] font-bold text-emerald-900 block">Offers</span>
+          <span className="text-xl font-bold text-emerald-800 mt-1 block">{offersCount}</span>
         </Card>
       </div>
 
+      {/* Main Grid: Recommended Roles & Recent Applications */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Applications & Recommended Jobs */}
+        {/* Recommended Jobs for Profile */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Recent Applications */}
-          <Card className="p-0 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
-              <h2 className="text-sm font-semibold text-neutral-900">Recent Applications</h2>
-              <button
-                onClick={() => navigate('/student/applications')}
-                className="text-xs text-neutral-500 hover:text-neutral-800 flex items-center gap-1"
-              >
-                View all ({applications.length}) <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-
-            {applications.length === 0 ? (
-              <div className="p-6 text-center space-y-2">
-                <p className="text-xs text-neutral-500">No applications tracked yet.</p>
-                <Button variant="secondary" size="sm" onClick={() => navigate('/student/jobs')}>
-                  Browse Live Openings
-                </Button>
-              </div>
-            ) : (
-              <div className="divide-y divide-neutral-50">
-                {applications.slice(0, 4).map((app) => {
-                  const company = app.companyName || app.job?.company || 'Company';
-                  const title = app.jobTitle || app.job?.title || 'Role';
-                  const date = new Date(app.appliedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                  const statusInfo = getAppAuthoritativeStatus(app);
-
-                  return (
-                    <div key={app._id} className="flex items-center justify-between px-5 py-3.5 hover:bg-neutral-50/50 transition-colors">
-                      <div className="min-w-0 pr-3">
-                        <p className="text-xs font-semibold text-neutral-900 truncate">{title}</p>
-                        <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
-                          {company} · {statusInfo.datePrefix} {date}
-                        </p>
-                      </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap tracking-wide shrink-0 ${statusInfo.badgeClass}`}>
-                        {statusInfo.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-
-          {/* Recommended Jobs for Profile */}
           <Card className="p-0 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-neutral-900">Recommended for Your Profile</h2>
+                <h2 className="text-sm font-semibold text-neutral-900">Recommended Jobs Matching Your Resume</h2>
                 <Sparkles className="w-3.5 h-3.5 text-neutral-700" />
               </div>
               <button
                 onClick={() => navigate('/student/jobs')}
-                className="text-xs text-neutral-500 hover:text-neutral-800 flex items-center gap-1"
+                className="text-xs text-neutral-500 hover:text-neutral-900 flex items-center gap-1 font-semibold"
               >
-                Browse all <ChevronRight className="w-3 h-3" />
+                Browse All Openings <ChevronRight className="w-3 h-3" />
               </button>
             </div>
 
             {recommendedJobs.length === 0 ? (
-              <div className="p-6 text-center">
-                <p className="text-xs text-neutral-500">Loading recommended opportunities...</p>
+              <div className="p-8 text-center space-y-2">
+                <Briefcase className="w-8 h-8 text-neutral-300 mx-auto" />
+                <p className="text-xs text-neutral-500">Discovering verified openings for your profession...</p>
+                <Button size="sm" variant="secondary" onClick={() => navigate('/student/jobs')} className="text-xs mt-2">
+                  Explore Vacancies
+                </Button>
               </div>
             ) : (
-              <div className="divide-y divide-neutral-50">
-                {recommendedJobs.map((job, i) => (
-                  <div key={i} className="flex items-center justify-between px-5 py-3.5">
-                    <div>
-                      <p className="text-xs font-semibold text-neutral-900">{decodeHtmlEntities(job.title)}</p>
-                      <p className="text-[11px] text-neutral-400 mt-0.5">
-                        {decodeHtmlEntities(job.company)} · {job.location}
+              <div className="divide-y divide-neutral-100">
+                {recommendedJobs.map((job, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 hover:bg-neutral-50/60 transition-colors">
+                    <div className="min-w-0 pr-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-neutral-900">{decodeHtmlEntities(job.title)}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {job.matchPercentage || 85}% Match
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-500 mt-0.5">
+                        {decodeHtmlEntities(job.company)} · {job.location || 'India'}
                       </p>
                     </div>
+
                     <Button
                       onClick={() => navigate('/student/jobs')}
-                      variant="outline"
                       size="sm"
-                      className="text-[11px] h-7 px-3 shrink-0 ml-3 flex items-center gap-1"
+                      className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold shrink-0 flex items-center gap-1"
                     >
-                      View & Apply <ArrowUpRight className="w-3 h-3" />
+                      <span>Apply Automatically</span>
+                      <ArrowUpRight className="w-3 h-3" />
                     </Button>
                   </div>
                 ))}
               </div>
             )}
           </Card>
+
+          {/* Recent Applications Preview */}
+          <Card className="p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
+              <h2 className="text-sm font-semibold text-neutral-900">Recent Applications</h2>
+              <button
+                onClick={() => navigate('/student/applications')}
+                className="text-xs text-neutral-500 hover:text-neutral-900 flex items-center gap-1 font-semibold"
+              >
+                View Full Tracker ({applicationsCount}) <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            {applications.length === 0 ? (
+              <div className="p-8 text-center space-y-2">
+                <p className="text-xs text-neutral-500">No applications dispatched yet.</p>
+                <Button size="sm" onClick={() => navigate('/student/jobs')} className="text-xs">
+                  Apply to Your First Job
+                </Button>
+              </div>
+            ) : (
+              <div className="divide-y divide-neutral-100">
+                {applications.slice(0, 4).map((app) => {
+                  const company = decodeHtmlEntities(app.companyName || app.job?.company || 'Company');
+                  const title = decodeHtmlEntities(app.jobTitle || app.job?.title || 'Position');
+                  const date = new Date(app.appliedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                  const isEmail = app.status === 'email_sent' || app.status === 'email_delivered' || app.senderEmail;
+
+                  return (
+                    <div key={app._id} className="flex items-center justify-between p-4 hover:bg-neutral-50/60 transition-colors">
+                      <div className="min-w-0 pr-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-neutral-900 truncate">{title}</span>
+                          <span className="text-[10px] text-neutral-400">· {company}</span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500 mt-0.5">
+                          Applied {date} · {isEmail ? '✉️ Sent via Email' : '🌐 Career Portal'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isEmail && app.viewSentEmailUrl ? (
+                          <a
+                            href={app.viewSentEmailUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-indigo-700 hover:underline flex items-center gap-1 font-semibold px-2 py-1 rounded bg-indigo-50 border border-indigo-200"
+                          >
+                            <span>View Email</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        ) : null}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => navigate('/student/applications')}
+                          className="text-xs"
+                        >
+                          Tracker
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
         </div>
 
-        {/* Right Column: Upcoming Interviews & Job Readiness Score Card */}
+        {/* Right Column: Upcoming Interviews */}
         <div className="space-y-4">
-          {/* Upcoming Interviews */}
           <Card className="p-0 overflow-hidden">
-            <div className="px-5 py-4 border-b border-neutral-100">
+            <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-neutral-900">Upcoming Interviews</h2>
+              <Calendar className="w-4 h-4 text-neutral-500" />
             </div>
+
             {interviews.length === 0 ? (
-              <div className="p-5 text-center">
-                <p className="text-xs text-neutral-400">No interviews scheduled yet.</p>
-                <p className="text-[11px] text-neutral-400 mt-1">
-                  Once a recruiter schedules an interview via messages, your meeting details will appear here.
+              <div className="p-6 text-center space-y-1.5">
+                <p className="text-xs font-semibold text-neutral-700">No Interviews Scheduled</p>
+                <p className="text-[11px] text-neutral-400">
+                  RecruitX monitors your connected email for interview invitations and schedules them here automatically.
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-neutral-50">
+              <div className="divide-y divide-neutral-100">
                 {interviews.map((item) => (
-                  <div key={item._id} className="px-5 py-3.5">
-                    <p className="text-xs font-semibold text-neutral-900">{item.company || 'Recruiter Interview'}</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">{item.title}</p>
-                    <p className="text-[11px] text-neutral-400 mt-0.5">
-                      {new Date(item.scheduledAt).toLocaleDateString()} at {new Date(item.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <div key={item._id} className="p-4 space-y-1">
+                    <p className="text-xs font-bold text-neutral-900">{item.company || 'Interview'}</p>
+                    <p className="text-[11px] text-neutral-600">{item.title}</p>
+                    <p className="text-[10.5px] text-neutral-400">
+                      {new Date(item.scheduledAt).toLocaleDateString()} at{' '}
+                      {new Date(item.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     {item.meetingLink && (
-                      <a
-                        href={item.meetingLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-block mt-2 text-[11px] font-medium text-neutral-900 underline hover:text-neutral-700"
+                      <button
+                        onClick={() => {
+                          if (item.meetingLink.startsWith('/meeting/')) {
+                            navigate(item.meetingLink);
+                          } else {
+                            window.open(item.meetingLink, '_blank', 'noreferrer');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 mt-1"
                       >
-                        Join Video Meeting →
-                      </a>
+                        <Video className="w-3 h-3" />
+                        <span>Join Meeting →</span>
+                      </button>
                     )}
                   </div>
                 ))}

@@ -8,6 +8,7 @@ import { PlacementEligibilityRule } from '../models/PlacementEligibilityRule.js'
 import { Notification } from '../models/Notification.js';
 import { EmailService } from '../services/emailService.js';
 import { CandidateApplicationEmailService } from '../services/candidateApplicationEmailService.js';
+import { AtsConnectorService } from '../services/atsConnectorService.js';
 import { AutomatedApplicationService } from '../services/automatedApplicationService.js';
 import { InboxMonitoringService } from '../services/inboxMonitoringService.js';
 import { ApplicationEvent } from '../models/ApplicationEvent.js';
@@ -220,9 +221,12 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
     let emailMessageId: string | undefined;
     let emailSentAt: Date | undefined;
     let emailDeliveryStatus: 'sent' | 'delivered' | 'bounced' | 'failed' | undefined;
+    let viewSentEmailUrl: string | undefined;
     let resumeAttached: boolean | undefined;
     let resumeFileName: string | undefined;
     let resumeFileSize: number | undefined;
+    let atsPlatform: string | undefined;
+    let assistedAutofillManifest: any = undefined;
 
     if (matchedRecruiter) {
       // 1. Direct on-platform submission to verified recruiter
@@ -258,112 +262,113 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
         verifiedAt: new Date(),
       };
     } else {
-      // 2. Resolve genuine destination: company recruitment email vs official portal
-      const destination = CandidateApplicationEmailService.resolveApplicationDestination({
-        companyName,
-        targetHrEmail: hrEmail,
-        jobUrl: destinationUrl || jobUrl,
-      });
+      const detectedPlatform = AtsConnectorService.detectAtsPlatform(destinationUrl || jobUrl);
+      atsPlatform = detectedPlatform;
 
-      if (destination.method === 'email' && destination.destinationEmail) {
-        // Destination is verified employer email -> attempt dispatch
-        const userDoc = user || (await User.findById(req.user._id));
+      // ROUTE A: Official ATS Direct API (Greenhouse or Lever)
+      if (detectedPlatform === 'greenhouse' || detectedPlatform === 'lever') {
+        const atsResult = await AtsConnectorService.submitApplication({
+          user: user || (await User.findById(req.user._id))!,
+          jobUrl: destinationUrl || jobUrl || '',
+          companyName,
+          jobTitle,
+          coverLetter: coverLetter || `Application for ${jobTitle} at ${companyName}`,
+          resumeData: resume,
+        });
 
-        if (userDoc) {
-          const emailDispatch = await CandidateApplicationEmailService.dispatchApplication({
-            user: userDoc,
-            resumeData: resume,
-            companyName,
-            jobTitle,
-            targetHrEmail: destination.destinationEmail,
-            coverLetter,
-            jobUrl: destinationUrl || jobUrl,
-          });
+        if (atsResult.status === 'submitted') {
+          submissionStatus = 'submitted';
+          submissionType = 'external_portal';
+          applicationDestination = `${companyName} (${detectedPlatform.toUpperCase()} ATS)`;
+          resumeTransmitted = true;
+          candidateContactTransmitted = true;
+          confirmationDetails = {
+            confirmationId: atsResult.externalApplicationId,
+            recipient: `${companyName} (${detectedPlatform.toUpperCase()} ATS)`,
+            timestamp: new Date(),
+            dispatchMethod: `Official ${detectedPlatform.toUpperCase()} REST API Integration`,
+            messageId: atsResult.externalApplicationId,
+            verifiedAt: new Date(),
+          };
+          statusNote = `Application submitted directly to ${companyName} via official ${detectedPlatform.toUpperCase()} REST API.`;
+        } else {
+          submissionStatus = 'requires_manual_application';
+          submissionType = 'external_portal';
+          applicationDestination = destinationUrl || 'Employer Official Career Portal';
+          assistedAutofillManifest = atsResult.autofillManifest;
+          statusNote = atsResult.message;
+        }
+      } else {
+        // ROUTE B: Resolve genuine destination: company recruitment email vs official portal
+        const destination = CandidateApplicationEmailService.resolveApplicationDestination({
+          companyName,
+          targetHrEmail: hrEmail,
+          jobUrl: destinationUrl || jobUrl,
+        });
 
-          if (emailDispatch.status === 'sent') {
-            submissionStatus = 'submitted';
-            submissionType = 'direct_hr_dispatch';
-            senderEmail = emailDispatch.senderEmail;
-            recipientEmail = emailDispatch.recipientEmail;
-            emailProvider = emailDispatch.provider;
-            emailMessageId = emailDispatch.messageId;
-            emailSentAt = emailDispatch.sentAt || new Date();
-            emailDeliveryStatus = 'sent';
-            resumeAttached = emailDispatch.resumeAttached;
-            resumeFileName = emailDispatch.resumeFileName;
-            resumeFileSize = emailDispatch.resumeFileSize;
-            applicationDestination = `Verified Company Recruitment Inbox (${recipientEmail})`;
-            confirmationDetails = {
-              confirmationId: emailDispatch.messageId || `EMAIL-${Date.now()}`,
-              recipient: recipientEmail || destination.destinationEmail,
-              timestamp: emailDispatch.sentAt || new Date(),
-              dispatchMethod: `Connected ${emailDispatch.provider === 'gmail' ? 'Google Gmail' : (emailDispatch.provider === 'outlook' ? 'Microsoft Outlook' : 'OAuth')} API`,
-              messageId: emailDispatch.messageId,
-              verifiedAt: new Date(),
-            };
-            resumeTransmitted = Boolean(emailDispatch.resumeAttached);
-            candidateContactTransmitted = true;
-            statusNote = emailDispatch.message;
-          } else if (emailDispatch.status === 'requires_connected_account') {
-            // Fallback to RecruitX Application Gateway via Brevo HTTPS API if configured
-            const fallbackResult = await EmailService.sendApplicationToHR({
-              candidateName: req.user.name,
-              candidateEmail: req.user.email,
-              jobTitle,
+        if (destination.method === 'email' && destination.destinationEmail) {
+          const userDoc = user || (await User.findById(req.user._id));
+
+          if (userDoc) {
+            const emailDispatch = await CandidateApplicationEmailService.dispatchApplication({
+              user: userDoc,
+              resumeData: resume,
               companyName,
-              headline: resume?.headline,
-              summary: resume?.summary,
-              skills: resume?.skills,
-              fieldOfInterest: resume?.fieldOfInterest,
+              jobTitle,
               targetHrEmail: destination.destinationEmail,
+              coverLetter,
+              jobUrl: destinationUrl || jobUrl,
             });
 
-            if (fallbackResult.success && fallbackResult.messageId) {
+            if (emailDispatch.status === 'sent') {
               submissionStatus = 'submitted';
               submissionType = 'direct_hr_dispatch';
-              senderEmail = process.env.BREVO_SENDER_EMAIL || 'applications@recruitx.app';
-              recipientEmail = destination.destinationEmail;
-              emailProvider = 'gateway';
-              emailMessageId = fallbackResult.messageId;
-              emailSentAt = new Date();
+              senderEmail = emailDispatch.senderEmail;
+              recipientEmail = emailDispatch.recipientEmail;
+              emailProvider = emailDispatch.provider;
+              emailMessageId = emailDispatch.messageId;
+              emailSentAt = emailDispatch.sentAt || new Date();
               emailDeliveryStatus = 'sent';
-              resumeAttached = true;
-              applicationDestination = `Verified Company HR Inbox (${destination.destinationEmail})`;
+              viewSentEmailUrl = emailDispatch.viewSentEmailUrl;
+              resumeAttached = emailDispatch.resumeAttached;
+              resumeFileName = emailDispatch.resumeFileName;
+              resumeFileSize = emailDispatch.resumeFileSize;
+              applicationDestination = `Verified Company Recruitment Inbox (${recipientEmail})`;
               confirmationDetails = {
-                confirmationId: fallbackResult.messageId,
-                recipient: destination.destinationEmail,
-                timestamp: new Date(),
-                dispatchMethod: 'RecruitX Application Gateway (Brevo HTTPS API)',
-                messageId: fallbackResult.messageId,
+                confirmationId: emailDispatch.messageId || `EMAIL-${Date.now()}`,
+                recipient: recipientEmail || destination.destinationEmail,
+                timestamp: emailDispatch.sentAt || new Date(),
+                dispatchMethod: `Connected ${emailDispatch.provider === 'gmail' ? 'Google Gmail' : (emailDispatch.provider === 'outlook' ? 'Microsoft Outlook' : 'OAuth')} API`,
+                messageId: emailDispatch.messageId,
                 verifiedAt: new Date(),
               };
-              resumeTransmitted = true;
+              resumeTransmitted = Boolean(emailDispatch.resumeAttached);
               candidateContactTransmitted = true;
-              statusNote = `Application dispatched to ${destination.destinationEmail} via RecruitX application gateway [MessageId: ${fallbackResult.messageId}]. Connect your Gmail or Outlook in Settings to send directly from your personal address.`;
-            } else {
+              statusNote = emailDispatch.message;
+            } else if (emailDispatch.status === 'requires_connected_account') {
               submissionStatus = 'requires_manual_application';
               submissionType = 'external_portal';
               applicationDestination = destination.destinationEmail
                 ? `Company Recruitment Contact (${destination.destinationEmail})`
                 : (companyName ? `Company Official Portal (${companyName})` : 'Employer Official Career Portal');
               destinationUrl = destination.portalUrl || destinationUrl;
-              statusNote = 'To email this company directly from your personal address, connect your Gmail or Outlook in Settings, or apply via their official career portal.';
+              statusNote = 'To email this company directly from your personal address, connect your Gmail or Outlook in Settings with 1-click, or apply via their official career portal.';
+            } else {
+              submissionStatus = 'submission_failed';
+              submissionType = 'direct_hr_dispatch';
+              statusNote = emailDispatch.error || 'Failed to dispatch email application to employer.';
             }
-          } else {
-            submissionStatus = 'submission_failed';
-            submissionType = 'direct_hr_dispatch';
-            statusNote = emailDispatch.error || 'Failed to dispatch email application to employer.';
           }
+        } else {
+          // Destination is portal
+          submissionStatus = 'requires_manual_application';
+          submissionType = 'external_portal';
+          applicationDestination = destination.portalUrl || 'Employer Official Career Portal';
+          destinationUrl = destination.portalUrl || destinationUrl;
+          statusNote = 'Third-party employer requires direct submission through their official career portal. Direct application link provided.';
+          resumeTransmitted = false;
+          candidateContactTransmitted = false;
         }
-      } else {
-        // Destination is portal
-        submissionStatus = 'requires_manual_application';
-        submissionType = 'external_portal';
-        applicationDestination = destination.portalUrl || 'Employer Official Career Portal';
-        destinationUrl = destination.portalUrl || destinationUrl;
-        statusNote = 'Third-party employer requires direct submission through their official career portal. Direct application link provided.';
-        resumeTransmitted = false;
-        candidateContactTransmitted = false;
       }
     }
 
@@ -406,6 +411,9 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       resumeFileName,
       resumeFileSize,
       coverLetterIncluded: Boolean(coverLetter),
+      atsPlatform,
+      assistedAutofillManifest,
+      viewSentEmailUrl,
       submissionError: (submissionStatus as any) === 'submission_failed' ? 'Automated dispatch to company inbox failed.' : (submissionStatus === 'requires_manual_application' ? 'External employer requires direct submission on their portal.' : undefined),
       resumeTransmitted,
       candidateContactTransmitted,

@@ -23,6 +23,7 @@ import {
   Compass,
   SlidersHorizontal,
   Zap,
+  Globe,
   X,
 } from 'lucide-react';
 import {
@@ -1136,13 +1137,17 @@ export const StudentJobs: React.FC = () => {
                 {/* Bottom Row: Native 1-Click Apply Action Button */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 gap-2">
                   <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
-                    <Mail className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>
-                      Hiring Inbox:{' '}
-                      <strong className="text-neutral-700">
-                        {job.hrEmail || `careers@${job.company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`}
-                      </strong>
-                    </span>
+                    {job.hrEmail ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-900 border border-indigo-200 font-semibold text-[11px]">
+                        <Mail className="w-3 h-3 text-indigo-700" />
+                        <span>Method: Verified Email Application (Connected Gmail/Outlook)</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-neutral-100 text-neutral-800 border border-neutral-200 font-semibold text-[11px]">
+                        <Globe className="w-3 h-3 text-neutral-600" />
+                        <span>Method: Official Career Portal / ATS Submission</span>
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {job.jobUrl && !job.isPlatformJob && (
@@ -1150,9 +1155,9 @@ export const StudentJobs: React.FC = () => {
                         href={job.jobUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-semibold text-blue-700 hover:underline flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors"
+                        className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition-colors"
                       >
-                        Official Job Link ↗
+                        Portal Link ↗
                       </a>
                     )}
                     {(() => {
@@ -1183,7 +1188,7 @@ export const StudentJobs: React.FC = () => {
                         return (
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-indigo-50 text-indigo-900 border-indigo-300 flex items-center gap-1 font-bold">
-                              <span>✉️</span> Email Dispatched
+                              <span>✉️</span> Email Sent
                             </span>
                             <Button
                               size="sm"
@@ -1191,7 +1196,7 @@ export const StudentJobs: React.FC = () => {
                               onClick={() => navigate('/student/applications')}
                               className="text-xs text-indigo-800 border-indigo-300 bg-indigo-50"
                             >
-                              View Dispatch
+                              View in Tracker
                             </Button>
                           </div>
                         );
@@ -1201,7 +1206,7 @@ export const StudentJobs: React.FC = () => {
                         return (
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-sky-50 text-sky-900 border-sky-300 flex items-center gap-1">
-                              <span>⏳</span> Awaiting Verification
+                              <span>⏳</span> Awaiting Response
                             </span>
                             <Button
                               size="sm"
@@ -1219,7 +1224,7 @@ export const StudentJobs: React.FC = () => {
                         return (
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-emerald-50 text-emerald-900 border-emerald-300 flex items-center gap-1 font-bold">
-                              <span>✓</span> Receipt Confirmed
+                              <span>✓</span> Employer Confirmed
                             </span>
                             <Button
                               size="sm"
@@ -1227,7 +1232,7 @@ export const StudentJobs: React.FC = () => {
                               onClick={() => navigate('/student/applications')}
                               className="text-xs text-emerald-800 border-emerald-300 bg-emerald-50"
                             >
-                              Verified Receipt
+                              View in Tracker
                             </Button>
                           </div>
                         );
@@ -1256,7 +1261,7 @@ export const StudentJobs: React.FC = () => {
                           onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, job.jobUrl, job.isPlatformJob)}
                           disabled={isApplied || isApplying}
                           size="sm"
-                          className="flex items-center gap-1.5"
+                          className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold shadow-xs text-xs"
                           variant={isApplied ? 'secondary' : 'primary'}
                         >
                           {isApplied ? (
@@ -1266,12 +1271,8 @@ export const StudentJobs: React.FC = () => {
                             </>
                           ) : (
                             <>
-                              <Send className="w-3.5 h-3.5" />
-                              {isApplying
-                                ? 'Processing...'
-                                : job.isPlatformJob
-                                ? 'Apply via RecruitX (Instant Dispatch)'
-                                : 'Apply on Official Portal ↗'}
+                              <Zap className="w-3.5 h-3.5 text-amber-300" />
+                              {isApplying ? 'Applying Automatically...' : 'Apply Automatically'}
                             </>
                           )}
                         </Button>

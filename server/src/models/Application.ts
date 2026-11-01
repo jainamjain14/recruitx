@@ -128,6 +128,7 @@ export interface IApplicationDocument {
   autoApplied?: boolean;
   atsPlatform?: string;
   assistedAutofillManifest?: any;
+  viewSentEmailUrl?: string;
   createdAt: Date;
   updatedAt: Date;
   save(): Promise<IApplicationDocument>;
@@ -182,6 +183,7 @@ export class ApplicationDoc implements IApplicationDocument {
   declare autoApplied?: boolean;
   declare atsPlatform?: string;
   declare assistedAutofillManifest?: any;
+  declare viewSentEmailUrl?: string;
   declare createdAt: Date;
   declare updatedAt: Date;
 
@@ -297,6 +299,7 @@ export class ApplicationDoc implements IApplicationDocument {
     this.autoApplied = data.autoApplied !== undefined ? Boolean(data.autoApplied) : false;
     this.atsPlatform = data.atsPlatform || undefined;
     this.assistedAutofillManifest = data.assistedAutofillManifest || undefined;
+    this.viewSentEmailUrl = data.viewSentEmailUrl || undefined;
 
     this.statusHistory = Array.isArray(data.statusHistory)
       ? data.statusHistory.map((h: any) => ({
@@ -359,6 +362,7 @@ export class ApplicationDoc implements IApplicationDocument {
       autoApplied: this.autoApplied ?? false,
       atsPlatform: this.atsPlatform || null,
       assistedAutofillManifest: this.assistedAutofillManifest || null,
+      viewSentEmailUrl: this.viewSentEmailUrl || null,
       statusHistory: this.statusHistory,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -481,6 +485,7 @@ export class Application {
     autoApplied?: boolean;
     atsPlatform?: string;
     assistedAutofillManifest?: any;
+    viewSentEmailUrl?: string;
   }): Promise<IApplicationDocument> {
     const jobId = data.job ? (typeof data.job === 'object' && data.job._id ? data.job._id.toString() : data.job.toString()) : null;
     const studentId = typeof data.student === 'object' && data.student._id ? data.student._id.toString() : data.student.toString();
@@ -575,6 +580,7 @@ export class Application {
       autoApplied: data.autoApplied ?? false,
       atsPlatform: data.atsPlatform || null,
       assistedAutofillManifest: data.assistedAutofillManifest || null,
+      viewSentEmailUrl: data.viewSentEmailUrl || null,
       statusHistory,
       createdAt: now,
       updatedAt: now,

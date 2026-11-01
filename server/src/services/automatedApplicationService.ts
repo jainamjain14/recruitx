@@ -183,6 +183,7 @@ export class AutomatedApplicationService {
       let emailProvider: any = undefined;
       let emailMessageId: string | undefined;
       let emailSentAt: Date | undefined;
+      let viewSentEmailUrl: string | undefined;
       let assistedManifest: any = null;
       let submissionError: string | undefined = undefined;
 
@@ -286,6 +287,7 @@ export class AutomatedApplicationService {
             emailProvider = emailDispatch.provider;
             emailMessageId = emailDispatch.messageId;
             emailSentAt = emailDispatch.sentAt || new Date();
+            viewSentEmailUrl = emailDispatch.viewSentEmailUrl;
             confirmationDetails = {
               confirmationId: emailDispatch.messageId || `EMAIL-${Date.now()}`,
               recipient: recipientEmail,
@@ -342,6 +344,7 @@ export class AutomatedApplicationService {
         emailProvider,
         emailMessageId,
         emailSentAt,
+        viewSentEmailUrl,
         autoApplied: true,
         atsPlatform: atsPlatformName,
         assistedAutofillManifest: assistedManifest,

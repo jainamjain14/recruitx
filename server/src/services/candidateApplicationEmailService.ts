@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { IUserDocument } from '../models/User.js';
+import { Resume } from '../models/Resume.js';
 import { CandidateEmailAuthService } from './candidateEmailAuthService.js';
 import { getVerifiedCompanyHrEmail } from './linkedinService.js';
 
@@ -22,6 +23,7 @@ export interface ApplicationDispatchResult {
   recipientEmail?: string;
   provider?: 'gmail' | 'outlook' | 'gateway';
   messageId?: string;
+  viewSentEmailUrl?: string;
   sentAt?: Date;
   resumeAttached?: boolean;
   resumeFileName?: string;
@@ -159,6 +161,7 @@ export class CandidateApplicationEmailService {
           recipientEmail,
           provider: 'gmail',
           messageId: sendResult.id,
+          viewSentEmailUrl: sendResult.viewUrl || `https://mail.google.com/mail/u/0/#search/rfc822msgid:${encodeURIComponent(sendResult.id)}`,
           sentAt: new Date(),
           resumeAttached: Boolean(resumeAttachment),
           resumeFileName: resumeAttachment?.fileName,
@@ -185,6 +188,7 @@ export class CandidateApplicationEmailService {
           recipientEmail,
           provider: 'outlook',
           messageId: sendResult.messageId,
+          viewSentEmailUrl: sendResult.viewUrl || 'https://outlook.live.com/mail/0/sentitems',
           sentAt: new Date(),
           resumeAttached: Boolean(resumeAttachment),
           resumeFileName: resumeAttachment?.fileName,
@@ -201,6 +205,7 @@ export class CandidateApplicationEmailService {
           recipientEmail,
           provider: 'gateway',
           messageId: mockMessageId,
+          viewSentEmailUrl: `https://mail.google.com/mail/u/0/#sent`,
           sentAt: new Date(),
           resumeAttached: Boolean(resumeAttachment),
           resumeFileName: resumeAttachment?.fileName,
@@ -221,6 +226,58 @@ export class CandidateApplicationEmailService {
   }
 
   /**
+   * Generates a standard, valid PDF binary buffer (PDF-1.4) containing the candidate's resume profile
+   */
+  private static generateStandardResumePdf(lines: string[]): Buffer {
+    const escapedLines = lines.map((line) =>
+      line.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
+    );
+
+    let stream = 'BT\n/F1 12 Tf\n40 760 Td\n15 TL\n';
+    for (let i = 0; i < escapedLines.length; i++) {
+      if (i === 0) {
+        stream += `/F1 16 Tf (${escapedLines[i]}) Tj\n/F1 10 Tf T*\nT*\n`;
+      } else {
+        stream += `(${escapedLines[i]}) Tj T*\n`;
+      }
+    }
+    stream += 'ET\n';
+
+    const streamLength = Buffer.byteLength(stream, 'utf-8');
+    let pdf = '%PDF-1.4\n%âãÏÓ\n';
+    const offsets: number[] = [];
+
+    // Object 1: Catalog
+    offsets.push(Buffer.byteLength(pdf, 'utf-8'));
+    pdf += '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n';
+
+    // Object 2: Pages
+    offsets.push(Buffer.byteLength(pdf, 'utf-8'));
+    pdf += '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n';
+
+    // Object 3: Page
+    offsets.push(Buffer.byteLength(pdf, 'utf-8'));
+    pdf += '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 4 0 R >> >> >>\nendobj\n';
+
+    // Object 4: Font
+    offsets.push(Buffer.byteLength(pdf, 'utf-8'));
+    pdf += '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n';
+
+    // Object 5: Contents
+    offsets.push(Buffer.byteLength(pdf, 'utf-8'));
+    pdf += `5 0 obj\n<< /Length ${streamLength} >>\nstream\n${stream}endstream\nendobj\n`;
+
+    const startxref = Buffer.byteLength(pdf, 'utf-8');
+    pdf += 'xref\n0 6\n0000000000 65535 f \n';
+    for (const offset of offsets) {
+      pdf += `${offset.toString().padStart(10, '0')} 00000 n \n`;
+    }
+    pdf += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF\n`;
+
+    return Buffer.from(pdf, 'binary');
+  }
+
+  /**
    * Resolves the candidate's resume attachment from storage or buffer
    */
   private static async resolveResumeAttachment(user: IUserDocument, resumeData?: any): Promise<{
@@ -233,9 +290,35 @@ export class CandidateApplicationEmailService {
     const safeName = candidateName.replace(/[^a-zA-Z0-9]/g, '_');
     const defaultFileName = `Resume_${safeName}.pdf`;
 
-    // 1. Check if disk file exists in uploads/
-    if (resumeData?.resumeUrl && typeof resumeData.resumeUrl === 'string' && resumeData.resumeUrl.startsWith('/uploads')) {
-      const diskPath = path.resolve(process.cwd(), resumeData.resumeUrl.replace(/^\//, ''));
+    let resume = resumeData;
+    if (!resume || (!resume.fileData && !resume.resumeUrl)) {
+      try {
+        resume = await Resume.findOne({ student: user._id });
+      } catch (e) {
+        // continue
+      }
+    }
+
+    // 1. Direct Base64 File Data stored in Resume database document
+    if (resume?.fileData && typeof resume.fileData === 'string') {
+      const cleanBase64 = resume.fileData.includes(';base64,')
+        ? resume.fileData.split(';base64,')[1]
+        : resume.fileData;
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      const declaredName = resume.fileName || defaultFileName;
+      const safeDocName = declaredName.toLowerCase().endsWith('.pdf') ? declaredName : `${declaredName}.pdf`;
+
+      return {
+        fileName: safeDocName,
+        contentType: resume.fileMimeType || 'application/pdf',
+        contentBase64: cleanBase64,
+        fileSize: buffer.length,
+      };
+    }
+
+    // 2. Check if disk file exists in uploads/
+    if (resume?.resumeUrl && typeof resume.resumeUrl === 'string' && resume.resumeUrl.startsWith('/uploads')) {
+      const diskPath = path.resolve(process.cwd(), resume.resumeUrl.replace(/^\//, ''));
       if (fs.existsSync(diskPath)) {
         const buffer = fs.readFileSync(diskPath);
         return {
@@ -247,37 +330,52 @@ export class CandidateApplicationEmailService {
       }
     }
 
-    // 2. Generate a clean resume document buffer from candidate data
-    const summaryText = resumeData?.summary || user.description || 'Verified Candidate Profile on RecruitX';
-    const skillsList = (resumeData?.skills || []).join(', ');
-    const resumeTextContent = `RECRUITX CANDIDATE PROFILE & RESUME
-Candidate Name: ${candidateName}
-Email: ${user.email}
-Phone: ${user.phone || 'N/A'}
-Headline: ${resumeData?.headline || user.title || 'Applicant'}
-Domain: ${resumeData?.fieldOfInterest || user.profession || 'Professional'}
-Location: ${resumeData?.location || user.location || 'India'}
+    // 3. Remote URL
+    if (resume?.resumeUrl && typeof resume.resumeUrl === 'string' && (resume.resumeUrl.startsWith('http://') || resume.resumeUrl.startsWith('https://'))) {
+      try {
+        const remoteRes = await fetch(resume.resumeUrl);
+        if (remoteRes.ok) {
+          const ab = await remoteRes.arrayBuffer();
+          const buffer = Buffer.from(ab);
+          return {
+            fileName: resume.fileName || defaultFileName,
+            contentType: remoteRes.headers.get('content-type') || 'application/pdf',
+            contentBase64: buffer.toString('base64'),
+            fileSize: buffer.length,
+          };
+        }
+      } catch (err) {
+        // fallback to standard generator
+      }
+    }
 
-PROFESSIONAL SUMMARY
-${summaryText}
+    // 4. Synthesize a clean, authentic PDF document from candidate profile
+    const summaryText = resume?.summary || user.description || 'Verified Candidate Profile on RecruitX';
+    const skillsList = (resume?.skills || []).join(', ');
+    const resumeLines = [
+      `${candidateName.toUpperCase()} - RESUME`,
+      `Email: ${user.email}  |  Phone: ${user.phone || 'N/A'}  |  Location: ${resume?.location || user.location || 'India'}`,
+      `Role: ${resume?.headline || user.title || 'Professional'}  |  Discipline: ${resume?.fieldOfInterest || user.profession || 'Domain Expert'}`,
+      `----------------------------------------------------------------------------------------------------------------`,
+      `PROFESSIONAL SUMMARY:`,
+      `${summaryText.slice(0, 180)}`,
+      `----------------------------------------------------------------------------------------------------------------`,
+      `CORE COMPETENCIES & SKILLS:`,
+      `${skillsList || 'Technical Expertise, Problem Solving, Team Collaboration'}`,
+      `----------------------------------------------------------------------------------------------------------------`,
+      `VERIFIED LINKS:`,
+      `LinkedIn: ${user.linkedin || 'Available on request'}`,
+      `Portfolio / GitHub: ${user.portfolio || user.github || 'https://recruitx-eosin.vercel.app'}`,
+      `----------------------------------------------------------------------------------------------------------------`,
+      `Generated by RecruitX Verified Career Platform - Candidate ID: ${user._id}`,
+    ];
 
-CORE SKILLS
-${skillsList || 'Not specified'}
-
-PORTFOLIO & LINKS
-LinkedIn: ${user.linkedin || 'N/A'}
-GitHub: ${user.github || 'N/A'}
-Portfolio: ${user.portfolio || 'N/A'}
-
-Verified via RecruitX Career Platform: https://recruitx-eosin.vercel.app
-`;
-
-    const textBuffer = Buffer.from(resumeTextContent, 'utf-8');
+    const pdfBuffer = this.generateStandardResumePdf(resumeLines);
     return {
-      fileName: `Resume_${safeName}.txt`,
-      contentType: 'text/plain',
-      contentBase64: textBuffer.toString('base64'),
-      fileSize: textBuffer.length,
+      fileName: defaultFileName,
+      contentType: 'application/pdf',
+      contentBase64: pdfBuffer.toString('base64'),
+      fileSize: pdfBuffer.length,
     };
   }
 
@@ -297,15 +395,16 @@ Verified via RecruitX Career Platform: https://recruitx-eosin.vercel.app
       contentType: string;
       contentBase64: string;
     };
-  }): Promise<{ id: string; threadId?: string }> {
+  }): Promise<{ id: string; threadId?: string; viewUrl?: string }> {
     const { accessToken, senderEmail, senderName, recipientEmail, subject, htmlBody, attachment } = options;
 
     // Build RFC 2822 multipart MIME message
     const boundary = `----=_RecruitXBoundary_${Date.now()}`;
+    const cleanSubject = subject.replace(/[\r\n]/g, ' ');
     const headers = [
       `From: "${senderName}" <${senderEmail}>`,
       `To: <${recipientEmail}>`,
-      `Subject: ${subject}`,
+      `Subject: ${cleanSubject}`,
       `MIME-Version: 1.0`,
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
       '',
@@ -352,7 +451,8 @@ Verified via RecruitX Career Platform: https://recruitx-eosin.vercel.app
       throw new Error(`Gmail API error (${response.status}): ${errMsg}`);
     }
 
-    return { id: resData.id, threadId: resData.threadId };
+    const viewUrl = `https://mail.google.com/mail/u/0/#search/rfc822msgid:${encodeURIComponent(resData.id)}`;
+    return { id: resData.id, threadId: resData.threadId, viewUrl };
   }
 
   /**
@@ -371,7 +471,7 @@ Verified via RecruitX Career Platform: https://recruitx-eosin.vercel.app
       contentType: string;
       contentBase64: string;
     };
-  }): Promise<{ messageId: string }> {
+  }): Promise<{ messageId: string; viewUrl?: string }> {
     const { accessToken, recipientEmail, subject, htmlBody, attachment } = options;
 
     const messagePayload: any = {
@@ -419,7 +519,7 @@ Verified via RecruitX Career Platform: https://recruitx-eosin.vercel.app
 
     // Graph API returns 202 Accepted on sendMail
     const messageId = `msg_ms_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    return { messageId };
+    return { messageId, viewUrl: 'https://outlook.live.com/mail/0/sentitems' };
   }
 
   /**
