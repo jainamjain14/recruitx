@@ -41,7 +41,7 @@ export class EmailService {
     subject: string;
     html: string;
     replyTo?: string;
-  }): Promise<{ success: boolean; error?: string }> {
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const { to, subject, html, replyTo } = options;
     const brevoKey = (process.env.BREVO_API_KEY || '').trim();
     const senderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_FROM_ADDRESS || 'recruitxproject@gmail.com').trim();
@@ -86,7 +86,7 @@ export class EmailService {
 
       if (response.ok && resData.messageId) {
         console.log(`[EmailService] ✨ Live email dispatched via Brevo HTTPS to ${to}! MessageId: ${resData.messageId}`);
-        return { success: true };
+        return { success: true, messageId: resData.messageId };
       }
 
       const status = response.status;
@@ -115,7 +115,7 @@ export class EmailService {
    * Automatically dispatches candidate's application and resume package
    * directly to the company's hiring inbox
    */
-  static async sendApplicationToHR(payload: ApplicationEmailPayload): Promise<boolean> {
+  static async sendApplicationToHR(payload: ApplicationEmailPayload): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const { candidateName, candidateEmail, jobTitle, companyName, headline, summary, skills, fieldOfInterest, targetHrEmail } = payload;
 
     const verifiedEmail = getVerifiedCompanyHrEmail(companyName);
@@ -124,7 +124,7 @@ export class EmailService {
 
     if (!destinationEmail) {
       console.warn(`⚠️ No verified HR email found for company "${companyName}". Application recorded, skipping external email dispatch.`);
-      return false;
+      return { success: false, error: "No verified HR email address found" };
     }
 
     const htmlBody = `
@@ -175,7 +175,7 @@ export class EmailService {
       replyTo: candidateEmail,
     });
 
-    return result.success;
+    return { success: result.success, messageId: result.messageId, error: result.error };
   }
 
   /**

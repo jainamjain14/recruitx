@@ -15,6 +15,7 @@ router.use(authenticate);
 // Student only: apply for job opportunities
 router.post('/', authorize('student'), applyForJob);
 router.post('/apply-direct', authorize('student'), applyDirectCompanyJob);
+router.post('/direct-company', authorize('student'), applyDirectCompanyJob);
 router.patch('/:id/confirm-manual', authorize('student'), confirmManualSubmission);
 
 // Recruiter & Admin only: review and transition application stage

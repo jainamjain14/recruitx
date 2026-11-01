@@ -19,6 +19,7 @@ export interface LiveLinkedInJob {
   isAcceptingApplications?: boolean;
   applicationType?: 'employer_career_portal' | 'platform_direct';
   directApplyUrl?: string;
+  skillExtractionSource?: 'live_job_snippet' | 'domain_semantic_analysis';
 }
 
 import { AIService } from './aiService.js';
@@ -868,7 +869,10 @@ export class LinkedInService {
         const dateMatch = card.match(/class="job-search-card__listdate[^"]*"[^>]*>[\s\n]*([\s\S]*?)[\s\n]*<\/time>/i);
         const posted = dateMatch ? decodeHtmlEntities(dateMatch[1].replace(/<[^>]+>/g, '').trim()) : 'Recently posted via LinkedIn India';
 
-        const realRequirements = await this.extractRealJobRequirements(jobUrl, title, company, searchKeyword, idx);
+        const snippetMatch = card.match(/class="job-search-card__snippet">([\s\S]*?)<\/p>/i);
+        const snippet = snippetMatch ? decodeHtmlEntities(snippetMatch[1].replace(/<[^>]+>/g, '').trim()) : '';
+
+        const realRequirements = await this.extractRealJobRequirements(jobUrl, title, company, searchKeyword, idx, snippet);
         const salary = this.deriveRealCompanySalary(title, company, idx, rawDisclosedSalary);
 
         const resolvedCoords = resolveCompanyCoordinates(company, location, idx);
@@ -896,6 +900,7 @@ export class LinkedInService {
           isAcceptingApplications: true,
           applicationType: 'employer_career_portal',
           directApplyUrl: jobUrl,
+          skillExtractionSource: snippet ? 'live_job_snippet' : 'domain_semantic_analysis',
         });
       }
     }
@@ -908,8 +913,18 @@ export class LinkedInService {
     title: string,
     company: string,
     searchKeyword: string,
-    idx: number
+    idx: number,
+    snippet: string = ''
   ): Promise<string[]> {
+    // 1. If snippet contains text, extract directly
+    if (snippet && snippet.length > 20) {
+      const extracted = this.extractDynamicSkillsFromDescription(snippet, title);
+      if (extracted.length >= 3) {
+        return extracted;
+      }
+    }
+
+    // 2. Try fetching detail if accessible
     try {
       const match = jobUrl.match(/\/view\/.*?(\d{8,12})/);
       const jobId = match ? match[1] : null;
@@ -922,7 +937,7 @@ export class LinkedInService {
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept-Language': 'en-IN,en;q=0.9',
           },
-          signal: AbortSignal.timeout(4000),
+          signal: AbortSignal.timeout(3000),
         });
 
         if (response.ok) {
@@ -937,27 +952,34 @@ export class LinkedInService {
         }
       }
     } catch {
-      // Fallback cleanly to title requirement synthesizer
+      // Expected when LinkedIn protects endpoint with 429 challenge
     }
 
-    return this.deriveSkillsFromTitle(title, company, idx);
+    // 3. Domain semantic skill extraction from actual job title & employer context
+    return this.deriveDomainSkillsFromTitle(title, company, snippet);
   }
 
-  private static extractDynamicSkillsFromDescription(html: string, title: string): string[] {
-    const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    const indReq = AIService.getIndustryRequirementSet(title);
-    const candidatePool = [...indReq.required, ...indReq.optional];
-
-    const matched = candidatePool.filter((skill) => {
-      const regex = new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-      return regex.test(text);
-    });
+  private static extractDynamicSkillsFromDescription(text: string, title: string): string[] {
+    const cleanText = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const commonTechs = [
+      'Python', 'Java', 'C\\+\\+', 'React', 'Angular', 'Vue', 'Node\\.js', 'TypeScript', 'SQL',
+      'Docker', 'Kubernetes', 'AWS', 'Azure', 'GCP', 'Machine Learning', 'Deep Learning',
+      'NLP', 'TensorFlow', 'PyTorch', 'Qiskit', 'GIS', 'AutoCAD', 'SolidWorks', 'MATLAB',
+      'SCUBA', 'Photogrammetry', 'CLO 3D', 'Figma', 'DaVinci Resolve', 'Apache Spark', 'Databricks',
+      'Genomics', 'Bioinformatics', 'REST APIs', 'PostgreSQL', 'MongoDB', 'GraphQL'
+    ];
+    const matched: string[] = [];
+    for (const tech of commonTechs) {
+      if (new RegExp(`\\b${tech}\\b`, 'i').test(cleanText)) {
+        matched.push(tech.replace(/\\/g, ''));
+      }
+    }
 
     if (matched.length >= 3) {
       return Array.from(new Set(matched)).slice(0, 6);
     }
 
-    return candidatePool.slice(0, 5);
+    return this.deriveDomainSkillsFromTitle(title, '', cleanText);
   }
 
   private static deriveRealCompanySalary(title: string, company: string, idx: number, rawDisclosed?: string): string {
@@ -987,16 +1009,51 @@ export class LinkedInService {
     return '₹12,00,000 - ₹20,00,000 / yr (₹12 - ₹20 LPA)';
   }
 
-  private static deriveSkillsFromTitle(title: string, company: string, idx: number = 0): string[] {
-    const indReq = AIService.getIndustryRequirementSet(title || company);
-    const pool = indReq.required.length > 0
-      ? [...indReq.required, ...indReq.optional]
-      : ['Domain Analysis', 'Project Execution', 'Quality Assurance', 'Analytical Thinking', 'Professional Communication'];
+  private static deriveDomainSkillsFromTitle(title: string, company: string, snippet: string = ''): string[] {
+    const t = title.toLowerCase();
+    const skills: string[] = [];
 
-    const numSkills = 5;
-    const startOffset = Math.abs(company.length * 3 + idx * 5) % Math.max(1, pool.length - 4);
-    const skills = pool.slice(startOffset, startOffset + numSkills);
+    // Technical & Software Development
+    if (t.includes('react')) skills.push('React.js', 'JavaScript (ES6+)', 'State Management (Redux/Zustand)');
+    if (t.includes('node')) skills.push('Node.js', 'Express.js', 'RESTful APIs');
+    if (t.includes('python')) skills.push('Python', 'Data Structures & Algorithms');
+    if (t.includes('databricks')) skills.push('Databricks', 'Apache Spark', 'Delta Lake');
+    if (t.includes('data scientist') || t.includes('data science')) skills.push('Data Science', 'Machine Learning', 'Statistical Modeling', 'Python');
+    if (t.includes('machine learning') || t.includes(' ml ') || t.includes('ml/ai')) skills.push('Machine Learning', 'Deep Learning', 'PyTorch / TensorFlow');
+    if (t.includes('full stack') || t.includes('fullstack')) skills.push('Full Stack Architecture', 'Frontend & Backend Integration', 'Database Design');
+    if (t.includes('frontend') || t.includes('front-end')) skills.push('HTML5 / CSS3', 'Modern Web Standards', 'Responsive UI Design');
+    if (t.includes('backend') || t.includes('back-end')) skills.push('API Architecture', 'High-Performance Backend Engineering', 'Database Optimization');
+    if (t.includes('devops') || t.includes('sre') || t.includes('cloud')) skills.push('CI/CD Pipelines', 'Cloud Infrastructure (AWS/Azure/GCP)', 'Containerization');
+    if (t.includes('quantum')) skills.push('Qiskit', 'Quantum Circuit Design', 'Cryogenic Control Systems', 'Python');
 
-    return Array.from(new Set(skills.length > 0 ? skills : pool.slice(0, 5)));
+    // Clean Energy & Mechanical Engineering
+    if (t.includes('wind turbine') || t.includes('wind energy')) skills.push('Wind Turbine Systems', 'Turbine Aerodynamics', 'Renewable Energy Technologies');
+    if (t.includes('mechanical')) skills.push('Mechanical Design', 'Thermodynamics & Heat Transfer', 'Computer-Aided Design (CAD)');
+    if (t.includes('electrical')) skills.push('Power Systems', 'Circuit Design', 'High-Voltage Engineering');
+
+    // Life Sciences & Environmental
+    if (t.includes('bioinformatics') || t.includes('computational biology')) skills.push('Bioinformatics Pipelines', 'Genomic Data Analysis', 'Computational Biology', 'Biostatistics');
+    if (t.includes('marine') || t.includes('ocean')) skills.push('Marine Ecology', 'Benthic Sampling', 'Aquatic Ecosystem Analysis');
+    if (t.includes('ecologist') || t.includes('ecology') || t.includes('biodiversity')) skills.push('Biodiversity Impact Assessment', 'Environmental Monitoring', 'Field Ecology Protocols');
+
+    // Creative, Media & Entertainment
+    if (t.includes('dop') || t.includes('director of photography') || t.includes('cinematograph')) skills.push('Cinematography & Camera Operation', 'Visual Lighting & Composition', 'Color Grading & Post-Production');
+    if (t.includes('video') || t.includes('videographer')) skills.push('Video Production', 'Camera Operation', 'Post-Production Video Editing');
+    if (t.includes('film director') || t.includes('directing')) skills.push('Film Directing & Screenplay Analysis', 'Visual Storytelling', 'Actor Performance Coaching');
+    if (t.includes('fashion') || t.includes('apparel') || t.includes('costume')) skills.push('Garment Pattern Making & Draping', 'Digital Apparel Simulation (CLO 3D)', 'Textile Physics & Fabric Sourcing');
+
+    // Archaeology & Heritage Mitigation
+    if (t.includes('archaeolog') || t.includes('excavation') || t.includes('heritage')) skills.push('Stratigraphic Excavation', 'Archaeological Field Surveying', 'GIS Spatial Mapping', 'Cultural Heritage Management');
+
+    // Aviation & Aerospace
+    if (t.includes('pilot') || t.includes('first officer') || t.includes('captain') || t.includes('flight')) skills.push('Instrument Flight Rules (IFR)', 'Multi-Crew Cooperation (MCC)', 'Flight Planning & Dispatch', 'Aviation Safety Standards');
+
+    // Contextual domain fallback if no specific keywords triggered
+    if (skills.length < 3) {
+      const cleanTitle = title.replace(/\(.*?\)/g, '').replace(/[-–|]/g, ' ').trim();
+      skills.push(`${cleanTitle} Domain Practice`, 'Quality Assurance & Industry Standards', 'Technical Documentation', 'Project Workflow Execution');
+    }
+
+    return Array.from(new Set(skills)).slice(0, 6);
   }
 }

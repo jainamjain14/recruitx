@@ -434,18 +434,12 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         submissionType = 'platform_recruiter';
         applicationDestination = 'RecruitX Verified Recruiter Portal';
         destinationUrl = '/student/jobs';
-        confirmationDetails = {
-          confirmationId: `RCX-PLT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-          recipient: `${matchedRecruiter.name} (${matchedRecruiter.email})`,
-          timestamp: new Date(),
-          dispatchMethod: 'RecruitX In-App ATS + Real-time Socket Event',
-        };
         resumeTransmitted = true;
         candidateContactTransmitted = true;
         statusNote = 'Automated matching: Application delivered directly to verified on-platform recruiter with confirmed receipt';
 
-        // Notify recruiter in real-time
-        await Notification.create({
+        // Notify recruiter in real-time and capture notification ID
+        const recNotif = await Notification.create({
           recipient: recId,
           title: `New Candidate Application: ${item.title}`,
           message: `${req.user.name} was auto-matched and applied with a ${item.matchScore}% compatibility score.`,
@@ -456,10 +450,20 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         emitToUser(recId.toString(), 'notification:new', {
           title: `New Candidate Application: ${item.title}`,
           message: `${req.user.name} applied with a ${item.matchScore}% match.`,
+          notification: recNotif,
         });
+
+        confirmationDetails = {
+          confirmationId: `RCX-ATS-${recId}-${Date.now().toString(36).toUpperCase()}`,
+          recipient: `${matchedRecruiter.name} (${matchedRecruiter.email})`,
+          timestamp: new Date(),
+          dispatchMethod: `RecruitX In-App ATS Queue [Notification ID: ${recNotif._id}]`,
+          messageId: recNotif._id,
+          verifiedAt: new Date(),
+        };
       } else if (verifiedHrEmail) {
         // 2. Direct HR Email Dispatch via Brevo HTTPS API
-        const emailSent = await EmailService.sendApplicationToHR({
+        const emailResult = await EmailService.sendApplicationToHR({
           candidateName: req.user.name,
           candidateEmail: req.user.email,
           jobTitle: item.title,
@@ -471,19 +475,21 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
           targetHrEmail: verifiedHrEmail,
         });
 
-        if (emailSent) {
+        if (emailResult.success && emailResult.messageId) {
           submissionStatus = 'submitted';
           submissionType = 'direct_hr_dispatch';
           applicationDestination = `Verified Hiring Inbox (${verifiedHrEmail})`;
           confirmationDetails = {
-            confirmationId: `RCX-HR-${Date.now().toString(36).toUpperCase()}`,
+            confirmationId: emailResult.messageId,
             recipient: verifiedHrEmail,
             timestamp: new Date(),
-            dispatchMethod: 'Brevo Transactional HTTPS API (Port 443)',
+            dispatchMethod: 'Brevo Transactional HTTPS Gateway',
+            messageId: emailResult.messageId,
+            verifiedAt: new Date(),
           };
           resumeTransmitted = true;
           candidateContactTransmitted = true;
-          statusNote = `Automated matching: Application package dispatched to verified hiring inbox (${verifiedHrEmail}) with confirmed HTTPS delivery`;
+          statusNote = `Automated matching: Application package dispatched to verified hiring inbox (${verifiedHrEmail}) with confirmed HTTPS delivery [MessageId: ${emailResult.messageId}]`;
         } else {
           submissionStatus = 'requires_manual_application';
           submissionType = 'external_portal';
