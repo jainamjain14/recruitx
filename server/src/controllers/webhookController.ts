@@ -130,3 +130,4 @@ export const handleEmployerAtsWebhook = async (req: Request, res: Response): Pro
     sendError(res, error.message || 'Failed to process employer ATS webhook', null, 500);
   }
 };
+

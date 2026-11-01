@@ -4,12 +4,13 @@ import { AuthenticatedRequest } from '../types/index.js';
 import { Job } from '../models/Job.js';
 import { Resume } from '../models/Resume.js';
 import { User } from '../models/User.js';
-import { Application } from '../models/Application.js';
+import { Application, PrimaryApplicationStatus } from '../models/Application.js';
 import { Notification } from '../models/Notification.js';
 import { PlacementEligibilityRule } from '../models/PlacementEligibilityRule.js';
 import { emitToUser } from '../socket.js';
 import { LinkedInService, getVerifiedCompanyHrEmail } from '../services/linkedinService.js';
 import { EmailService } from '../services/emailService.js';
+import { CandidateApplicationEmailService } from '../services/candidateApplicationEmailService.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 
 export const createJob = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -400,8 +401,10 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
     }
 
     const submittedApplications: any[] = [];
+    const emailSentApplications: any[] = [];
     const manualReviewApplications: any[] = [];
     const recruiters = await User.find({ role: 'recruiter' });
+    const candidateUser = await User.findById(studentId);
 
     for (const item of toProcess) {
       let recId = item.recruiter || null;
@@ -427,6 +430,18 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
       let resumeTransmitted = false;
       let candidateContactTransmitted = false;
       let statusNote = '';
+      let computedAppStatus: PrimaryApplicationStatus = 'external_application_required';
+      let evidenceClassification: 'internal_recruitx' | 'candidate_provided' | 'external_system_response' | 'independently_authenticated' = 'internal_recruitx';
+
+      let senderEmail: string | undefined;
+      let recipientEmail: string | undefined;
+      let emailProvider: 'gmail' | 'outlook' | 'gateway' | undefined;
+      let emailMessageId: string | undefined;
+      let emailSentAt: Date | undefined;
+      let emailDeliveryStatus: 'sent' | 'delivered' | 'bounced' | 'failed' | undefined;
+      let resumeAttached: boolean | undefined;
+      let resumeFileName: string | undefined;
+      let resumeFileSize: number | undefined;
 
       if (recId && matchedRecruiter) {
         // 1. Genuine On-Platform Submission to verified recruiter
@@ -437,6 +452,8 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         resumeTransmitted = true;
         candidateContactTransmitted = true;
         statusNote = 'Automated matching: Application delivered directly to verified on-platform recruiter with confirmed receipt';
+        computedAppStatus = 'awaiting_employer_verification';
+        evidenceClassification = 'internal_recruitx';
 
         // Notify recruiter in real-time and capture notification ID
         const recNotif = await Notification.create({
@@ -461,59 +478,122 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
           messageId: recNotif._id,
           verifiedAt: new Date(),
         };
-      } else if (verifiedHrEmail) {
-        // 2. Direct HR Email Dispatch via Brevo HTTPS API
-        const emailResult = await EmailService.sendApplicationToHR({
-          candidateName: req.user.name,
-          candidateEmail: req.user.email,
-          jobTitle: item.title,
+      } else {
+        // 2. Resolve genuine destination: company recruitment email vs official portal
+        const destination = CandidateApplicationEmailService.resolveApplicationDestination({
           companyName: item.company,
-          headline: resume?.headline,
-          summary: resume?.summary,
-          skills: resume?.skills,
-          fieldOfInterest: resume?.fieldOfInterest,
           targetHrEmail: verifiedHrEmail,
+          jobUrl: item.jobUrl,
         });
 
-        if (emailResult.success && emailResult.messageId) {
-          submissionStatus = 'submitted';
-          submissionType = 'direct_hr_dispatch';
-          applicationDestination = `Verified Hiring Inbox (${verifiedHrEmail})`;
-          confirmationDetails = {
-            confirmationId: emailResult.messageId,
-            recipient: verifiedHrEmail,
-            timestamp: new Date(),
-            dispatchMethod: 'Brevo Transactional HTTPS Gateway',
-            messageId: emailResult.messageId,
-            verifiedAt: new Date(),
-          };
-          resumeTransmitted = true;
-          candidateContactTransmitted = true;
-          statusNote = `Automated matching: Application package dispatched to verified hiring inbox (${verifiedHrEmail}) with confirmed HTTPS delivery [MessageId: ${emailResult.messageId}]`;
+        if (destination.method === 'email' && destination.destinationEmail) {
+          // Attempt email dispatch
+          if (candidateUser) {
+            const emailDispatch = await CandidateApplicationEmailService.dispatchApplication({
+              user: candidateUser,
+              resumeData: resume,
+              companyName: item.company,
+              jobTitle: item.title,
+              targetHrEmail: destination.destinationEmail,
+              jobUrl: item.jobUrl,
+            });
+
+            if (emailDispatch.status === 'sent') {
+              submissionStatus = 'submitted';
+              submissionType = 'direct_hr_dispatch';
+              senderEmail = emailDispatch.senderEmail;
+              recipientEmail = emailDispatch.recipientEmail;
+              emailProvider = emailDispatch.provider;
+              emailMessageId = emailDispatch.messageId;
+              emailSentAt = emailDispatch.sentAt || new Date();
+              emailDeliveryStatus = 'sent';
+              resumeAttached = emailDispatch.resumeAttached;
+              resumeFileName = emailDispatch.resumeFileName;
+              resumeFileSize = emailDispatch.resumeFileSize;
+              applicationDestination = `Verified Company Recruitment Inbox (${recipientEmail})`;
+              confirmationDetails = {
+                confirmationId: emailDispatch.messageId || `EMAIL-${Date.now()}`,
+                recipient: recipientEmail || destination.destinationEmail,
+                timestamp: emailDispatch.sentAt || new Date(),
+                dispatchMethod: `Connected ${emailDispatch.provider === 'gmail' ? 'Google Gmail' : (emailDispatch.provider === 'outlook' ? 'Microsoft Outlook' : 'OAuth')} API`,
+                messageId: emailDispatch.messageId,
+                verifiedAt: new Date(),
+              };
+              resumeTransmitted = Boolean(emailDispatch.resumeAttached);
+              candidateContactTransmitted = true;
+              statusNote = emailDispatch.message;
+              computedAppStatus = 'email_sent';
+              evidenceClassification = 'external_system_response';
+            } else if (emailDispatch.status === 'requires_connected_account') {
+              // Fallback to Brevo transactional gateway if configured
+              const fallbackResult = await EmailService.sendApplicationToHR({
+                candidateName: req.user.name,
+                candidateEmail: req.user.email,
+                jobTitle: item.title,
+                companyName: item.company,
+                headline: resume?.headline,
+                summary: resume?.summary,
+                skills: resume?.skills,
+                fieldOfInterest: resume?.fieldOfInterest,
+                targetHrEmail: destination.destinationEmail,
+              });
+
+              if (fallbackResult.success && fallbackResult.messageId) {
+                submissionStatus = 'submitted';
+                submissionType = 'direct_hr_dispatch';
+                senderEmail = process.env.BREVO_SENDER_EMAIL || 'applications@recruitx.app';
+                recipientEmail = destination.destinationEmail;
+                emailProvider = 'gateway';
+                emailMessageId = fallbackResult.messageId;
+                emailSentAt = new Date();
+                emailDeliveryStatus = 'sent';
+                resumeAttached = true;
+                applicationDestination = `Verified Company HR Inbox (${destination.destinationEmail})`;
+                confirmationDetails = {
+                  confirmationId: fallbackResult.messageId,
+                  recipient: destination.destinationEmail,
+                  timestamp: new Date(),
+                  dispatchMethod: 'RecruitX Application Gateway (Brevo HTTPS API)',
+                  messageId: fallbackResult.messageId,
+                  verifiedAt: new Date(),
+                };
+                resumeTransmitted = true;
+                candidateContactTransmitted = true;
+                statusNote = `Automated matching: Dispatched to verified inbox (${destination.destinationEmail}) via RecruitX gateway [MessageId: ${fallbackResult.messageId}]. Connect your Gmail or Outlook in Settings to send directly from your personal account.`;
+                computedAppStatus = 'email_sent';
+                evidenceClassification = 'external_system_response';
+              } else {
+                submissionStatus = 'requires_manual_application';
+                submissionType = 'external_portal';
+                applicationDestination = destination.destinationEmail
+                  ? `Company Recruitment Contact (${destination.destinationEmail})`
+                  : 'Employer Official Career Portal';
+                destinationUrl = destination.portalUrl || item.jobUrl || `/student/jobs`;
+                statusNote = 'To email this employer directly from your address, connect your Gmail or Outlook in Settings, or apply via their official career portal.';
+                computedAppStatus = 'external_application_required';
+                evidenceClassification = 'internal_recruitx';
+              }
+            } else {
+              submissionStatus = 'submission_failed';
+              submissionType = 'direct_hr_dispatch';
+              statusNote = emailDispatch.error || 'Failed to dispatch email application to employer.';
+              computedAppStatus = 'submission_failed';
+              evidenceClassification = 'external_system_response';
+            }
+          }
         } else {
+          // Destination is official employer portal
           submissionStatus = 'requires_manual_application';
           submissionType = 'external_portal';
-          applicationDestination = 'Employer Official Career Portal';
-          statusNote = 'Direct email dispatch was unavailable. Please apply via the employer official portal.';
+          applicationDestination = destination.portalUrl || 'Employer Official Career Portal';
+          destinationUrl = destination.portalUrl || item.jobUrl || `/student/jobs`;
+          statusNote = 'Direct third-party automated form submission is restricted by employer portal. Direct application link provided for manual completion.';
+          computedAppStatus = 'external_application_required';
+          evidenceClassification = 'internal_recruitx';
+          resumeTransmitted = false;
+          candidateContactTransmitted = false;
         }
-      } else {
-        // 3. External Employer / LinkedIn Portal Opportunity
-        // Automated third-party form-filling on external proprietary career portals cannot be faked!
-        submissionStatus = 'requires_manual_application';
-        submissionType = 'external_portal';
-        applicationDestination = 'Employer Official Career Portal';
-        statusNote = 'Direct third-party automated form submission is restricted by employer portal. Direct application link provided for manual completion.';
-        resumeTransmitted = false;
-        candidateContactTransmitted = false;
       }
-
-      const computedAppStatus = submissionStatus === 'requires_manual_application'
-        ? 'external_application_required'
-        : 'awaiting_employer_verification';
-
-      const evidenceClassification = (recId && matchedRecruiter)
-        ? 'internal_recruitx'
-        : (submissionType === 'direct_hr_dispatch' ? 'external_system_response' : 'internal_recruitx');
 
       const app = await Application.create({
         job: item.jobId || undefined,
@@ -530,29 +610,46 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         applicationDestination,
         destinationUrl,
         confirmationDetails,
+        senderEmail,
+        recipientEmail,
+        emailProvider,
+        emailMessageId,
+        emailSentAt,
+        emailDeliveryStatus,
+        resumeAttached,
+        resumeFileName,
+        resumeFileSize,
+        coverLetterIncluded: true,
         submissionError: submissionStatus === 'requires_manual_application' ? 'Third-party employer requires direct submission through their official career portal.' : undefined,
         resumeTransmitted,
         candidateContactTransmitted,
         statusHistory: [{ status: computedAppStatus, note: statusNote }],
       });
 
-      if (submissionStatus === 'submitted') {
+      if (computedAppStatus === 'email_sent') {
+        emailSentApplications.push(app);
+      } else if (submissionStatus === 'submitted') {
         submittedApplications.push(app);
       } else {
         manualReviewApplications.push(app);
       }
     }
 
+    const emailSentCount = emailSentApplications.length;
     const submittedCount = submittedApplications.length;
     const requiresManualCount = manualReviewApplications.length;
+    const totalSuccessfulDispatches = emailSentCount + submittedCount;
 
     let toastTitle = '';
     let toastMessage = '';
 
-    if (submittedCount > 0 && requiresManualCount > 0) {
-      toastTitle = 'Matching & Direct Dispatches Complete';
-      toastMessage = `${submittedCount} application(s) dispatched to verified recruiter queues. ${requiresManualCount} external role(s) require manual submission on official employer portals.`;
-    } else if (submittedCount > 0) {
+    if (totalSuccessfulDispatches > 0 && requiresManualCount > 0) {
+      toastTitle = 'Matching & Application Dispatches Complete';
+      toastMessage = `${emailSentCount} sent via verified email, ${submittedCount} delivered to recruiter queues. ${requiresManualCount} role(s) require manual submission on employer portals.`;
+    } else if (emailSentCount > 0 && submittedCount === 0) {
+      toastTitle = 'Applications Dispatched via Verified Email';
+      toastMessage = `Sent ${emailSentCount} application email(s) directly to employer hiring inboxes with verified resume attachments.`;
+    } else if (submittedCount > 0 && emailSentCount === 0) {
       toastTitle = 'Applications Dispatched to Recruiter Queue';
       toastMessage = `Dispatched ${submittedCount} application(s) directly to verified recruiter queues.`;
     } else {
@@ -578,9 +675,11 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
     });
 
     sendSuccess(res, toastMessage, {
-      appliedCount: submittedCount,
+      appliedCount: totalSuccessfulDispatches,
+      emailSentCount,
       submittedCount,
       requiresManualCount,
+      emailSentApplications,
       submittedApplications,
       manualReviewApplications,
       totalMatched: toProcess.length,

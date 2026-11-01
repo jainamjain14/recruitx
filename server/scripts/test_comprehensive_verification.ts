@@ -1,9 +1,11 @@
 import { AtsVerificationService as atsVerificationService, APPLICATION_STATUS_CONFIG } from '../src/services/atsVerificationService.js';
 import { Application } from '../src/models/Application.js';
+import { encryptToken, decryptToken } from '../src/utils/tokenEncryption.js';
+import { CandidateApplicationEmailService } from '../src/services/candidateApplicationEmailService.js';
 
 async function runTests() {
   console.log('================================================================');
-  console.log('RECRUITX RIGOROUS VERIFICATION SYSTEM AUDIT & REGRESSION TESTS');
+  console.log('RECRUITX RIGOROUS VERIFICATION & EMAIL SYSTEM INTEGRATION TESTS');
   console.log('================================================================\n');
 
   let passed = 0;
@@ -29,7 +31,7 @@ async function runTests() {
     companyName: 'Mahindra & Mahindra',
     jobTitle: 'Assistant Manager - Automotive Systems',
     status: 'recorded',
-    submissionStatus: 'external_action_required',
+    submissionStatus: 'requires_manual_application',
     appliedAt: new Date(),
     updatedAt: new Date(),
   });
@@ -44,9 +46,8 @@ async function runTests() {
   // Test 2: Candidate clicks "I Applied on Portal" without independent proof
   // -------------------------------------------------------------
   console.log('\n--- TEST 2: Candidate self-report does NOT confirm receipt ---');
-  externalApp.submissionStatus = 'dispatched';
+  externalApp.submissionStatus = 'external_awaiting_verification';
   externalApp.evidenceClassification = 'candidate_provided';
-  externalApp.portalSubmissionConfirmedAt = new Date();
 
   const status2 = atsVerificationService.getAuthoritativeStatus(externalApp);
   const evidence2 = atsVerificationService.getEvidenceClassification(externalApp);
@@ -64,7 +65,7 @@ async function runTests() {
     companyName: 'Tesla Motors',
     jobTitle: 'Vehicle Systems Engineer',
     status: 'awaiting_employer_verification',
-    submissionStatus: 'dispatched',
+    submissionStatus: 'external_awaiting_verification',
     evidenceClassification: 'candidate_provided',
     employerReceipt: {
       atsReferenceNumber: 'TSLA-REQ-998822',
@@ -186,13 +187,15 @@ Date: Sun, 1 Nov 2026 14:15:00 +0000
   assert(APPLICATION_STATUS_CONFIG[status6].label === 'Employer Status Updated', 'Status config label matches');
 
   // -------------------------------------------------------------
-  // Test 7: Verify all 7 Primary Application Statuses are defined and unique
+  // Test 7: Verify all 9 Primary Application Statuses are defined and unique
   // -------------------------------------------------------------
-  console.log('\n--- TEST 7: Mutually exclusive status coverage ---');
+  console.log('\n--- TEST 7: Mutually exclusive 9-status coverage ---');
   const expectedStatuses = [
     'saved_in_recruitx',
     'external_application_required',
     'awaiting_employer_verification',
+    'email_sent',
+    'email_delivered',
     'employer_receipt_confirmed',
     'employer_status_updated',
     'submission_failed',
@@ -200,10 +203,86 @@ Date: Sun, 1 Nov 2026 14:15:00 +0000
   ];
 
   const configuredStatuses = Object.keys(APPLICATION_STATUS_CONFIG);
-  assert(expectedStatuses.length === 7, 'Expected exactly 7 statuses');
+  assert(expectedStatuses.length === 9, `Expected exactly 9 statuses, got: ${expectedStatuses.length}`);
   for (const s of expectedStatuses) {
     assert(configuredStatuses.includes(s), `Config has key: ${s}`);
   }
+
+  // -------------------------------------------------------------
+  // Test 8: AES-256-GCM Token Encryption & Decryption
+  // -------------------------------------------------------------
+  console.log('\n--- TEST 8: AES-256-GCM OAuth Token Authenticated Encryption ---');
+  const sampleToken = 'ya29.a0AfH6SMDI_secret_access_token_1234567890abcdefghijklmnopqrstuvwxyz';
+  const encrypted = encryptToken(sampleToken);
+  assert(encrypted !== sampleToken, 'Encrypted token must differ from plain token');
+  assert(encrypted.includes(':'), 'Encrypted format must contain iv:authTag:ciphertext');
+
+  const decrypted = decryptToken(encrypted);
+  assert(decrypted === sampleToken, 'Decrypted token must exactly match original token');
+
+  // Test tamper detection
+  const parts = encrypted.split(':');
+  parts[2] = parts[2].substring(0, parts[2].length - 4) + 'AAAA'; // Corrupt ciphertext
+  const tampered = parts.join(':');
+  let tamperCaught = false;
+  try {
+    decryptToken(tampered);
+  } catch {
+    tamperCaught = true;
+  }
+  assert(tamperCaught, 'Tampered ciphertext must fail authenticated decryption (integrity check)');
+
+  // -------------------------------------------------------------
+  // Test 9: Application Email Sent & Delivered Authoritative Status
+  // -------------------------------------------------------------
+  console.log('\n--- TEST 9: Email Sent & Email Delivered Status Mapping ---');
+  const emailSentApp = new Application({
+    _id: 'test-email-1',
+    studentId: 'stud-1',
+    companyName: 'Acme Global Corp',
+    jobTitle: 'Senior Infrastructure Engineer',
+    status: 'email_sent',
+    submissionStatus: 'submitted',
+    submissionType: 'direct_hr_dispatch',
+    senderEmail: 'candidate@gmail.com',
+    recipientEmail: 'jobs@acmeglobal.com',
+    emailProvider: 'gmail',
+    emailMessageId: '18b23456789abcdef',
+    emailSentAt: new Date(),
+    emailDeliveryStatus: 'sent',
+    appliedAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  const statusEmailSent = atsVerificationService.getAuthoritativeStatus(emailSentApp);
+  assert(statusEmailSent === 'email_sent', `Expected email_sent, got: ${statusEmailSent}`);
+  assert(APPLICATION_STATUS_CONFIG[statusEmailSent].label.includes('Email Sent'), 'Config label matches Email Sent');
+
+  emailSentApp.emailDeliveryStatus = 'delivered';
+  emailSentApp.status = 'email_delivered';
+  const statusEmailDelivered = atsVerificationService.getAuthoritativeStatus(emailSentApp);
+  assert(statusEmailDelivered === 'email_delivered', `Expected email_delivered, got: ${statusEmailDelivered}`);
+  assert(APPLICATION_STATUS_CONFIG[statusEmailDelivered].label.includes('Email Delivered'), 'Config label matches Email Delivered');
+
+  // -------------------------------------------------------------
+  // Test 10: Destination Resolver (Company Public Email vs Career Portal)
+  // -------------------------------------------------------------
+  console.log('\n--- TEST 10: Destination Resolver Logic Across Companies ---');
+  // Known verified hiring email
+  const destEmail = CandidateApplicationEmailService.resolveApplicationDestination({
+    companyName: 'Tesla Motors',
+    targetHrEmail: 'careers@tesla.com',
+  });
+  assert(destEmail.method === 'email', 'Explicit hiring email must resolve to email method');
+  assert(destEmail.destinationEmail === 'careers@tesla.com', 'Resolved email matches target email');
+
+  // Unknown company with no public email -> Portal
+  const destPortal = CandidateApplicationEmailService.resolveApplicationDestination({
+    companyName: 'Proprietary Unlisted Firm XYZ 999',
+    jobUrl: 'https://careers.proprietaryxyz.com/apply/123',
+  });
+  assert(destPortal.method === 'portal', 'Company without public email must mandate portal submission');
+  assert(destPortal.portalUrl === 'https://careers.proprietaryxyz.com/apply/123', 'Portal URL preserved');
 
   console.log('\n================================================================');
   console.log(`TEST SUMMARY: Passed: ${passed} | Failed: ${failed}`);

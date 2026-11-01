@@ -3,6 +3,20 @@ import { db, Collections } from '../config/firebase.js';
 import { UserRole } from '../types/index.js';
 import { dateFromFirestore, cleanDataForFirestore } from './firestoreHelper.js';
 
+export interface ConnectedEmailAccount {
+  provider: 'gmail' | 'outlook' | 'smtp';
+  email: string;
+  name?: string;
+  accessTokenEncrypted: string;
+  refreshTokenEncrypted?: string;
+  tokenExpiresAt?: Date;
+  scopes: string[];
+  connectedAt: Date;
+  lastUsedAt?: Date;
+  status: 'active' | 'expired' | 'revoked' | 'error';
+  lastError?: string;
+}
+
 export interface IUserDocument {
   _id: string;
   name: string;
@@ -32,6 +46,16 @@ export interface IUserDocument {
   onboardingCompleted?: boolean;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
+  // Contact Email Management (Part 2)
+  contactEmail?: string;
+  contactEmailVerified?: boolean;
+  contactEmailVerificationCode?: string;
+  contactEmailVerificationExpires?: Date;
+  // Connected Email OAuth Accounts for Sending (Part 3)
+  connectedEmailAccounts?: ConnectedEmailAccount[];
+  authorizedSendingEmail?: string;
+  authorizedSendingProvider?: 'gmail' | 'outlook' | 'smtp';
+  isEmailSendingAuthorized?: boolean;
   createdAt: Date;
   updatedAt: Date;
   matchPassword(enteredPassword: string): Promise<boolean>;
@@ -41,36 +65,44 @@ export interface IUserDocument {
 }
 
 export class UserDoc implements IUserDocument {
-  _id: string;
-  name: string;
-  email: string;
-  password?: string;
-  role: UserRole;
-  emailVerified: boolean;
-  isSuspended?: boolean;
-  verificationCode?: string;
-  verificationExpires?: Date;
-  provider?: string;
-  providerId?: string;
-  avatar?: string;
-  company?: string;
-  website?: string;
-  location?: string;
-  description?: string;
-  phone?: string;
-  title?: string;
-  profession?: string;
-  github?: string;
-  linkedin?: string;
-  portfolio?: string;
-  experienceLevel?: string;
-  companySize?: string;
-  industry?: string;
-  onboardingCompleted?: boolean;
-  resetPasswordToken?: string;
-  resetPasswordExpires?: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  declare _id: string;
+  declare name: string;
+  declare email: string;
+  declare password?: string;
+  declare role: UserRole;
+  declare emailVerified: boolean;
+  declare isSuspended?: boolean;
+  declare verificationCode?: string;
+  declare verificationExpires?: Date;
+  declare provider?: string;
+  declare providerId?: string;
+  declare avatar?: string;
+  declare company?: string;
+  declare website?: string;
+  declare location?: string;
+  declare description?: string;
+  declare phone?: string;
+  declare title?: string;
+  declare profession?: string;
+  declare github?: string;
+  declare linkedin?: string;
+  declare portfolio?: string;
+  declare experienceLevel?: string;
+  declare companySize?: string;
+  declare industry?: string;
+  declare onboardingCompleted?: boolean;
+  declare resetPasswordToken?: string;
+  declare resetPasswordExpires?: Date;
+  declare contactEmail?: string;
+  declare contactEmailVerified?: boolean;
+  declare contactEmailVerificationCode?: string;
+  declare contactEmailVerificationExpires?: Date;
+  declare connectedEmailAccounts?: ConnectedEmailAccount[];
+  declare authorizedSendingEmail?: string;
+  declare authorizedSendingProvider?: 'gmail' | 'outlook' | 'smtp';
+  declare isEmailSendingAuthorized?: boolean;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   private _isPasswordModified: boolean = false;
 
@@ -103,6 +135,26 @@ export class UserDoc implements IUserDocument {
     this.onboardingCompleted = data.onboardingCompleted ?? false;
     this.resetPasswordToken = data.resetPasswordToken;
     this.resetPasswordExpires = data.resetPasswordExpires ? dateFromFirestore(data.resetPasswordExpires) : undefined;
+
+    // Contact Email
+    this.contactEmail = data.contactEmail ? (data.contactEmail as string).toLowerCase().trim() : undefined;
+    this.contactEmailVerified = data.contactEmailVerified ?? false;
+    this.contactEmailVerificationCode = data.contactEmailVerificationCode;
+    this.contactEmailVerificationExpires = data.contactEmailVerificationExpires ? dateFromFirestore(data.contactEmailVerificationExpires) : undefined;
+
+    // Connected Email OAuth Accounts
+    this.connectedEmailAccounts = Array.isArray(data.connectedEmailAccounts)
+      ? data.connectedEmailAccounts.map((acc: any) => ({
+          ...acc,
+          connectedAt: dateFromFirestore(acc.connectedAt),
+          tokenExpiresAt: acc.tokenExpiresAt ? dateFromFirestore(acc.tokenExpiresAt) : undefined,
+          lastUsedAt: acc.lastUsedAt ? dateFromFirestore(acc.lastUsedAt) : undefined,
+        }))
+      : [];
+    this.authorizedSendingEmail = data.authorizedSendingEmail;
+    this.authorizedSendingProvider = data.authorizedSendingProvider;
+    this.isEmailSendingAuthorized = data.isEmailSendingAuthorized ?? false;
+
     this.createdAt = dateFromFirestore(data.createdAt);
     this.updatedAt = dateFromFirestore(data.updatedAt);
   }
@@ -153,6 +205,16 @@ export class UserDoc implements IUserDocument {
       onboardingCompleted: this.onboardingCompleted ?? false,
       resetPasswordToken: this.resetPasswordToken || null,
       resetPasswordExpires: this.resetPasswordExpires || null,
+      // Contact Email
+      contactEmail: this.contactEmail || null,
+      contactEmailVerified: this.contactEmailVerified ?? false,
+      contactEmailVerificationCode: this.contactEmailVerificationCode || null,
+      contactEmailVerificationExpires: this.contactEmailVerificationExpires || null,
+      // Connected Email OAuth Accounts
+      connectedEmailAccounts: this.connectedEmailAccounts || [],
+      authorizedSendingEmail: this.authorizedSendingEmail || null,
+      authorizedSendingProvider: this.authorizedSendingProvider || null,
+      isEmailSendingAuthorized: this.isEmailSendingAuthorized ?? false,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });
@@ -178,6 +240,14 @@ class UserQueryBuilder<T> implements PromiseLike<T> {
   }
 
   sort(_sortOptions: any): UserQueryBuilder<T> {
+    return this;
+  }
+
+  limit(_num: number): UserQueryBuilder<T> {
+    return this;
+  }
+
+  populate(_field: string): UserQueryBuilder<T> {
     return this;
   }
 
@@ -224,6 +294,14 @@ export class User {
     onboardingCompleted?: boolean;
     resetPasswordToken?: string;
     resetPasswordExpires?: Date;
+    contactEmail?: string;
+    contactEmailVerified?: boolean;
+    contactEmailVerificationCode?: string;
+    contactEmailVerificationExpires?: Date;
+    connectedEmailAccounts?: ConnectedEmailAccount[];
+    authorizedSendingEmail?: string;
+    authorizedSendingProvider?: 'gmail' | 'outlook' | 'smtp';
+    isEmailSendingAuthorized?: boolean;
   }): Promise<IUserDocument> {
     const email = data.email.toLowerCase().trim();
     let hashedPassword = data.password;
@@ -261,6 +339,14 @@ export class User {
       onboardingCompleted: data.onboardingCompleted ?? false,
       resetPasswordToken: data.resetPasswordToken || null,
       resetPasswordExpires: data.resetPasswordExpires || null,
+      contactEmail: data.contactEmail || null,
+      contactEmailVerified: data.contactEmailVerified ?? false,
+      contactEmailVerificationCode: data.contactEmailVerificationCode || null,
+      contactEmailVerificationExpires: data.contactEmailVerificationExpires || null,
+      connectedEmailAccounts: data.connectedEmailAccounts || [],
+      authorizedSendingEmail: data.authorizedSendingEmail || null,
+      authorizedSendingProvider: data.authorizedSendingProvider || null,
+      isEmailSendingAuthorized: data.isEmailSendingAuthorized ?? false,
       createdAt: now,
       updatedAt: now,
     });

@@ -38,6 +38,20 @@ const getAppAuthoritativeStatus = (app: any): { label: string; badgeClass: strin
         icon: '⏳',
         datePrefix: 'Dispatched',
       };
+    case 'email_sent':
+      return {
+        label: 'Email Sent ✉️',
+        badgeClass: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
+        icon: '✉️',
+        datePrefix: 'Sent',
+      };
+    case 'email_delivered':
+      return {
+        label: 'Email Delivered 📬',
+        badgeClass: 'text-teal-700 bg-teal-50 border-teal-200 font-bold',
+        icon: '📬',
+        datePrefix: 'Delivered',
+      };
     case 'employer_receipt_confirmed':
       return {
         label: 'Receipt Confirmed ✓',

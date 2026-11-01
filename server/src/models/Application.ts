@@ -5,6 +5,8 @@ export type PrimaryApplicationStatus =
   | 'saved_in_recruitx'
   | 'external_application_required'
   | 'awaiting_employer_verification'
+  | 'email_sent'
+  | 'email_delivered'
   | 'employer_receipt_confirmed'
   | 'employer_status_updated'
   | 'submission_failed'
@@ -45,6 +47,7 @@ export type VerificationLifecycleStage =
 export type ApplicationSubmissionType =
   | 'platform_recruiter'
   | 'direct_hr_dispatch'
+  | 'candidate_email_oauth'
   | 'external_portal';
 
 export interface EmployerReceipt {
@@ -87,6 +90,7 @@ export interface IApplicationDocument {
   primaryStatus?: PrimaryApplicationStatus;
   hiringStage?: EmployerHiringStage;
   evidenceClassification?: EvidenceClassification;
+  isIndependentlyAuthenticated?: boolean;
   submissionStatus: ApplicationSubmissionStatus;
   submissionType: ApplicationSubmissionType;
   applicationDestination: string;
@@ -109,6 +113,18 @@ export interface IApplicationDocument {
     changedAt: Date;
     note?: string;
   }[];
+  // Genuine Candidate Email Transmission Fields (Parts 1, 4, 8)
+  senderEmail?: string;
+  recipientEmail?: string;
+  emailProvider?: 'gmail' | 'outlook' | 'gateway';
+  emailMessageId?: string;
+  emailSentAt?: Date;
+  emailDeliveryStatus?: 'sent' | 'delivered' | 'bounced' | 'failed';
+  resumeAttached?: boolean;
+  resumeFileName?: string;
+  resumeFileSize?: number;
+  coverLetterIncluded?: boolean;
+  portalSubmissionConfirmedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   save(): Promise<IApplicationDocument>;
@@ -148,6 +164,18 @@ export class ApplicationDoc implements IApplicationDocument {
     changedAt: Date;
     note?: string;
   }[];
+  // Email Transmission & Audit
+  declare senderEmail?: string;
+  declare recipientEmail?: string;
+  declare emailProvider?: 'gmail' | 'outlook' | 'gateway';
+  declare emailMessageId?: string;
+  declare emailSentAt?: Date;
+  declare emailDeliveryStatus?: 'sent' | 'delivered' | 'bounced' | 'failed';
+  declare resumeAttached?: boolean;
+  declare resumeFileName?: string;
+  declare resumeFileSize?: number;
+  declare coverLetterIncluded?: boolean;
+  declare portalSubmissionConfirmedAt?: Date;
   declare createdAt: Date;
   declare updatedAt: Date;
 
@@ -160,14 +188,30 @@ export class ApplicationDoc implements IApplicationDocument {
     this.jobTitle = data.jobTitle;
     this.hiringStage = data.hiringStage || (['under_review', 'shortlisted', 'interview_scheduled', 'offered', 'rejected'].includes(data.status) ? data.status : undefined);
 
-    if (data.primaryStatus && ['saved_in_recruitx', 'external_application_required', 'awaiting_employer_verification', 'employer_receipt_confirmed', 'employer_status_updated', 'submission_failed', 'unable_to_verify'].includes(data.primaryStatus)) {
+    const VALID_PRIMARY_STATUSES: PrimaryApplicationStatus[] = [
+      'saved_in_recruitx',
+      'external_application_required',
+      'awaiting_employer_verification',
+      'email_sent',
+      'email_delivered',
+      'employer_receipt_confirmed',
+      'employer_status_updated',
+      'submission_failed',
+      'unable_to_verify',
+    ];
+
+    if (data.primaryStatus && VALID_PRIMARY_STATUSES.includes(data.primaryStatus)) {
       this.status = data.primaryStatus;
-    } else if (data.status && ['saved_in_recruitx', 'external_application_required', 'awaiting_employer_verification', 'employer_receipt_confirmed', 'employer_status_updated', 'submission_failed', 'unable_to_verify'].includes(data.status)) {
+    } else if (data.status && VALID_PRIMARY_STATUSES.includes(data.status)) {
       this.status = data.status;
     } else if (this.hiringStage) {
       this.status = 'employer_status_updated';
     } else if (data.submissionStatus === 'requires_manual_application') {
       this.status = 'external_application_required';
+    } else if (data.emailDeliveryStatus === 'delivered' || data.status === 'email_delivered') {
+      this.status = 'email_delivered';
+    } else if (data.emailSentAt || data.emailMessageId || data.status === 'email_sent') {
+      this.status = 'email_sent';
     } else if (data.submissionStatus === 'external_awaiting_verification' || (data.submissionStatus as string) === 'dispatched' || data.portalSubmissionConfirmedAt) {
       this.status = 'awaiting_employer_verification';
     } else if (data.submissionStatus === 'submission_failed') {
@@ -185,12 +229,13 @@ export class ApplicationDoc implements IApplicationDocument {
     }
 
     this.primaryStatus = (this.status as PrimaryApplicationStatus);
+    this.isIndependentlyAuthenticated = Boolean(data.isIndependentlyAuthenticated || data.employerReceipt?.isIndependentlyAuthenticated || data.evidenceClassification === 'independently_authenticated');
 
     if (data.evidenceClassification) {
       this.evidenceClassification = data.evidenceClassification;
-    } else if (data.employerReceipt?.isIndependentlyAuthenticated || data.isIndependentlyAuthenticated || data.evidenceClassification === 'independently_authenticated') {
+    } else if (this.isIndependentlyAuthenticated) {
       this.evidenceClassification = 'independently_authenticated';
-    } else if (data.confirmationDetails?.messageId && data.submissionType === 'direct_hr_dispatch') {
+    } else if (data.emailMessageId || (data.confirmationDetails?.messageId && data.submissionType === 'direct_hr_dispatch')) {
       this.evidenceClassification = 'external_system_response';
     } else if (data.employerReceipt?.receiptSource === 'candidate_self_reported' || data.submissionStatus === 'external_awaiting_verification' || (data.submissionStatus as string) === 'dispatched' || data.portalSubmissionConfirmedAt) {
       this.evidenceClassification = 'candidate_provided';
@@ -201,11 +246,13 @@ export class ApplicationDoc implements IApplicationDocument {
     this.submissionStatus = data.submissionStatus || (
       this.status === 'external_application_required' ? 'requires_manual_application' :
       this.status === 'awaiting_employer_verification' ? 'external_awaiting_verification' :
+      this.status === 'email_sent' ? 'submitted' :
+      this.status === 'email_delivered' ? 'submitted' :
       this.status === 'employer_receipt_confirmed' ? 'submitted' :
       this.status === 'employer_status_updated' ? 'submitted' :
       this.status === 'submission_failed' ? 'submission_failed' : 'pending'
     );
-    this.submissionType = data.submissionType || (data.recruiter ? 'platform_recruiter' : 'external_portal');
+    this.submissionType = data.submissionType || (data.recruiter ? 'platform_recruiter' : (data.emailSentAt ? 'candidate_email_oauth' : 'external_portal'));
     this.applicationDestination = data.applicationDestination || (data.recruiter ? 'RecruitX Verified Recruiter Portal' : 'Platform Application System');
     this.destinationUrl = data.destinationUrl || '';
     this.confirmationDetails = data.confirmationDetails || undefined;
@@ -228,6 +275,20 @@ export class ApplicationDoc implements IApplicationDocument {
     this.rating = data.rating;
     this.internalNotes = data.internalNotes || '';
     this.appliedAt = dateFromFirestore(data.appliedAt);
+
+    // Email Transmission Details
+    this.senderEmail = data.senderEmail;
+    this.recipientEmail = data.recipientEmail;
+    this.emailProvider = data.emailProvider;
+    this.emailMessageId = data.emailMessageId;
+    this.emailSentAt = data.emailSentAt ? dateFromFirestore(data.emailSentAt) : undefined;
+    this.emailDeliveryStatus = data.emailDeliveryStatus;
+    this.resumeAttached = data.resumeAttached !== undefined ? Boolean(data.resumeAttached) : undefined;
+    this.resumeFileName = data.resumeFileName;
+    this.resumeFileSize = data.resumeFileSize;
+    this.coverLetterIncluded = data.coverLetterIncluded !== undefined ? Boolean(data.coverLetterIncluded) : undefined;
+    this.portalSubmissionConfirmedAt = data.portalSubmissionConfirmedAt ? dateFromFirestore(data.portalSubmissionConfirmedAt) : undefined;
+
     this.statusHistory = Array.isArray(data.statusHistory)
       ? data.statusHistory.map((h: any) => ({
           status: h.status,
@@ -256,6 +317,7 @@ export class ApplicationDoc implements IApplicationDocument {
       primaryStatus: this.primaryStatus || this.status,
       hiringStage: this.hiringStage || null,
       evidenceClassification: this.evidenceClassification || 'internal_recruitx',
+      isIndependentlyAuthenticated: this.isIndependentlyAuthenticated ?? false,
       submissionStatus: this.submissionStatus,
       submissionType: this.submissionType,
       applicationDestination: this.applicationDestination,
@@ -273,6 +335,18 @@ export class ApplicationDoc implements IApplicationDocument {
       rating: this.rating !== undefined ? this.rating : null,
       internalNotes: this.internalNotes || '',
       appliedAt: this.appliedAt,
+      // Email Transmission fields
+      senderEmail: this.senderEmail || null,
+      recipientEmail: this.recipientEmail || null,
+      emailProvider: this.emailProvider || null,
+      emailMessageId: this.emailMessageId || null,
+      emailSentAt: this.emailSentAt || null,
+      emailDeliveryStatus: this.emailDeliveryStatus || null,
+      resumeAttached: this.resumeAttached ?? null,
+      resumeFileName: this.resumeFileName || null,
+      resumeFileSize: this.resumeFileSize || null,
+      coverLetterIncluded: this.coverLetterIncluded ?? null,
+      portalSubmissionConfirmedAt: this.portalSubmissionConfirmedAt || null,
       statusHistory: this.statusHistory,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -299,6 +373,16 @@ class ApplicationQueryBuilder<T> implements PromiseLike<T> {
 
   sort(sortOption: any): ApplicationQueryBuilder<T> {
     this.sortOption = sortOption;
+    return this;
+  }
+
+  limit(num: number): ApplicationQueryBuilder<T> {
+    const originalPromise = this.promise;
+    this.promise = async () => {
+      const res = await originalPromise();
+      if (Array.isArray(res)) return res.slice(0, num) as any;
+      return res;
+    };
     return this;
   }
 
@@ -371,6 +455,16 @@ export class Application {
     statusHistory?: any[];
     portalSubmissionConfirmedAt?: Date | string;
     isIndependentlyAuthenticated?: boolean;
+    senderEmail?: string;
+    recipientEmail?: string;
+    emailProvider?: 'gmail' | 'outlook' | 'gateway';
+    emailMessageId?: string;
+    emailSentAt?: Date;
+    emailDeliveryStatus?: 'sent' | 'delivered' | 'bounced' | 'failed';
+    resumeAttached?: boolean;
+    resumeFileName?: string;
+    resumeFileSize?: number;
+    coverLetterIncluded?: boolean;
   }): Promise<IApplicationDocument> {
     const jobId = data.job ? (typeof data.job === 'object' && data.job._id ? data.job._id.toString() : data.job.toString()) : null;
     const studentId = typeof data.student === 'object' && data.student._id ? data.student._id.toString() : data.student.toString();
@@ -380,7 +474,11 @@ export class Application {
 
     let computedStatus: ApplicationStatus = data.status || 'applied';
     if (!data.status || data.status === 'applied') {
-      if (data.submissionStatus === 'requires_manual_application' || (!recruiterId && data.submissionType !== 'direct_hr_dispatch')) {
+      if (data.emailDeliveryStatus === 'delivered') {
+        computedStatus = 'email_delivered';
+      } else if (data.emailSentAt || data.emailMessageId) {
+        computedStatus = 'email_sent';
+      } else if (data.submissionStatus === 'requires_manual_application' || (!recruiterId && data.submissionType !== 'direct_hr_dispatch' && data.submissionType !== 'candidate_email_oauth')) {
         computedStatus = 'external_application_required';
       } else if (data.submissionStatus === 'external_awaiting_verification' || (data.submissionStatus as string) === 'dispatched' || data.portalSubmissionConfirmedAt) {
         computedStatus = 'awaiting_employer_verification';
@@ -399,9 +497,10 @@ export class Application {
 
     const status = computedStatus;
     const evidenceClassification: EvidenceClassification = data.evidenceClassification || (
-      data.employerReceipt?.isIndependentlyAuthenticated ? 'independently_authenticated' :
+      data.employerReceipt?.isIndependentlyAuthenticated || data.isIndependentlyAuthenticated ? 'independently_authenticated' :
+      data.emailMessageId ? 'external_system_response' :
       data.confirmationDetails?.messageId && data.submissionType === 'direct_hr_dispatch' ? 'external_system_response' :
-      data.submissionStatus === 'external_awaiting_verification' ? 'candidate_provided' :
+      data.submissionStatus === 'external_awaiting_verification' || (data.submissionStatus as string) === 'dispatched' || data.portalSubmissionConfirmedAt ? 'candidate_provided' :
       'internal_recruitx'
     );
     const statusHistory = data.statusHistory || [{ status, changedAt: now, note: 'Application record created' }];
@@ -416,14 +515,16 @@ export class Application {
       primaryStatus: status,
       hiringStage: (['under_review', 'shortlisted', 'interview_scheduled', 'offered', 'rejected'].includes(status) ? status : null),
       evidenceClassification,
+      isIndependentlyAuthenticated: Boolean(data.isIndependentlyAuthenticated || data.employerReceipt?.isIndependentlyAuthenticated),
       submissionStatus: data.submissionStatus || (
         status === 'external_application_required' ? 'requires_manual_application' :
         status === 'awaiting_employer_verification' ? 'external_awaiting_verification' :
+        status === 'email_sent' || status === 'email_delivered' ? 'submitted' :
         status === 'employer_receipt_confirmed' ? 'submitted' :
         status === 'employer_status_updated' ? 'submitted' :
         status === 'submission_failed' ? 'submission_failed' : 'pending'
       ),
-      submissionType: data.submissionType || (recruiterId ? 'platform_recruiter' : 'external_portal'),
+      submissionType: data.submissionType || (recruiterId ? 'platform_recruiter' : (data.emailSentAt ? 'candidate_email_oauth' : 'external_portal')),
       applicationDestination: data.applicationDestination || (recruiterId ? 'RecruitX Verified Recruiter Portal' : 'Platform Application System'),
       destinationUrl: data.destinationUrl || null,
       confirmationDetails: data.confirmationDetails || null,
@@ -443,6 +544,18 @@ export class Application {
       rating: data.rating !== undefined ? data.rating : null,
       internalNotes: data.internalNotes || '',
       appliedAt: now,
+      // Email Transmission Details
+      senderEmail: data.senderEmail || null,
+      recipientEmail: data.recipientEmail || null,
+      emailProvider: data.emailProvider || null,
+      emailMessageId: data.emailMessageId || null,
+      emailSentAt: data.emailSentAt || null,
+      emailDeliveryStatus: data.emailDeliveryStatus || null,
+      resumeAttached: data.resumeAttached ?? null,
+      resumeFileName: data.resumeFileName || null,
+      resumeFileSize: data.resumeFileSize || null,
+      coverLetterIncluded: data.coverLetterIncluded ?? null,
+      portalSubmissionConfirmedAt: data.portalSubmissionConfirmedAt || null,
       statusHistory,
       createdAt: now,
       updatedAt: now,
@@ -482,37 +595,57 @@ export class Application {
 
       const snap = await q.limit(1).get();
       if (snap.empty) return null;
-      return new ApplicationDoc(snap.docs[0].data(), snap.docs[0].id);
+
+      const docSnap = snap.docs[0];
+      return new ApplicationDoc(docSnap.data(), docSnap.id);
     });
   }
 
-  static find(filter: any = {}): ApplicationQueryBuilder<IApplicationDocument[]> {
+  static find(query: any = {}): ApplicationQueryBuilder<IApplicationDocument[]> {
     return new ApplicationQueryBuilder(async () => {
       let q: any = db.collection(Collections.APPLICATIONS);
 
-      if (filter.student) {
-        const studentId = typeof filter.student === 'object' && filter.student._id ? filter.student._id.toString() : filter.student.toString();
+      if (query.student) {
+        const studentId = typeof query.student === 'object' && query.student._id ? query.student._id.toString() : query.student.toString();
         q = q.where('student', '==', studentId);
       }
-      if (filter.recruiter) {
-        const recruiterId = typeof filter.recruiter === 'object' && filter.recruiter._id ? filter.recruiter._id.toString() : filter.recruiter.toString();
+      if (query.recruiter) {
+        const recruiterId = typeof query.recruiter === 'object' && query.recruiter._id ? query.recruiter._id.toString() : query.recruiter.toString();
         q = q.where('recruiter', '==', recruiterId);
       }
-      if (filter.status) {
-        q = q.where('status', '==', filter.status);
+      if (query.job) {
+        const jobId = typeof query.job === 'object' && query.job._id ? query.job._id.toString() : query.job.toString();
+        q = q.where('job', '==', jobId);
+      }
+      if (query.status) {
+        q = q.where('status', '==', query.status);
       }
 
       const snap = await q.get();
-      return snap.docs.map((d: any) => new ApplicationDoc(d.data(), d.id));
+      const list: IApplicationDocument[] = snap.docs.map((docSnap: any) => new ApplicationDoc(docSnap.data(), docSnap.id));
+
+      list.sort((a, b) => b.appliedAt.getTime() - a.appliedAt.getTime());
+      return list;
     });
   }
 
-  static async countDocuments(filter: any = {}): Promise<number> {
+  static async countDocuments(query: any = {}): Promise<number> {
     let q: any = db.collection(Collections.APPLICATIONS);
-    if (filter.status) {
-      q = q.where('status', '==', filter.status);
+    if (query.student) {
+      const studentId = typeof query.student === 'object' && query.student._id ? query.student._id.toString() : query.student.toString();
+      q = q.where('student', '==', studentId);
+    }
+    if (query.recruiter) {
+      const recruiterId = typeof query.recruiter === 'object' && query.recruiter._id ? query.recruiter._id.toString() : query.recruiter.toString();
+      q = q.where('recruiter', '==', recruiterId);
     }
     const snap = await q.get();
     return snap.size;
+  }
+
+  static async deleteById(id: string): Promise<boolean> {
+    if (!id) return false;
+    await db.collection(Collections.APPLICATIONS).doc(id).delete();
+    return true;
   }
 }

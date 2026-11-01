@@ -1179,6 +1179,24 @@ export const StudentJobs: React.FC = () => {
                         );
                       }
 
+                      if (existingApp && (appStatus === 'email_sent' || appStatus === 'email_delivered')) {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-indigo-50 text-indigo-900 border-indigo-300 flex items-center gap-1 font-bold">
+                              <span>✉️</span> Email Dispatched
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => navigate('/student/applications')}
+                              className="text-xs text-indigo-800 border-indigo-300 bg-indigo-50"
+                            >
+                              View Dispatch
+                            </Button>
+                          </div>
+                        );
+                      }
+
                       if (existingApp && appStatus === 'awaiting_employer_verification') {
                         return (
                           <div className="flex items-center gap-2">

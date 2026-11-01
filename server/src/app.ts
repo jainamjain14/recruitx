@@ -33,6 +33,7 @@ import courseRoutes from "./routes/courseRoutes.js";
 
 import assessmentRoutes from "./routes/assessmentRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
+import candidateEmailRoutes from "./routes/candidateEmailRoutes.js";
 
 import { apiLimiter } from "./middleware/rateLimiter.js";
 
@@ -290,6 +291,7 @@ app.use("/api/courses", courseRoutes);
 
 app.use("/api/assessments", assessmentRoutes);
 app.use("/api/webhooks", webhookRoutes);
+app.use("/api/candidate-email", candidateEmailRoutes);
 
 
 

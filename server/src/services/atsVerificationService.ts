@@ -64,6 +64,24 @@ export const APPLICATION_STATUS_CONFIG: Record<
     description: 'Application was submitted, but independent employer receipt has not yet been established.',
     actionRequired: false,
   },
+  email_sent: {
+    label: 'Application Email Sent',
+    badgeBg: 'bg-blue-50',
+    badgeText: 'text-blue-900',
+    borderColor: 'border-blue-300 font-semibold',
+    icon: '📤',
+    description: 'Application email was transmitted directly to the employer from candidate authorized email account.',
+    actionRequired: false,
+  },
+  email_delivered: {
+    label: 'Email Delivered to Employer',
+    badgeBg: 'bg-teal-50',
+    badgeText: 'text-teal-900',
+    borderColor: 'border-teal-300 font-semibold',
+    icon: '📫',
+    description: 'Recipient mail server confirmed delivery of your application package to company hiring inbox.',
+    actionRequired: false,
+  },
   employer_receipt_confirmed: {
     label: 'Employer Receipt Confirmed',
     badgeBg: 'bg-emerald-50',
@@ -503,6 +521,16 @@ export class AtsVerificationService {
       return 'employer_receipt_confirmed';
     }
 
+    // Email Delivered to Employer
+    if (app.status === 'email_delivered' || app.primaryStatus === 'email_delivered' || app.emailDeliveryStatus === 'delivered') {
+      return 'email_delivered';
+    }
+
+    // Application Email Sent via Candidate's Authorized Account
+    if (app.status === 'email_sent' || app.primaryStatus === 'email_sent' || (app.emailMessageId && app.submissionType === 'candidate_email_oauth') || app.emailSentAt) {
+      return 'email_sent';
+    }
+
     // 5. Submitted awaiting employer verification:
     // - Candidate reported manual portal submission
     // - Direct HR email gateway accepted (Brevo messageId)
@@ -518,7 +546,7 @@ export class AtsVerificationService {
       Boolean(app.portalSubmissionConfirmedAt) ||
       app.primaryStatus === 'awaiting_employer_verification' ||
       app.employerReceipt?.receiptSource === 'candidate_self_reported' ||
-      (app.submissionType === 'direct_hr_dispatch' && Boolean(app.confirmationDetails?.messageId)) ||
+      Boolean(app.emailMessageId) || (app.submissionType === 'direct_hr_dispatch' && Boolean(app.confirmationDetails?.messageId)) ||
       (app.submissionType === 'platform_recruiter' && Boolean(app.recruiter));
 
     if (isAwaitingVerification) {
@@ -563,7 +591,7 @@ export class AtsVerificationService {
 
     if (
       app.evidenceClassification === 'external_system_response' ||
-      (app.submissionType === 'direct_hr_dispatch' && Boolean(app.confirmationDetails?.messageId))
+      Boolean(app.emailMessageId) || (app.submissionType === 'direct_hr_dispatch' && Boolean(app.confirmationDetails?.messageId))
     ) {
       return 'external_system_response';
     }
@@ -636,6 +664,45 @@ export class AtsVerificationService {
         verificationNotes:
           app.employerReceipt?.verifiedNotes ||
           `Employer receipt independently authenticated on ${new Date(app.employerReceipt?.confirmedAt || Date.now()).toLocaleDateString()}. Ref #${app.employerReceipt?.externalReferenceNumber || 'VERIFIED'}.`,
+        actionRequired: false,
+        hiringStage,
+      };
+    }
+
+    // Email Delivered
+    if (authoritativeStatus === 'email_delivered') {
+      return {
+        authoritativeStatus: 'email_delivered',
+        evidenceClassification: 'external_system_response',
+        hasAuthorizedIntegration: true,
+        verificationSource: `Recipient Mail Server (${app.emailProvider === 'gmail' ? 'Google MX' : app.emailProvider === 'outlook' ? 'Microsoft MX' : 'Mail Gateway'})`,
+        isEmployerConfirmed: false,
+        externalReferenceNumber: app.emailMessageId,
+        externalAtsName: app.emailProvider === 'gmail' ? 'Google Workspace' : app.emailProvider === 'outlook' ? 'Microsoft 365' : 'Corporate Mail Server',
+        externalStatus: 'Delivered to Employer Inbound Mail Server',
+        employerReceipt: app.employerReceipt,
+        lifecycleStage: 'dispatched',
+        verificationNotes: `Employer mail server confirmed delivery to ${app.recipientEmail || 'recruiter'}. Transmission MessageId: ${app.emailMessageId || 'VERIFIED'}. Awaiting employer ATS acknowledgement.`,
+        actionRequired: false,
+        hiringStage,
+      };
+    }
+
+    // Application Email Sent via Candidate's Authorized Account
+    if (authoritativeStatus === 'email_sent') {
+      const providerLabel = app.emailProvider === 'gmail' ? 'Google Gmail API' : app.emailProvider === 'outlook' ? 'Microsoft Graph API' : 'Authorized Candidate Email Account';
+      return {
+        authoritativeStatus: 'email_sent',
+        evidenceClassification: 'external_system_response',
+        hasAuthorizedIntegration: true,
+        verificationSource: `${providerLabel} (From: ${app.senderEmail || 'candidate'})`,
+        isEmployerConfirmed: false,
+        externalReferenceNumber: app.emailMessageId,
+        externalAtsName: app.emailProvider === 'gmail' ? 'Google Gmail API' : app.emailProvider === 'outlook' ? 'Microsoft Graph API' : 'Authorized Mail Provider',
+        externalStatus: `Application Transmitted to ${app.recipientEmail || 'Employer'}`,
+        employerReceipt: app.employerReceipt,
+        lifecycleStage: 'dispatched',
+        verificationNotes: `Application email with resume attachment was sent directly from candidate's authorized account (${app.senderEmail}) to employer hiring inbox (${app.recipientEmail}). External MessageId: ${app.emailMessageId || 'N/A'}.`,
         actionRequired: false,
         hiringStage,
       };

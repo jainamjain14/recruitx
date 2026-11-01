@@ -1,10 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
-import { User, Lock, CheckCircle2, AlertCircle, Zap, ShieldCheck } from 'lucide-react';
+import {
+  User,
+  Lock,
+  CheckCircle2,
+  AlertCircle,
+  Zap,
+  ShieldCheck,
+  Mail,
+  Send,
+  KeyRound,
+  ExternalLink,
+  Trash2,
+  RefreshCw,
+  Sparkles,
+  ShieldAlert,
+} from 'lucide-react';
+
+interface ConnectedAccount {
+  provider: 'gmail' | 'outlook' | 'gateway';
+  email: string;
+  connectedAt?: string;
+  scope?: string;
+}
 
 export const StudentSettings: React.FC = () => {
   const { user, updateUser } = useAuth();
@@ -28,6 +50,72 @@ export const StudentSettings: React.FC = () => {
 
   const [savingPass, setSavingPass] = useState(false);
   const [passMsg, setPassMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Email Management & Connected Accounts State
+  const [contactEmailInput, setContactEmailInput] = useState((user as any)?.contactEmail || user?.email || '');
+  const [contactEmailVerified, setContactEmailVerified] = useState(Boolean((user as any)?.contactEmailVerified));
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpMsg, setOtpMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
+  const [isEmailSendingAuthorized, setIsEmailSendingAuthorized] = useState(false);
+  const [authorizedSendingEmail, setAuthorizedSendingEmail] = useState<string | null>(null);
+  const [authorizedSendingProvider, setAuthorizedSendingProvider] = useState<'gmail' | 'outlook' | 'gateway' | null>(null);
+  const [emailStatusLoading, setEmailStatusLoading] = useState(false);
+
+  const [testSending, setTestSending] = useState(false);
+  const [testMsg, setTestMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [sandboxLoading, setSandboxLoading] = useState(false);
+  const [bannerAlert, setBannerAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Load email and OAuth status
+  const fetchEmailStatus = async () => {
+    setEmailStatusLoading(true);
+    try {
+      const res = await api.get('/candidate-email/status');
+      if (res.data?.success && res.data?.data) {
+        const data = res.data.data;
+        if (data.contactEmail) {
+          setContactEmailInput(data.contactEmail);
+        }
+        setContactEmailVerified(Boolean(data.contactEmailVerified));
+        setConnectedAccounts(data.connectedAccounts || []);
+        setIsEmailSendingAuthorized(Boolean(data.isEmailSendingAuthorized));
+        setAuthorizedSendingEmail(data.authorizedSendingEmail || null);
+        setAuthorizedSendingProvider(data.authorizedSendingProvider || null);
+      }
+    } catch (err: any) {
+      console.warn('[StudentSettings] Could not load candidate email status:', err.message);
+    } finally {
+      setEmailStatusLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmailStatus();
+
+    // Check query params for OAuth redirect outcomes
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailConnected = urlParams.get('email_connected');
+    const emailError = urlParams.get('email_error');
+
+    if (emailConnected) {
+      setBannerAlert({
+        type: 'success',
+        text: `Successfully connected and authorized your ${emailConnected.toUpperCase()} account for direct job applications!`,
+      });
+      // Clean query params from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (emailError) {
+      setBannerAlert({
+        type: 'error',
+        text: `OAuth authorization error: ${decodeURIComponent(emailError)}`,
+      });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,13 +167,193 @@ export const StudentSettings: React.FC = () => {
     }
   };
 
+  // Send 6-digit OTP to contact email
+  const handleSendContactOtp = async () => {
+    if (!contactEmailInput || !contactEmailInput.includes('@')) {
+      setOtpMsg({ type: 'error', text: 'Please enter a valid contact email address.' });
+      return;
+    }
+    setOtpLoading(true);
+    setOtpMsg(null);
+    try {
+      const res = await api.post('/candidate-email/send-contact-otp', {
+        contactEmail: contactEmailInput.trim(),
+      });
+      setOtpSent(true);
+      setOtpMsg({
+        type: 'success',
+        text: res.data?.message || '6-digit OTP code sent! Please check your inbox.',
+      });
+    } catch (err: any) {
+      setOtpMsg({
+        type: 'error',
+        text: err.response?.data?.message || 'Failed to send OTP code. Please try again.',
+      });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Verify 6-digit OTP
+  const handleVerifyContactOtp = async () => {
+    if (!otpCode || otpCode.trim().length !== 6) {
+      setOtpMsg({ type: 'error', text: 'Please enter the 6-digit code received in your email.' });
+      return;
+    }
+    setOtpLoading(true);
+    setOtpMsg(null);
+    try {
+      const res = await api.post('/candidate-email/verify-contact-otp', {
+        code: otpCode.trim(),
+      });
+      setContactEmailVerified(true);
+      setOtpSent(false);
+      setOtpCode('');
+      setOtpMsg({
+        type: 'success',
+        text: res.data?.message || 'Contact email successfully verified!',
+      });
+      fetchEmailStatus();
+      setTimeout(() => setOtpMsg(null), 5000);
+    } catch (err: any) {
+      setOtpMsg({
+        type: 'error',
+        text: err.response?.data?.message || 'Invalid or expired OTP code. Please request a new code.',
+      });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Connect Google Gmail via OAuth
+  const handleConnectGoogle = async () => {
+    try {
+      const res = await api.get('/candidate-email/google/connect-url');
+      if (res.data?.data?.url) {
+        window.location.href = res.data.data.url;
+      }
+    } catch (err: any) {
+      setBannerAlert({
+        type: 'error',
+        text: err.response?.data?.message || 'Could not initiate Google OAuth. Check your environment configuration.',
+      });
+    }
+  };
+
+  // Connect Microsoft Outlook via OAuth
+  const handleConnectMicrosoft = async () => {
+    try {
+      const res = await api.get('/candidate-email/microsoft/connect-url');
+      if (res.data?.data?.url) {
+        window.location.href = res.data.data.url;
+      }
+    } catch (err: any) {
+      setBannerAlert({
+        type: 'error',
+        text: err.response?.data?.message || 'Could not initiate Microsoft OAuth. Check your environment configuration.',
+      });
+    }
+  };
+
+  // Disconnect connected account
+  const handleDisconnect = async (provider: 'gmail' | 'outlook' | 'gateway') => {
+    try {
+      await api.post('/candidate-email/disconnect', { provider });
+      setBannerAlert({
+        type: 'success',
+        text: `Disconnected ${provider.toUpperCase()} account successfully.`,
+      });
+      fetchEmailStatus();
+      setTimeout(() => setBannerAlert(null), 4000);
+    } catch (err: any) {
+      setBannerAlert({
+        type: 'error',
+        text: err.response?.data?.message || 'Failed to disconnect account.',
+      });
+    }
+  };
+
+  // Send Test Application Email
+  const handleSendTestEmail = async () => {
+    setTestSending(true);
+    setTestMsg(null);
+    try {
+      const res = await api.post('/candidate-email/send-test', {});
+      setTestMsg({
+        type: 'success',
+        text: `Test email sent successfully! Message ID: ${res.data?.data?.messageId || 'CONFIRMED'} via ${res.data?.data?.provider?.toUpperCase()}`,
+      });
+    } catch (err: any) {
+      setTestMsg({
+        type: 'error',
+        text: err.response?.data?.message || 'Test dispatch failed. Please verify your token status.',
+      });
+    } finally {
+      setTestSending(false);
+    }
+  };
+
+  // Connect Sandbox Test Account (Development helper)
+  const handleConnectSandbox = async () => {
+    setSandboxLoading(true);
+    try {
+      const res = await api.post('/candidate-email/connect-sandbox', {
+        provider: 'gmail',
+        email: contactEmailInput || user?.email || 'applicant.sandbox@recruitx.dev',
+      });
+      setBannerAlert({
+        type: 'success',
+        text: res.data?.message || 'Connected development sandbox email account!',
+      });
+      fetchEmailStatus();
+      setTimeout(() => setBannerAlert(null), 5000);
+    } catch (err: any) {
+      setBannerAlert({
+        type: 'error',
+        text: err.response?.data?.message || 'Failed to connect sandbox account.',
+      });
+    } finally {
+      setSandboxLoading(false);
+    }
+  };
+
+  const gmailAccount = connectedAccounts.find((a) => a.provider === 'gmail');
+  const outlookAccount = connectedAccounts.find((a) => a.provider === 'outlook');
+  const gatewayAccount = connectedAccounts.find((a) => a.provider === 'gateway');
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div className="border-b border-neutral-200 pb-4">
         <h1 className="text-xl font-bold text-neutral-900">Candidate Profile &amp; Settings</h1>
-        <p className="text-xs text-neutral-500">Manage your recruitment profile, portfolio links, and login security.</p>
+        <p className="text-xs text-neutral-500">Manage your recruitment profile, verified contact email, and authorized email accounts for direct job applications.</p>
       </div>
 
+      {bannerAlert && (
+        <div
+          className={`p-3.5 rounded-lg border text-xs flex items-center justify-between ${
+            bannerAlert.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {bannerAlert.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            )}
+            <span className="font-medium">{bannerAlert.text}</span>
+          </div>
+          <button
+            onClick={() => setBannerAlert(null)}
+            className="text-neutral-400 hover:text-neutral-600 font-bold ml-3 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* CARD 1: CANDIDATE INFO & LINKS */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
           <User className="w-4 h-4 text-neutral-500" />
@@ -98,7 +366,7 @@ export const StudentSettings: React.FC = () => {
               <Input value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div>
-              <label className="font-medium text-neutral-700 block mb-1">Email Address</label>
+              <label className="font-medium text-neutral-700 block mb-1">Login Account Email</label>
               <Input value={email} disabled className="bg-neutral-50 text-neutral-500" />
             </div>
           </div>
@@ -192,6 +460,338 @@ export const StudentSettings: React.FC = () => {
         </form>
       </Card>
 
+      {/* CARD 2: CANDIDATE EMAIL MANAGEMENT & CONNECTED SENDING ACCOUNTS */}
+      <Card className="p-5 space-y-5 border-neutral-300 shadow-sm">
+        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-blue-600" />
+            <h2 className="text-sm font-semibold text-neutral-900">Candidate Email &amp; Connected Sending Accounts</h2>
+          </div>
+          <button
+            onClick={fetchEmailStatus}
+            disabled={emailStatusLoading}
+            className="text-neutral-500 hover:text-neutral-800 text-xs flex items-center gap-1"
+            title="Refresh Token &amp; Email Status"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${emailStatusLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
+        {/* Section A: Verified Contact Email with OTP */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">1. Verified Contact Email</h3>
+              <p className="text-[11px] text-neutral-500">Recruiters and hiring managers use this address to contact you.</p>
+            </div>
+            {contactEmailVerified ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Verified Contact
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                Unverified
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="sm:col-span-2">
+              <Input
+                type="email"
+                value={contactEmailInput}
+                onChange={(e) => {
+                  setContactEmailInput(e.target.value);
+                  setContactEmailVerified(false);
+                }}
+                placeholder="e.g. yourname@gmail.com"
+                className="text-xs"
+              />
+            </div>
+            <div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={otpLoading || !contactEmailInput}
+                onClick={handleSendContactOtp}
+                className="w-full text-xs"
+              >
+                {otpLoading ? 'Sending Code...' : (otpSent ? 'Resend 6-Digit OTP' : 'Send Verification OTP')}
+              </Button>
+            </div>
+          </div>
+
+          {/* OTP Verification Input Form */}
+          {otpSent && (
+            <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200 space-y-2">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-semibold text-blue-900">Enter the 6-Digit Code sent to {contactEmailInput}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="w-36 text-center font-mono tracking-widest text-sm bg-white"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={otpLoading || otpCode.length !== 6}
+                  onClick={handleVerifyContactOtp}
+                  className="text-xs"
+                >
+                  {otpLoading ? 'Verifying...' : 'Verify OTP'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {otpMsg && (
+            <div
+              className={`text-xs font-semibold flex items-center gap-1.5 ${
+                otpMsg.type === 'success' ? 'text-emerald-700' : 'text-red-600'
+              }`}
+            >
+              {otpMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              {otpMsg.text}
+            </div>
+          )}
+
+          <div className="p-2.5 rounded bg-neutral-50 border border-neutral-200 text-[11px] text-neutral-600 flex items-start gap-2">
+            <ShieldAlert className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
+            <span>
+              <strong>Advisory Notice:</strong> Verifying a contact email confirms where companies can contact you. It does <em>NOT</em> grant RecruitX permission to send emails from this address. To send applications directly from your email account, authorize Google or Microsoft below.
+            </span>
+          </div>
+        </div>
+
+        {/* Section B: Connected Sending Accounts (OAuth2) */}
+        <div className="border-t border-neutral-200 pt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">2. Authorized Application Sending Accounts (OAuth2)</h3>
+              <p className="text-[11px] text-neutral-500">Connect your personal Gmail or Outlook account so RecruitX sends genuine applications directly from your email address with your resume attached.</p>
+            </div>
+            {isEmailSendingAuthorized ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Active Authorized Sender
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-neutral-100 text-neutral-600 border border-neutral-200">
+                Not Connected
+              </span>
+            )}
+          </div>
+
+          {isEmailSendingAuthorized && authorizedSendingEmail && (
+            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-emerald-900 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  Primary Application Dispatch Account:
+                </span>
+                <span className="font-mono text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                  {authorizedSendingEmail}
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-700">
+                Applications submitted via RecruitX will be sent directly through your authenticated{' '}
+                <strong>{authorizedSendingProvider === 'gmail' ? 'Google Gmail' : 'Microsoft Outlook'}</strong> account with cryptographic tokens stored using authenticated AES-256-GCM encryption.
+              </p>
+            </div>
+          )}
+
+          {/* Account Provider Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* GOOGLE GMAIL CARD */}
+            <div className={`p-4 rounded-lg border transition-all ${
+              gmailAccount ? 'bg-blue-50/40 border-blue-200' : 'bg-white border-neutral-200'
+            }`}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-sm">
+                    G
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-neutral-900">Google Gmail</h4>
+                    <p className="text-[10.5px] text-neutral-500">Official Gmail REST API</p>
+                  </div>
+                </div>
+                {gmailAccount ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                    Connected
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 text-neutral-600">
+                    Disconnected
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-3 text-xs space-y-2">
+                {gmailAccount ? (
+                  <>
+                    <p className="font-mono text-[11px] text-neutral-800 truncate bg-white p-1.5 rounded border border-neutral-200">
+                      {gmailAccount.email}
+                    </p>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] text-neutral-500">
+                        Scope: Gmail Send
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleDisconnect('gmail')}
+                        className="text-[11px] h-7 px-2 text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Disconnect
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[11px] text-neutral-600">
+                      Authorize RecruitX to send job application emails with your resume attached directly from your @gmail.com address.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={handleConnectGoogle}
+                      className="w-full text-xs mt-1 bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                      Connect Google Gmail
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* MICROSOFT OUTLOOK CARD */}
+            <div className={`p-4 rounded-lg border transition-all ${
+              outlookAccount ? 'bg-blue-50/40 border-blue-200' : 'bg-white border-neutral-200'
+            }`}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+                    M
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-neutral-900">Microsoft Outlook</h4>
+                    <p className="text-[10.5px] text-neutral-500">Microsoft Graph REST API</p>
+                  </div>
+                </div>
+                {outlookAccount ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                    Connected
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 text-neutral-600">
+                    Disconnected
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-3 text-xs space-y-2">
+                {outlookAccount ? (
+                  <>
+                    <p className="font-mono text-[11px] text-neutral-800 truncate bg-white p-1.5 rounded border border-neutral-200">
+                      {outlookAccount.email}
+                    </p>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] text-neutral-500">
+                        Scope: Mail.Send
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleDisconnect('outlook')}
+                        className="text-[11px] h-7 px-2 text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Disconnect
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[11px] text-neutral-600">
+                      Authorize RecruitX to send job application emails with your resume attached directly from your Outlook or Hotmail account.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={handleConnectMicrosoft}
+                      className="w-full text-xs mt-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                      Connect Microsoft Outlook
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sandbox & Test Dispatch Actions */}
+          <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2 mt-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <p className="text-xs font-semibold text-neutral-800">Application Dispatch Testing &amp; Verification</p>
+                <p className="text-[11px] text-neutral-500">Verify transmission without affecting live employer queues.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {isEmailSendingAuthorized && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={testSending}
+                    onClick={handleSendTestEmail}
+                    className="text-xs"
+                  >
+                    <Send className="w-3 h-3 mr-1" />
+                    {testSending ? 'Sending Test...' : 'Send Test Application Email'}
+                  </Button>
+                )}
+                {!isEmailSendingAuthorized && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={sandboxLoading}
+                    onClick={handleConnectSandbox}
+                    className="text-xs text-neutral-700"
+                    title="Connect a simulated development sandbox account for test runs"
+                  >
+                    <Sparkles className="w-3 h-3 mr-1 text-amber-500" />
+                    {sandboxLoading ? 'Connecting...' : 'Connect Sandbox Test Account'}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {testMsg && (
+              <div
+                className={`text-xs font-semibold flex items-center gap-1.5 pt-1 ${
+                  testMsg.type === 'success' ? 'text-emerald-700' : 'text-red-600'
+                }`}
+              >
+                {testMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                <span>{testMsg.text}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* CARD 3: CHANGE PASSWORD */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
           <Lock className="w-4 h-4 text-neutral-500" />
@@ -221,7 +821,7 @@ export const StudentSettings: React.FC = () => {
         </form>
       </Card>
 
-      {/* Automated Job Applications Permission & Preferences */}
+      {/* CARD 4: AUTOMATED JOB APPLICATIONS */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
           <Zap className="w-4 h-4 text-amber-500" />
@@ -232,21 +832,21 @@ export const StudentSettings: React.FC = () => {
           <div className="p-3.5 rounded-lg bg-neutral-50 border border-neutral-200 space-y-2">
             <div className="flex items-center gap-2 font-bold text-neutral-900">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>User Consent &amp; Permission Status</span>
+              <span>Universal Job Application Standards</span>
             </div>
             <p className="text-[11.5px] text-neutral-600 leading-relaxed">
-              RecruitX will only automatically apply to companies when you provide active permission and when active job descriptions match your verified skills above your chosen threshold (e.g. 75%+).
+              RecruitX applies genuine submission protocols across all professions, job titles, and employers. If an authorized sending account is connected, applications are sent directly from your address to the employer's recruitment inbox with your resume attached. When an employer requires direct portal submission, RecruitX establishes your application tracker and provides direct links to the official portal.
             </p>
           </div>
 
           <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 bg-white">
             <div>
               <p className="font-semibold text-neutral-900">Auto-Apply Engine Quick Action</p>
-              <p className="text-[11px] text-neutral-500">Configure parameters or trigger an automated application scan across Indian tech hubs.</p>
+              <p className="text-[11px] text-neutral-500">Configure parameters or trigger an automated application scan across all professions and locations.</p>
             </div>
             <Button
               size="sm"
-              onClick={() => window.location.href = '/student/jobs'}
+              onClick={() => (window.location.href = '/student/jobs')}
               className="text-xs shrink-0"
             >
               Open Auto-Apply in Job Matches →

@@ -47,18 +47,19 @@ async function migrateExistingApplications() {
       newEvidenceClassification = 'independently_authenticated';
       newLifecycleStage = 'employer_receipt_confirmed';
       auditNote = `Audit Migration: Independently authenticated employer receipt on file (Ref #${d.employerReceipt.externalReferenceNumber || 'CONFIRMED'}).`;
-    } else if (d.submissionStatus === 'external_awaiting_verification' || d.employerReceipt?.receiptSource === 'candidate_self_reported' || d.confirmationDetails?.dispatchMethod?.includes('Candidate')) {
-      newStatus = 'awaiting_employer_verification';
-      newSubmissionStatus = 'external_awaiting_verification';
-      newEvidenceClassification = 'candidate_provided';
-      newLifecycleStage = 'dispatched';
-      auditNote = `Audit Migration: Reclassified to "Submitted — Awaiting Employer Verification" (Candidate self-reported external portal dispatch; independent employer receipt pending).`;
-    } else if (d.submissionType === 'direct_hr_dispatch' && d.confirmationDetails?.messageId) {
-      newStatus = 'awaiting_employer_verification';
+    } else if (d.emailDeliveryStatus === 'delivered' || oldStatus === 'email_delivered') {
+      newStatus = 'email_delivered';
       newSubmissionStatus = 'submitted';
       newEvidenceClassification = 'external_system_response';
       newLifecycleStage = 'external_accepted';
-      auditNote = `Audit Migration: Classified as External System Response (Brevo HTTPS MessageId: ${d.confirmationDetails.messageId} accepted; awaiting independent employer confirmation).`;
+      auditNote = `Audit Migration: Confirmed delivered to recipient mailbox server for ${company}.`;
+    } else if (d.emailMessageId || d.emailSentAt || oldStatus === 'email_sent' || (d.submissionType === 'direct_hr_dispatch' && d.confirmationDetails?.messageId)) {
+      newStatus = 'email_sent';
+      newSubmissionStatus = 'submitted';
+      newEvidenceClassification = 'external_system_response';
+      newLifecycleStage = 'dispatched';
+      auditNote = `Audit Migration: Classified as Email Sent via authorized dispatch [MessageId: ${d.emailMessageId || d.confirmationDetails?.messageId || 'API_CONFIRMED'}].`;
+    } else if (d.submissionStatus === 'external_awaiting_verification' || d.employerReceipt?.receiptSource === 'candidate_self_reported' || d.confirmationDetails?.dispatchMethod?.includes('Candidate')) {
     } else if (hasRecruiter) {
       newStatus = 'awaiting_employer_verification';
       newSubmissionStatus = 'submitted';
