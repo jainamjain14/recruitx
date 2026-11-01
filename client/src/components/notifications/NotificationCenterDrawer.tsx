@@ -72,6 +72,10 @@ export const NotificationCenterDrawer: React.FC = () => {
 
   // Filter notifications
   const filteredNotifications = notifications.filter((n) => {
+    // Exclude campaign / placement drive announcements from recruiter interface
+    if (user?.role === 'recruiter' && (n.type === 'placement_drive' || n.announcementId)) {
+      return false;
+    }
     // Tab filter
     if (activeTab === 'unread' && n.read) return false;
     if (activeTab === 'applications' && n.type !== 'application_update') return false;
@@ -169,12 +173,12 @@ export const NotificationCenterDrawer: React.FC = () => {
           <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar text-xs">
             {(
               [
-                { key: 'all', label: 'All' },
-                { key: 'unread', label: `Unread (${unreadCount})` },
-                { key: 'applications', label: 'Applications' },
-                { key: 'interviews', label: 'Interviews' },
-                { key: 'drives', label: 'Drives' },
-              ] as const
+                { key: 'all' as const, label: 'All' },
+                { key: 'unread' as const, label: `Unread (${unreadCount})` },
+                { key: 'applications' as const, label: 'Applications' },
+                { key: 'interviews' as const, label: 'Interviews' },
+                ...(user?.role !== 'recruiter' ? [{ key: 'drives' as const, label: 'Drives' }] : []),
+              ]
             ).map((tab) => (
               <button
                 key={tab.key}

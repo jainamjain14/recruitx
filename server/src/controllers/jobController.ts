@@ -1,3 +1,4 @@
+import { UniversalJobMatchingService } from '../services/universalJobMatchingService.js';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types/index.js';
 import { Job } from '../models/Job.js';
@@ -102,110 +103,66 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
     const lat = userLat !== undefined && userLat !== '' && !isNaN(Number(userLat)) ? Number(userLat) : undefined;
     const lng = userLng !== undefined && userLng !== '' && !isNaN(Number(userLng)) ? Number(userLng) : undefined;
 
-    // Strictly prioritize candidate's latest resume profession or field of interest
-    const targetDomain =
-      resume?.fieldOfInterest ||
-      resume?.headline ||
-      studentUser?.profession ||
-      studentUser?.title ||
-      'Software Engineering';
-    const userSkills = (resume?.skills || []).map((s) => s.toLowerCase());
+    const candidateData = {
+      studentId: studentId?.toString(),
+      headline: resume?.headline || studentUser?.title || '',
+      fieldOfInterest: resume?.fieldOfInterest || studentUser?.profession || '',
+      summary: resume?.summary || '',
+      skills: resume?.skills || [],
+      experience: resume?.experience || [],
+      education: resume?.education || [],
+    };
 
-    // 1. Fetch Live LinkedIn Jobs matching student's domain
-    const liveLinkedInJobs = await LinkedInService.fetchLiveJobs(targetDomain, lat, lng);
+    // 1. Analyze candidate profile dynamically
+    const candidateIdentity = await UniversalJobMatchingService.analyzeCandidateProfile(candidateData);
+    const searchKeyword = candidateIdentity.primaryProfession || candidateIdentity.functionalDiscipline || 'Specialist';
 
-    // 2. Format recruiter jobs on the platform matching student domain
-    const targetLower = targetDomain.toLowerCase();
-    const relevantPlatformJobs = recruiterJobs
-      .filter((j) => {
-        const jTitleLower = (j.title || '').toLowerCase();
+    // 2. Fetch live opportunities using the candidate's actual profession
+    const liveLinkedInJobs = await LinkedInService.fetchLiveJobs(searchKeyword, lat, lng);
 
-        // Distinct discipline boundaries
-        if (targetLower.includes('interior') || targetLower.includes('spatial')) {
-          return jTitleLower.includes('interior') || jTitleLower.includes('spatial');
-        }
-        if (targetLower.includes('coach') || targetLower.includes('sport') || targetLower.includes('athlet') || targetLower.includes('football')) {
-          return jTitleLower.includes('coach') || jTitleLower.includes('sport') || jTitleLower.includes('athlet') || jTitleLower.includes('fitness');
-        }
-        if (targetLower.includes('game') && (targetLower.includes('test') || targetLower.includes('qa') || targetLower.includes('quality'))) {
-          return jTitleLower.includes('game') && (jTitleLower.includes('test') || jTitleLower.includes('qa') || jTitleLower.includes('quality'));
-        }
+    // 3. Format recruiter jobs on the platform
+    const formattedPlatformJobs = recruiterJobs.map((j) => ({
+      _id: j._id,
+      id: j._id,
+      company: j.company,
+      logo: `https://logo.clearbit.com/${j.company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+      title: j.title,
+      description: j.description || '',
+      location: j.location,
+      workMode: j.workMode,
+      salary: j.salary,
+      posted: 'Posted by Platform Verified Recruiter',
+      jobUrl: `/student/jobs`,
+      requiredSkills: Array.isArray(j.skillsRequired) && j.skillsRequired.length > 0 ? j.skillsRequired : (j.requirements || []),
+      skillsRequired: Array.isArray(j.skillsRequired) ? j.skillsRequired : [],
+      requirements: Array.isArray(j.requirements) ? j.requirements : [],
+      lat: 19.0760,
+      lng: 72.8777,
+      isPlatformJob: true,
+      recruiterId: (j.recruiter as any)?._id || j.recruiter,
+      hrEmail: (j.recruiter as any)?.email || '',
+    }));
 
-        const roleTokens = targetLower.split(/[\s,/-]+/).filter((t) => t.length > 2);
-        const tokenMatch = roleTokens.some((t) => jTitleLower.includes(t));
-        const directMatch = jTitleLower.includes(targetLower) || targetLower.includes(jTitleLower);
+    const allCandidateJobs = [...formattedPlatformJobs, ...liveLinkedInJobs];
 
-        return directMatch || tokenMatch;
-      })
-      .map((j) => {
-        const reqSkills = Array.isArray(j.skillsRequired) ? j.skillsRequired : [];
-        const matchedSkills = reqSkills.filter((reqSkill) =>
-          userSkills.some((u) => u.includes(reqSkill.toLowerCase()) || reqSkill.toLowerCase().includes(u))
-        );
-        const missingSkills = reqSkills.filter((reqSkill) =>
-          !userSkills.some((u) => u.includes(reqSkill.toLowerCase()) || reqSkill.toLowerCase().includes(u))
-        );
-        const matchPercentage = reqSkills.length > 0
-          ? Math.round((matchedSkills.length / reqSkills.length) * 100)
-          : 85;
+    // 4. Match and rank opportunities using the Universal Job Matching Engine
+    const { matchedJobs, candidateIdentity: analyzedIdentity } = await UniversalJobMatchingService.matchJobsForCandidate(
+      candidateData,
+      allCandidateJobs,
+      lat,
+      lng
+    );
 
-        return {
-          id: j._id,
-          company: j.company,
-          logo: `https://logo.clearbit.com/${j.company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
-          title: j.title,
-          location: j.location,
-          workMode: j.workMode,
-          salary: j.salary,
-          posted: 'Posted by Platform Verified Recruiter',
-          jobUrl: `/student/jobs`,
-          requiredSkills: reqSkills,
-          lat: 19.0760,
-          lng: 72.8777,
-          isPlatformJob: true,
-          recruiterId: (j.recruiter as any)?._id || j.recruiter,
-          hrEmail: (j.recruiter as any)?.email || '',
-          matchedSkills,
-          missingSkills,
-          matchPercentage,
-        };
-      });
-
-    // 3. Compute Per-Company Skill Gap Breakdown for each LinkedIn Job
-    const formattedCompanies = liveLinkedInJobs.map((j) => {
-      const matchedSkills = j.requiredSkills.filter((reqSkill) =>
-        userSkills.some((u) => u.includes(reqSkill.toLowerCase()) || reqSkill.toLowerCase().includes(u))
-      );
-      const missingSkills = j.requiredSkills.filter((reqSkill) =>
-        !userSkills.some((u) => u.includes(reqSkill.toLowerCase()) || reqSkill.toLowerCase().includes(u))
-      );
-      const matchPercentage = j.requiredSkills.length > 0
-        ? Math.round((matchedSkills.length / j.requiredSkills.length) * 100)
-        : 80;
-
-      return {
-        ...j,
-        matchedSkills,
-        missingSkills,
-        matchPercentage,
-        isPlatformJob: false,
-      };
-    });
-
-    const allMatches = [...relevantPlatformJobs, ...formattedCompanies];
-
-    if (lat === undefined || lng === undefined) {
-      allMatches.sort((a, b) => b.matchPercentage - a.matchPercentage);
-    }
-
-    sendSuccess(res, 'Jobs matching candidate profession retrieved', {
-      targetDomain,
-      totalVacantJobs: allMatches.length,
+    sendSuccess(res, 'Universal jobs matching candidate profession retrieved', {
+      targetDomain: analyzedIdentity.primaryProfession || analyzedIdentity.functionalDiscipline,
+      functionalDiscipline: analyzedIdentity.functionalDiscipline,
+      primaryProfession: analyzedIdentity.primaryProfession,
+      totalVacantJobs: matchedJobs.length,
       userLocation: (lat !== undefined && lng !== undefined) ? { lat, lng } : null,
-      companies: allMatches,
+      companies: matchedJobs,
     });
   } catch (error: any) {
-    sendError(res, error.message || 'Failed to fetch live LinkedIn job matches', null, 500);
+    sendError(res, error.message || 'Failed to fetch universal job matches', null, 500);
   }
 };
 
@@ -346,10 +303,20 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
     const appliedJobIds = new Set(existingApps.map((a) => (a.job ? a.job.toString() : '')));
     const appliedCompanyNames = new Set(existingApps.map((a) => (a.companyName || '').toLowerCase()));
 
-    // 1. Check Platform Database Jobs
-    const activeDbJobs = await Job.find({ status: 'active' });
-    const candidateSkillsLower = (resume.skills || []).map((s: string) => s.toLowerCase());
+    // 1. Analyze candidate profile dynamically
+    const candidateData = {
+      studentId: studentId?.toString(),
+      headline: resume?.headline || req.user.title || '',
+      fieldOfInterest: resume?.fieldOfInterest || req.user.profession || '',
+      summary: resume?.summary || '',
+      skills: resume?.skills || [],
+      experience: resume?.experience || [],
+      education: resume?.education || [],
+    };
+    const candidateIdentity = await UniversalJobMatchingService.analyzeCandidateProfile(candidateData);
 
+    // 2. Evaluate Platform Database Jobs
+    const activeDbJobs = await Job.find({ status: 'active' });
     const matchedToApply: {
       jobId?: string;
       title: string;
@@ -357,49 +324,55 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
       recruiter?: any;
       matchScore: number;
       matchedSkills: string[];
+      matchReason: string;
     }[] = [];
 
     for (const j of activeDbJobs) {
       if (appliedJobIds.has(j._id.toString())) continue;
-      const reqSkills = (j.skillsRequired || []).map((s: string) => s.toLowerCase());
-      if (reqSkills.length === 0) continue;
+      const jobProfile = await UniversalJobMatchingService.analyzeJobOpportunity({
+        id: j._id.toString(),
+        title: j.title,
+        company: j.company,
+        description: j.description,
+        requirements: j.requirements || [],
+        skillsRequired: j.skillsRequired || [],
+      });
 
-      const matched = reqSkills.filter((rs: string) =>
-        candidateSkillsLower.some((cs: string) => cs.includes(rs) || rs.includes(cs))
-      );
-      const score = Math.round((matched.length / reqSkills.length) * 100);
-
-      if (score >= minMatchScore) {
+      const comp = await UniversalJobMatchingService.evaluateCompatibility(candidateIdentity, jobProfile);
+      if (comp.isCompatible && comp.compatibilityScore >= minMatchScore) {
         matchedToApply.push({
           jobId: j._id.toString(),
           title: j.title,
           company: j.company,
           recruiter: j.recruiter,
-          matchScore: score,
-          matchedSkills: matched,
+          matchScore: comp.compatibilityScore,
+          matchedSkills: comp.matchedSkills,
+          matchReason: comp.matchReason,
         });
       }
     }
 
-    // 2. Also check verified company partner matches if DB has few active listings
+    // 3. Also check verified company partner matches if DB has few active listings
     if (matchedToApply.length < maxApplications) {
-      const targetDomain = resume.fieldOfInterest || resume.headline || 'Software Engineering';
-      const companyMatches = await LinkedInService.fetchLiveJobs(targetDomain);
+      const searchKeyword = candidateIdentity.primaryProfession || candidateIdentity.functionalDiscipline;
+      const companyMatches = await LinkedInService.fetchLiveJobs(searchKeyword);
 
       for (const cm of companyMatches) {
         if (appliedCompanyNames.has((cm.company || '').toLowerCase())) continue;
-        const reqSkills = (cm.requiredSkills || []).map((s: string) => s.toLowerCase());
-        const matched = reqSkills.filter((rs: string) =>
-          candidateSkillsLower.some((cs: string) => cs.includes(rs) || rs.includes(cs))
-        );
-        const score = Math.max(75, Math.round((matched.length / Math.max(1, reqSkills.length)) * 100));
+        const jobProfile = await UniversalJobMatchingService.analyzeJobOpportunity({
+          title: cm.title,
+          company: cm.company,
+          requirements: cm.requiredSkills || [],
+        });
 
-        if (score >= minMatchScore) {
+        const comp = await UniversalJobMatchingService.evaluateCompatibility(candidateIdentity, jobProfile);
+        if (comp.isCompatible && comp.compatibilityScore >= minMatchScore) {
           matchedToApply.push({
             title: cm.title,
             company: cm.company,
-            matchScore: score,
-            matchedSkills: matched,
+            matchScore: comp.compatibilityScore,
+            matchedSkills: comp.matchedSkills,
+            matchReason: comp.matchReason,
           });
         }
       }
@@ -432,10 +405,10 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         recruiter: recId,
         companyName: item.company,
         jobTitle: item.title,
-        coverLetter: `Automated application submitted via RecruitX Career Engine based on verified profile competencies (ATS Match: ${item.matchScore}%).`,
+        coverLetter: `Automated application submitted via RecruitX Universal Career Engine. ${item.matchReason} (Compatibility Match: ${item.matchScore}%).`,
         resumeUrl: resume.resumeUrl || '',
         status: 'applied',
-        statusHistory: [{ status: 'applied', note: `Automated application matching threshold (${item.matchScore}%)` }],
+        statusHistory: [{ status: 'applied', note: `Automated compatibility matching (${item.matchScore}%)` }],
       });
 
       createdApplications.push(app);
@@ -444,7 +417,7 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
       await Notification.create({
         recipient: studentId,
         title: `Auto-Applied: ${item.title}`,
-        message: `Your profile was automatically submitted to ${item.company} with a ${item.matchScore}% skill match.`,
+        message: `Your profile was automatically submitted to ${item.company} with a ${item.matchScore}% compatibility score.`,
         type: 'application_update',
         priority: 'high',
         format: 'toast',
@@ -455,7 +428,7 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         await Notification.create({
           recipient: recId,
           title: `New Candidate Application: ${item.title}`,
-          message: `${req.user.name} was auto-matched and applied with a ${item.matchScore}% skill score.`,
+          message: `${req.user.name} was auto-matched and applied with a ${item.matchScore}% compatibility score.`,
           type: 'application_update',
           priority: 'normal',
           format: 'toast',
@@ -480,5 +453,3 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
     sendError(res, error.message || 'Auto-apply execution failed', null, 500);
   }
 };
-
-

@@ -1048,621 +1048,72 @@ export class LinkedInService {
   }
 
   private static deriveSkillsFromTitle(title: string, company: string, idx: number = 0): string[] {
-    const combined = `${title} ${company}`.toLowerCase();
-
-    const interiorPool = [
-      'Space Planning', 'AutoCAD', 'SketchUp', '3D Visualization', 'Color Theory & Materials',
-      'Lighting Design', 'Revit', '3ds Max', 'V-Ray', 'Client Presentations', 'Building Codes & Standards', 'Furniture Sourcing'
-    ];
-
-    const sportsCoachingPool = [
-      'Tactical Analysis', 'Player Development', 'Match Strategy', 'Training Session Planning',
-      'Conditioning Fundamentals', 'Team Leadership', 'Injury Prevention & First Aid', 'Sports Psychology'
-    ];
-
-    const gameQAPool = [
-      'Gameplay Testing', 'Bug Tracking (JIRA)', 'Test Case Execution', 'Defect Reporting & Reproduction',
-      'Regression Testing', 'Quality Assurance', 'Platform Compliance', 'Performance Profiling'
-    ];
-
-    const gameDevPool = [
-      'Game Engine (Unity/Unreal)', 'C# / C++', 'Game Physics', '3D Math & Vectors', 'Gameplay Mechanics',
-      'Shader Programming', 'Asset Pipeline', 'Multiplayer Networking'
-    ];
-
-    const graphicPool = [
-      'Adobe Photoshop', 'Adobe Illustrator', 'Typography', 'Visual Branding', 'Color Theory',
-      'Layout Design', 'InDesign', 'Packaging Design', 'Motion Graphics'
-    ];
-
-    const dataPool = [
-      'SQL', 'Python', 'Data Analysis', 'Tableau', 'PowerBI', 'Data Visualization', 'Spreadsheets', 'Statistics'
-    ];
-
-    const filmDirectionPool = [
-      'Film Directing', 'Screenwriting', 'Cinematography', 'Storyboarding', 'Casting & Auditions',
-      'Actor Direction', 'Lighting Design', 'Post-Production Supervision', 'Sound Design', 'Scene Blocking'
-    ];
-
-    const cinematographyPool = [
-      'Cinematography', 'Camera Operation', 'Lighting & Exposure', 'Color Grading', 'Lenses & Optics',
-      'Visual Composition', 'DaVinci Resolve', 'Camera Rigging', 'Storyboarding', 'Visual Storytelling'
-    ];
-
-    const videoPool = [
-      'Adobe Premiere Pro', 'After Effects', 'DaVinci Resolve', 'Color Grading', 'Motion Graphics',
-      'Audio Editing', 'Storyboarding', 'Sound Design', 'Trailer Editing', 'Post-Production'
-    ];
-
-    const designPool = [
-      'Figma', 'UI/UX Design', 'Wireframing & Prototyping', 'Design Systems', 'User Research',
-      'Adobe Photoshop', 'Adobe Illustrator', 'Visual Branding'
-    ];
-
-    const financePool = [
-      'Financial Analysis', 'Advanced Excel', 'Accounting & Auditing', 'Financial Modeling',
-      'Tally Prime', 'Budgeting & Forecasting', 'Taxation & GST'
-    ];
-
-    const marketingPool = [
-      'Digital Marketing', 'SEO & SEM', 'Campaign Strategy', 'Google Analytics', 'Brand Management',
-      'Lead Generation', 'Social Media Marketing', 'A/B Testing', 'Growth Hacking',
-      'Influencer Marketing', 'Copywriting', 'Content Marketing', 'Meta Ads Manager'
-    ];
-
-    const techPool = [
-      'TypeScript', 'React.js', 'Node.js', 'Python', 'SQL', 'AWS', 'Docker', 'System Design', 'Git', 'REST APIs'
-    ];
-
-    let pool: string[];
-
-    if (combined.includes('interior') || combined.includes('spatial') || combined.includes('space plan') || combined.includes('decorat')) {
-      pool = interiorPool;
-    } else if (combined.includes('coach') || combined.includes('sport') || combined.includes('athlet') || combined.includes('fitness') || combined.includes('football') || combined.includes('soccer')) {
-      pool = sportsCoachingPool;
-    } else if ((combined.includes('game') || combined.includes('gaming')) && (combined.includes('test') || combined.includes('qa') || combined.includes('quality') || combined.includes('bug'))) {
-      pool = gameQAPool;
-    } else if ((combined.includes('game') || combined.includes('gaming')) && (combined.includes('dev') || combined.includes('program') || combined.includes('unity') || combined.includes('unreal'))) {
-      pool = gameDevPool;
-    } else if (combined.includes('graphic') || combined.includes('visual designer') || combined.includes('branding') || combined.includes('illustrat')) {
-      pool = graphicPool;
-    } else if (combined.includes('cinematograph') || combined.includes('camera') || combined.includes('dop')) {
-      pool = cinematographyPool;
-    } else if (
-      combined.includes('film') ||
-      combined.includes('movie') ||
-      combined.includes('director') ||
-      combined.includes('direction') ||
-      combined.includes('screenplay') ||
-      combined.includes('script')
-    ) {
-      pool = filmDirectionPool;
-    } else if (combined.includes('video') || combined.includes('editor') || combined.includes('post-production')) {
-      pool = videoPool;
-    } else if (combined.includes('ui') || combined.includes('ux') || combined.includes('product design') || combined.includes('user experience') || combined.includes('figma')) {
-      pool = designPool;
-    } else if (combined.includes('data') || combined.includes('analytics') || combined.includes('analyst') || combined.includes('business intelligence')) {
-      pool = dataPool;
-    } else if (combined.includes('finance') || combined.includes('account') || combined.includes('audit') || combined.includes('tax')) {
-      pool = financePool;
-    } else if (
-      combined.includes('marketing') ||
-      combined.includes('growth') ||
-      combined.includes('brand') ||
-      combined.includes('campaign') ||
-      combined.includes('advertising')
-    ) {
-      pool = marketingPool;
-    } else if (
-      combined.includes('software') ||
-      combined.includes('engineer') ||
-      combined.includes('developer') ||
-      combined.includes('stack') ||
-      combined.includes('programmer') ||
-      combined.includes('coder')
-    ) {
-      pool = techPool;
-    } else {
-      const indReq = AIService.getIndustryRequirementSet(title || company);
-      pool = indReq.required.length > 0
-        ? [...indReq.required, ...indReq.optional]
-        : ['Professional Communication', 'Project Management', 'Quality Assurance', 'Analytical Thinking', 'Team Collaboration'];
-    }
+    const indReq = AIService.getIndustryRequirementSet(title || company);
+    const pool = indReq.required.length > 0
+      ? [...indReq.required, ...indReq.optional]
+      : ['Professional Communication', 'Project Management', 'Quality Assurance', 'Analytical Thinking', 'Team Collaboration'];
 
     const numSkills = 5 + (idx % 2);
-    const startOffset = Math.abs(company.length * 3 + idx * 5) % Math.max(1, pool.length - 5);
+    const startOffset = Math.abs(company.length * 3 + idx * 5) % Math.max(1, pool.length - 4);
     const skills = pool.slice(startOffset, startOffset + numSkills);
 
     return Array.from(new Set(skills));
   }
 
   private static generateFallbackLiveJobs(keyword: string, userLat?: number, userLng?: number): LiveLinkedInJob[] {
-    const indianCompanies = [
-      // Mumbai - Western Suburbs
-      {
-        company: 'Dharma Productions',
-        logo: 'https://logo.clearbit.com/dharmaproductions.com',
-        title: `Digital ${keyword} & Campaign Manager`,
-        location: 'Andheri West, Mumbai, Maharashtra, India',
-        lat: 19.1351,
-        lng: 72.8290,
-        salary: '₹15,00,000 - ₹25,00,000 / yr (₹15 - ₹25 LPA)',
-      },
-      {
-        company: 'Yash Raj Films (YRF)',
-        logo: 'https://logo.clearbit.com/yashrajfilms.com',
-        title: `Associate Director - Marketing & ${keyword}`,
-        location: 'Andheri West, Mumbai, Maharashtra, India',
-        lat: 19.1399,
-        lng: 72.8322,
-        salary: '₹18,00,000 - ₹30,00,000 / yr (₹18 - ₹30 LPA)',
-      },
-      {
-        company: 'Balaji Telefilms',
-        logo: 'https://logo.clearbit.com/balajitelefilms.com',
-        title: `Head of Digital Content & ${keyword}`,
-        location: 'Andheri West, Mumbai, Maharashtra, India',
-        lat: 19.1333,
-        lng: 72.8335,
-        salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)',
-      },
-      {
-        company: 'Red Chillies Entertainment',
-        logo: 'https://logo.clearbit.com/redchillies.com',
-        title: `Lead ${keyword} & Creative Producer`,
-        location: 'Khar West, Mumbai, Maharashtra, India',
-        lat: 19.0688,
-        lng: 72.8344,
-        salary: '₹14,00,000 - ₹22,00,000 / yr (₹14 - ₹22 LPA)',
-      },
-      {
-        company: 'Excel Entertainment',
-        logo: 'https://logo.clearbit.com/excelmovies.com',
-        title: `Creative Producer & ${keyword} Strategist`,
-        location: 'Santacruz West, Mumbai, Maharashtra, India',
-        lat: 19.0831,
-        lng: 72.8348,
-        salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)',
-      },
-      {
-        company: 'Sony Pictures Networks',
-        logo: 'https://logo.clearbit.com/sonypicturesnetworks.com',
-        title: `VP - Digital Platforms & ${keyword}`,
-        location: 'Film City, Goregaon East, Mumbai, India',
-        lat: 19.1627,
-        lng: 72.8837,
-        salary: '₹22,00,000 - ₹38,00,000 / yr (₹22 - ₹38 LPA)',
-      },
+    const cleanRole = (keyword || 'Professional Specialist').trim();
 
-      // Mumbai - South Mumbai & Central
-      {
-        company: 'The Times Group (BCCL)',
-        logo: 'https://logo.clearbit.com/timesgroup.com',
-        title: `Senior Brand & Creative ${keyword}`,
-        location: 'Fort, Mumbai, Maharashtra, India',
-        lat: 18.9338,
-        lng: 72.8354,
-        salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)',
-      },
-      {
-        company: 'Eros Media World',
-        logo: 'https://logo.clearbit.com/erosplc.com',
-        title: `Head of Distribution & ${keyword}`,
-        location: 'Churchgate, Mumbai, Maharashtra, India',
-        lat: 18.9322,
-        lng: 72.8264,
-        salary: '₹18,00,000 - ₹32,00,000 / yr (₹18 - ₹32 LPA)',
-      },
-      {
-        company: 'Tata Sons',
-        logo: 'https://logo.clearbit.com/tata.com',
-        title: `Group Strategic ${keyword} Lead`,
-        location: 'Bombay House, Fort, Mumbai, India',
-        lat: 18.9315,
-        lng: 72.8335,
-        salary: '₹24,00,000 - ₹42,00,000 / yr (₹24 - ₹42 LPA)',
-      },
-      {
-        company: 'Reliance Industries',
-        logo: 'https://logo.clearbit.com/ril.com',
-        title: `Strategic Corporate ${keyword} Director`,
-        location: 'Nariman Point, Mumbai, Maharashtra, India',
-        lat: 18.9256,
-        lng: 72.8242,
-        salary: '₹26,00,000 - ₹45,00,000 / yr (₹26 - ₹45 LPA)',
-      },
-      {
-        company: 'Nykaa',
-        logo: 'https://logo.clearbit.com/nykaa.com',
-        title: `Brand & Digital ${keyword}`,
-        location: 'Lower Parel, Mumbai, Maharashtra, India',
-        lat: 19.0028,
-        lng: 72.8295,
-        salary: '₹15,00,000 - ₹24,00,000 / yr (₹15 - ₹24 LPA)',
-      },
-      {
-        company: 'Disney+ Hotstar',
-        logo: 'https://logo.clearbit.com/hotstar.com',
-        title: `Product Growth & Retention ${keyword}`,
-        location: 'Lower Parel, Mumbai, Maharashtra, India',
-        lat: 19.0028,
-        lng: 72.8295,
-        salary: '₹20,00,000 - ₹35,00,000 / yr (₹20 - ₹35 LPA)',
-      },
-      {
-        company: 'Aditya Birla Group',
-        logo: 'https://logo.clearbit.com/adityabirla.com',
-        title: `Lead Corporate ${keyword} & Communications`,
-        location: 'Worli, Mumbai, Maharashtra, India',
-        lat: 19.0166,
-        lng: 72.8167,
-        salary: '₹18,00,000 - ₹30,00,000 / yr (₹18 - ₹30 LPA)',
-      },
-
-      // Mumbai - BKC & Central Suburbs
-      {
-        company: 'Reliance Jio',
-        logo: 'https://logo.clearbit.com/jio.com',
-        title: `Media & Digital ${keyword} Lead`,
-        location: 'Bandra Kurla Complex (BKC), Mumbai, India',
-        lat: 19.0660,
-        lng: 72.8685,
-        salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)',
-      },
-      {
-        company: 'Dream11',
-        logo: 'https://logo.clearbit.com/dream11.com',
-        title: `Principal Product & ${keyword} Manager`,
-        location: 'Bandra Kurla Complex (BKC), Mumbai, India',
-        lat: 19.0660,
-        lng: 72.8685,
-        salary: '₹22,00,000 - ₹38,00,000 / yr (₹22 - ₹38 LPA)',
-      },
-      {
-        company: 'Zepto',
-        logo: 'https://logo.clearbit.com/zeptonow.com',
-        title: `Growth Hacking & ${keyword} Lead`,
-        location: 'Hiranandani Powai, Mumbai, Maharashtra, India',
-        lat: 19.1176,
-        lng: 72.9060,
-        salary: '₹18,00,000 - ₹32,00,000 / yr (₹18 - ₹32 LPA)',
-      },
-      {
-        company: 'Larsen & Toubro (L&T)',
-        logo: 'https://logo.clearbit.com/larsentoubro.com',
-        title: `Corporate Strategy & Technology ${keyword}`,
-        location: 'Powai, Mumbai, Maharashtra, India',
-        lat: 19.1176,
-        lng: 72.9060,
-        salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)',
-      },
-
-      // Thane & Navi Mumbai
-      {
-        company: 'Tata Consultancy Services (TCS)',
-        logo: 'https://logo.clearbit.com/tcs.com',
-        title: `Principal Enterprise ${keyword} Lead`,
-        location: 'TCS Olympus, Thane West, Maharashtra, India',
-        lat: 19.2000,
-        lng: 72.9700,
-        salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)',
-      },
-      {
-        company: 'Reliance Corporate Park (RCP)',
-        logo: 'https://logo.clearbit.com/ril.com',
-        title: `Digital Operations & ${keyword}`,
-        location: 'Ghansoli, Navi Mumbai, Maharashtra, India',
-        lat: 19.1084,
-        lng: 73.0118,
-        salary: '₹15,00,000 - ₹26,00,000 / yr (₹15 - ₹26 LPA)',
-      },
-
-      // Bengaluru Hubs
-      {
-        company: 'Swiggy',
-        logo: 'https://logo.clearbit.com/swiggy.com',
-        title: `Senior Growth & ${keyword}`,
-        location: 'Bellandur / ORR, Bengaluru, Karnataka, India',
-        lat: 12.9279,
-        lng: 77.6871,
-        salary: '₹18,00,000 - ₹28,00,000 / yr (₹18 - ₹28 LPA)',
-      },
-      {
-        company: 'Flipkart',
-        logo: 'https://logo.clearbit.com/flipkart.com',
-        title: `Senior Brand & Performance ${keyword}`,
-        location: 'Embassy TechVillage, Bellandur, Bengaluru, India',
-        lat: 12.9290,
-        lng: 77.6910,
-        salary: '₹20,00,000 - ₹32,00,000 / yr (₹20 - ₹32 LPA)',
-      },
-      {
-        company: 'Razorpay',
-        logo: 'https://logo.clearbit.com/razorpay.com',
-        title: `Growth & Product ${keyword} Lead`,
-        location: 'Koramangala, Bengaluru, Karnataka, India',
-        lat: 12.9352,
-        lng: 77.6245,
-        salary: '₹22,00,000 - ₹35,00,000 / yr (₹22 - ₹35 LPA)',
-      },
-      {
-        company: 'CRED',
-        logo: 'https://logo.clearbit.com/cred.club',
-        title: `Creative & Brand ${keyword} Lead`,
-        location: 'Indiranagar, Bengaluru, Karnataka, India',
-        lat: 12.9784,
-        lng: 77.6408,
-        salary: '₹24,00,000 - ₹40,00,000 / yr (₹24 - ₹40 LPA)',
-      },
-      {
-        company: 'Infosys',
-        logo: 'https://logo.clearbit.com/infosys.com',
-        title: `Lead Systems & Business ${keyword}`,
-        location: 'Electronic City, Bengaluru, Karnataka, India',
-        lat: 12.8399,
-        lng: 77.6770,
-        salary: '₹14,00,000 - ₹22,00,000 / yr (₹14 - ₹22 LPA)',
-      },
-
-      // Delhi NCR Hubs
-      {
-        company: 'Zomato',
-        logo: 'https://logo.clearbit.com/zomato.com',
-        title: `Lead ${keyword} & Brand Activation`,
-        location: 'Golf Course Road, Gurugram, Delhi NCR, India',
-        lat: 28.4416,
-        lng: 77.0973,
-        salary: '₹16,00,000 - ₹26,00,000 / yr (₹16 - ₹26 LPA)',
-      },
-      {
-        company: 'MakeMyTrip',
-        logo: 'https://logo.clearbit.com/makemytrip.com',
-        title: `Lead Performance ${keyword}`,
-        location: 'DLF Cyber City, Gurugram, Delhi NCR, India',
-        lat: 28.4950,
-        lng: 77.0890,
-        salary: '₹18,00,000 - ₹27,00,000 / yr (₹18 - ₹27 LPA)',
-      },
-      {
-        company: 'Paytm',
-        logo: 'https://logo.clearbit.com/paytm.com',
-        title: `Inbound Growth ${keyword}`,
-        location: 'Sector 62, Noida, Uttar Pradesh, India',
-        lat: 28.5355,
-        lng: 77.3910,
-        salary: '₹14,00,000 - ₹22,00,000 / yr (₹14 - ₹22 LPA)',
-      },
-      {
-        company: 'Blinkit',
-        logo: 'https://logo.clearbit.com/blinkit.com',
-        title: `Quick Commerce Strategy & ${keyword}`,
-        location: 'Udyog Vihar, Gurugram, Delhi NCR, India',
-        lat: 28.5020,
-        lng: 77.0820,
-        salary: '₹15,00,000 - ₹25,00,000 / yr (₹15 - ₹25 LPA)',
-      },
-
-      // Pune Hubs
-      {
-        company: 'Persistent Systems',
-        logo: 'https://logo.clearbit.com/persistent.com',
-        title: `Enterprise Solutions & ${keyword}`,
-        location: 'Hinjewadi Infotech Park, Pune, Maharashtra, India',
-        lat: 18.5912,
-        lng: 73.7389,
-        salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)',
-      },
-      {
-        company: 'Barclays Global Service Centre',
-        logo: 'https://logo.clearbit.com/barclays.com',
-        title: `Financial Technology ${keyword} Lead`,
-        location: 'Kharadi EON Free Zone, Pune, Maharashtra, India',
-        lat: 18.5529,
-        lng: 73.9525,
-        salary: '₹18,00,000 - ₹30,00,000 / yr (₹18 - ₹30 LPA)',
-      },
-
-      // Hyderabad Hubs
-      {
-        company: 'Microsoft India',
-        logo: 'https://logo.clearbit.com/microsoft.com',
-        title: `Cloud & AI Solutions ${keyword}`,
-        location: 'Gachibowli Financial District, Hyderabad, India',
-        lat: 17.4401,
-        lng: 78.3489,
-        salary: '₹26,00,000 - ₹48,00,000 / yr (₹26 - ₹48 LPA)',
-      },
-      {
-        company: 'Google India',
-        logo: 'https://logo.clearbit.com/google.com',
-        title: `Platform Partnerships & ${keyword}`,
-        location: 'HITEC City, Hyderabad, Telangana, India',
-        lat: 17.4474,
-        lng: 78.3762,
-        salary: '₹28,00,000 - ₹52,00,000 / yr (₹28 - ₹52 LPA)',
-      },
-
-      // Chennai Hubs
-      {
-        company: 'Zoho Corporation',
-        logo: 'https://logo.clearbit.com/zoho.com',
-        title: `Product Marketing & Global ${keyword}`,
-        location: 'Estancia IT Park, Guduvanchery, Chennai, India',
-        lat: 12.8350,
-        lng: 80.0500,
-        salary: '₹12,00,000 - ₹22,00,000 / yr (₹12 - ₹22 LPA)',
-      },
-      {
-        company: 'Freshworks',
-        logo: 'https://logo.clearbit.com/freshworks.com',
-        title: `Product Growth & Inbound ${keyword}`,
-        location: 'Global Infocity, Perungudi, Chennai, India',
-        lat: 12.9650,
-        lng: 80.2430,
-        salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)',
-      },
+    // Universal organizations across India's premier hubs supporting any domain or specialized role
+    const baseOrganizations = [
+      { company: 'Tata Enterprises', location: 'Fort, Mumbai, Maharashtra, India', lat: 18.9315, lng: 72.8335, salary: '₹18,00,000 - ₹32,00,000 / yr (₹18 - ₹32 LPA)', logo: 'https://logo.clearbit.com/tata.com' },
+      { company: 'Reliance Industries', location: 'Nariman Point, Mumbai, Maharashtra, India', lat: 18.9256, lng: 72.8242, salary: '₹20,00,000 - ₹36,00,000 / yr (₹20 - ₹36 LPA)', logo: 'https://logo.clearbit.com/ril.com' },
+      { company: 'Larsen & Toubro (L&T)', location: 'Powai, Mumbai, Maharashtra, India', lat: 19.1176, lng: 72.9060, salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)', logo: 'https://logo.clearbit.com/larsentoubro.com' },
+      { company: 'Apex Research & Technical Services', location: 'Bandra Kurla Complex (BKC), Mumbai, India', lat: 19.0660, lng: 72.8685, salary: '₹15,00,000 - ₹26,00,000 / yr (₹15 - ₹26 LPA)', logo: 'https://logo.clearbit.com/apex.com' },
+      { company: 'Horizon Consulting Group', location: 'Lower Parel, Mumbai, Maharashtra, India', lat: 19.0028, lng: 72.8295, salary: '₹17,00,000 - ₹30,00,000 / yr (₹17 - ₹30 LPA)', logo: 'https://logo.clearbit.com/horizon.com' },
+      { company: 'Infosys Innovation Labs', location: 'Electronic City, Bengaluru, Karnataka, India', lat: 12.8399, lng: 77.6770, salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)', logo: 'https://logo.clearbit.com/infosys.com' },
+      { company: 'Wipro Global Infrastructure', location: 'Sarjapur Road, Bengaluru, Karnataka, India', lat: 12.9100, lng: 77.6850, salary: '₹15,00,000 - ₹25,00,000 / yr (₹15 - ₹25 LPA)', logo: 'https://logo.clearbit.com/wipro.com' },
+      { company: 'Godrej Group', location: 'Vikhroli, Mumbai, Maharashtra, India', lat: 19.1111, lng: 72.9277, salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)', logo: 'https://logo.clearbit.com/godrej.com' },
+      { company: 'Aditya Birla Group', location: 'Worli, Mumbai, Maharashtra, India', lat: 19.0166, lng: 72.8167, salary: '₹18,00,000 - ₹30,00,000 / yr (₹18 - ₹30 LPA)', logo: 'https://logo.clearbit.com/adityabirla.com' },
+      { company: 'National Systems & Operations Centre', location: 'Golf Course Road, Gurugram, Delhi NCR, India', lat: 28.4416, lng: 77.0973, salary: '₹19,00,000 - ₹34,00,000 / yr (₹19 - ₹34 LPA)', logo: 'https://logo.clearbit.com/nsoc.org' },
+      { company: 'Mahindra & Mahindra', location: 'Kandivali East, Mumbai, Maharashtra, India', lat: 19.2045, lng: 72.8522, salary: '₹16,00,000 - ₹27,00,000 / yr (₹16 - ₹27 LPA)', logo: 'https://logo.clearbit.com/mahindra.com' },
+      { company: 'Prestige Global Operations', location: 'Koramangala, Bengaluru, Karnataka, India', lat: 12.9352, lng: 77.6245, salary: '₹15,00,000 - ₹26,00,000 / yr (₹15 - ₹26 LPA)', logo: 'https://logo.clearbit.com/prestige.com' },
+      { company: 'ITC Limited', location: 'Kolkata / Mumbai Central, India', lat: 22.5450, lng: 88.3520, salary: '₹17,00,000 - ₹29,00,000 / yr (₹17 - ₹29 LPA)', logo: 'https://logo.clearbit.com/itcportal.com' },
+      { company: 'Piramal Enterprises', location: 'Kurla West, Mumbai, Maharashtra, India', lat: 19.0680, lng: 72.8750, salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)', logo: 'https://logo.clearbit.com/piramal.com' },
+      { company: 'GMR Group', location: 'Aerocity, New Delhi, Delhi NCR, India', lat: 28.5490, lng: 77.1210, salary: '₹18,00,000 - ₹32,00,000 / yr (₹18 - ₹32 LPA)', logo: 'https://logo.clearbit.com/gmrgroup.in' },
     ];
 
-    const kwLower = keyword.toLowerCase();
-    let targetCompanies = indianCompanies;
-
-    if (kwLower.includes('interior') || kwLower.includes('spatial')) {
-      targetCompanies = [
-        {
-          company: 'Livspace',
-          logo: 'https://logo.clearbit.com/livspace.com',
-          title: `Senior Interior Designer & Space Planner`,
-          location: 'Lower Parel, Mumbai, Maharashtra, India',
-          lat: 19.0028,
-          lng: 72.8295,
-          salary: '₹12,00,000 - ₹20,00,000 / yr (₹12 - ₹20 LPA)',
-        },
-        {
-          company: 'Godrej Interio',
-          logo: 'https://logo.clearbit.com/godrejinterio.com',
-          title: `Lead Residential & Commercial Space Designer`,
-          location: 'Vikhroli, Mumbai, Maharashtra, India',
-          lat: 19.1075,
-          lng: 72.9263,
-          salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)',
-        },
-        {
-          company: 'HomeLane',
-          logo: 'https://logo.clearbit.com/homelane.com',
-          title: `Design Partner - Modular Interiors & 3D Visualization`,
-          location: 'Koramangala, Bengaluru, Karnataka, India',
-          lat: 12.9352,
-          lng: 77.6245,
-          salary: '₹10,00,000 - ₹18,00,000 / yr (₹10 - ₹18 LPA)',
-        },
-        {
-          company: 'Urban Ladder',
-          logo: 'https://logo.clearbit.com/urbanladder.com',
-          title: `Spatial Design Consultant & Interior Stylist`,
-          location: 'Indiranagar, Bengaluru, Karnataka, India',
-          lat: 12.9784,
-          lng: 77.6408,
-          salary: '₹11,00,000 - ₹19,00,000 / yr (₹11 - ₹19 LPA)',
-        },
-        {
-          company: 'Asian Paints',
-          logo: 'https://logo.clearbit.com/asianpaints.com',
-          title: `Interior Design Lead - Beautiful Homes Services`,
-          location: 'Santacruz West, Mumbai, Maharashtra, India',
-          lat: 19.0831,
-          lng: 72.8348,
-          salary: '₹15,00,000 - ₹25,00,000 / yr (₹15 - ₹25 LPA)',
-        },
-        {
-          company: 'Morphogenesis',
-          logo: 'https://logo.clearbit.com/morphogenesis.org',
-          title: `Senior Interior Architect & Space Planner`,
-          location: 'Okhla Phase III, New Delhi, India',
-          lat: 28.5355,
-          lng: 77.2690,
-          salary: '₹16,00,000 - ₹28,00,000 / yr (₹16 - ₹28 LPA)',
-        },
-      ];
-    } else if (kwLower.includes('coach') || kwLower.includes('sport') || kwLower.includes('athlet') || kwLower.includes('football')) {
-      targetCompanies = [
-        {
-          company: 'Mumbai City FC',
-          logo: 'https://logo.clearbit.com/mumbaicityfc.com',
-          title: `Youth Academy Head Coach & Tactical Analyst`,
-          location: 'Andheri Sports Complex, Mumbai, India',
-          lat: 19.1351,
-          lng: 72.8290,
-          salary: '₹12,00,000 - ₹22,00,000 / yr (₹12 - ₹22 LPA)',
-        },
-        {
-          company: 'Reliance Foundation Youth Sports',
-          logo: 'https://logo.clearbit.com/rfyouthsports.com',
-          title: `Athlete Performance Coach & Training Lead`,
-          location: 'Ghansoli, Navi Mumbai, Maharashtra, India',
-          lat: 19.1084,
-          lng: 73.0118,
-          salary: '₹14,00,000 - ₹24,00,000 / yr (₹14 - ₹24 LPA)',
-        },
-        {
-          company: 'Bengaluru FC Academy',
-          logo: 'https://logo.clearbit.com/bengalurufc.com',
-          title: `Assistant Coach & Conditioning Specialist`,
-          location: 'Kanteerava Stadium, Bengaluru, Karnataka, India',
-          lat: 12.9698,
-          lng: 77.5946,
-          salary: '₹10,00,000 - ₹18,00,000 / yr (₹10 - ₹18 LPA)',
-        },
-        {
-          company: 'Bhaichung Bhutia Football Schools',
-          logo: 'https://logo.clearbit.com/bbfootballschools.com',
-          title: `Technical Director & Head Coach`,
-          location: 'Vasant Kunj, New Delhi, India',
-          lat: 28.5244,
-          lng: 77.1555,
-          salary: '₹11,00,000 - ₹19,00,000 / yr (₹11 - ₹19 LPA)',
-        },
-      ];
-    } else if (kwLower.includes('game') && (kwLower.includes('test') || kwLower.includes('qa') || kwLower.includes('quality'))) {
-      targetCompanies = [
-        {
-          company: 'Electronic Arts (EA India)',
-          logo: 'https://logo.clearbit.com/ea.com',
-          title: `Quality Assurance Analyst - Gameplay & Systems`,
-          location: 'Hinjewadi Infotech Park, Pune, Maharashtra, India',
-          lat: 18.5912,
-          lng: 73.7389,
-          salary: '₹8,50,000 - ₹16,00,000 / yr (₹8.5 - ₹16 LPA)',
-        },
-        {
-          company: 'Ubisoft India',
-          logo: 'https://logo.clearbit.com/ubisoft.com',
-          title: `Senior Game Tester & Bug Reproduction Specialist`,
-          location: 'Kharadi EON Free Zone, Pune, Maharashtra, India',
-          lat: 18.5529,
-          lng: 73.9525,
-          salary: '₹9,00,000 - ₹17,50,000 / yr (₹9 - ₹17.5 LPA)',
-        },
-        {
-          company: 'Rockstar Games India',
-          logo: 'https://logo.clearbit.com/rockstargames.com',
-          title: `QA Game Tester - Open World & Physics`,
-          location: 'Bellandur / ORR, Bengaluru, Karnataka, India',
-          lat: 12.9279,
-          lng: 77.6871,
-          salary: '₹10,00,000 - ₹19,00,000 / yr (₹10 - ₹19 LPA)',
-        },
-        {
-          company: 'Nazara Technologies',
-          logo: 'https://logo.clearbit.com/nazara.com',
-          title: `Lead Mobile Game QA & Compliance Tester`,
-          location: 'Bandra Kurla Complex (BKC), Mumbai, India',
-          lat: 19.0660,
-          lng: 72.8685,
-          salary: '₹8,00,000 - ₹15,00,000 / yr (₹8 - ₹15 LPA)',
-        },
-      ];
-    }
+    const roleTitles = [
+      `Lead ${cleanRole}`,
+      `Senior ${cleanRole} Specialist`,
+      `Staff ${cleanRole}`,
+      `Principal ${cleanRole} & Operations Lead`,
+      `Associate ${cleanRole}`,
+      `${cleanRole} Project Lead`,
+      `Consultant - ${cleanRole}`,
+      `Head of ${cleanRole} & Strategic Development`,
+      `Technical ${cleanRole}`,
+      `Regional ${cleanRole} Coordinator`,
+    ];
 
     const hasUserLocation = userLat !== undefined && userLng !== undefined && !isNaN(userLat) && !isNaN(userLng);
-    const jobs = targetCompanies.map((item, idx) => {
-      const coords = resolveCompanyCoordinates(item.company, item.location, idx);
-      const lat = coords.lat;
-      const lng = coords.lng;
-      const distanceMiles = hasUserLocation ? calculateDistanceKm(userLat!, userLng!, lat, lng) : undefined;
+
+    const jobs: LiveLinkedInJob[] = baseOrganizations.map((org, idx) => {
+      const title = roleTitles[idx % roleTitles.length];
+      const distanceMiles = hasUserLocation ? calculateDistanceKm(userLat!, userLng!, org.lat, org.lng) : undefined;
       return {
-        company: item.company,
-        logo: item.logo,
-        title: item.title,
-        location: item.location,
-        workMode: 'Hybrid',
-        salary: item.salary,
+        company: org.company,
+        logo: org.logo,
+        title,
+        location: org.location,
+        workMode: (idx % 3 === 0 ? 'On-site' : idx % 3 === 1 ? 'Hybrid' : 'Remote') as any,
+        salary: org.salary,
         posted: 'Just now via LinkedIn India',
-        jobUrl: `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(keyword)}&location=India`,
-        requiredSkills: this.deriveSkillsFromTitle(item.title, item.company, idx),
-        lat,
-        lng,
+        jobUrl: `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(cleanRole)}&location=India`,
+        requiredSkills: this.deriveSkillsFromTitle(title, org.company, idx),
+        lat: org.lat,
+        lng: org.lng,
         distanceMiles,
-        hrEmail: getVerifiedCompanyHrEmail(item.company) || '',
+        hrEmail: getVerifiedCompanyHrEmail(org.company) || `careers@${org.company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
       };
     });
 

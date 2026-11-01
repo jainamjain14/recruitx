@@ -128,7 +128,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   // Fetch active announcements (Banners, Modals, Feature Spotlights)
   const refreshAnnouncements = useCallback(async () => {
-    if (!token) return;
+    if (!token || user?.role === 'recruiter') return;
     try {
       const announcements = await notificationService.getActiveAnnouncements();
       
@@ -155,13 +155,19 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     } catch (err) {
       console.warn('Failed to load active announcements:', err);
     }
-  }, [token]);
+  }, [token, user?.role]);
 
   // Initial load
   useEffect(() => {
     if (token) {
       refreshNotifications();
-      refreshAnnouncements();
+      if (user?.role !== 'recruiter') {
+        refreshAnnouncements();
+      } else {
+        setActiveBanner(null);
+        setActiveModal(null);
+        setActiveSlideout(null);
+      }
     } else {
       setNotifications([]);
       setUnreadCount(0);
@@ -257,6 +263,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     // Handle platform-wide or targeted announcements broadcasted by Admin
     socket.on('announcement:new', (payload: any) => {
+      if (user?.role === 'recruiter') return;
       const ann = payload.announcement;
       const notif = payload.notification;
 

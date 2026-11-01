@@ -209,9 +209,9 @@ export const AdminNotifications: React.FC = () => {
                     onChange={(e) => setTargetRole(e.target.value as TargetAudience)}
                     className="w-full text-xs rounded-lg border border-neutral-200 p-2.5 bg-white focus:ring-1 focus:ring-neutral-900"
                   >
-                    <option value="all">All Users (Students & Recruiters)</option>
-                    <option value="student">Students / Job Seekers Only</option>
-                    <option value="recruiter">Recruiters / Employers Only</option>
+                    <option value="student">Students / Candidates</option>
+                    <option value="all">All Student Batches</option>
+
                   </select>
                 </div>
 
@@ -224,11 +224,11 @@ export const AdminNotifications: React.FC = () => {
                     onChange={(e) => setTargetSegment(e.target.value)}
                     className="w-full text-xs rounded-lg border border-neutral-200 p-2.5 bg-white focus:ring-1 focus:ring-neutral-900"
                   >
-                    <option value="All Students & Recruiters">Full Batch (All Departments)</option>
+                    <option value="Full Batch (All Departments)">Full Batch (All Departments)</option>
                     <option value="Computer Science & IT">Computer Science & IT Only</option>
                     <option value="Electronics & Electrical">Electronics & Electrical Only</option>
                     <option value="Unplaced Candidates">Unplaced Candidates Only</option>
-                    <option value="Active Hiring Recruiters">Active Hiring Recruiters</option>
+
                   </select>
                 </div>
               </div>

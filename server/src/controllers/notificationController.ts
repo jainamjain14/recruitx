@@ -79,6 +79,12 @@ export const clearAllNotifications = async (req: AuthenticatedRequest, res: Resp
 
 export const getActiveAnnouncements = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    // Campaign announcements are excluded from recruiter interface
+    if (req.user?.role === 'recruiter') {
+      sendSuccess(res, 'Active announcements retrieved', { announcements: [] });
+      return;
+    }
+
     const userRole = req.user?.role || 'student';
     const announcements = await Announcement.find({
       status: 'active',
@@ -148,7 +154,8 @@ export const broadcastNotification = async (req: AuthenticatedRequest, res: Resp
     });
 
     // 2. Query target users to populate their notification inboxes
-    const filter: any = {};
+    // Exclude recruiters from receiving campaign notifications
+    const filter: any = { role: { $ne: 'recruiter' } };
     if (targetRole && targetRole !== 'all') {
       filter.role = targetRole;
     }
@@ -191,9 +198,9 @@ export const broadcastNotification = async (req: AuthenticatedRequest, res: Resp
     };
 
     if (targetRole === 'all') {
-      broadcastEvent('announcement:new', eventPayload);
+      emitToRole('student', 'announcement:new', eventPayload);
     } else {
-      emitToRole(targetRole, 'announcement:new', eventPayload);
+      if (targetRole !== 'recruiter') emitToRole(targetRole, 'announcement:new', eventPayload);
     }
 
     sendSuccess(res, `Notification campaign broadcasted to ${users.length} users successfully`, {

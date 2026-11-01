@@ -26,6 +26,7 @@ yarn-debug.log*
 # System and Editor
 .DS_Store
 Thumbs.db
+~$*
 .vscode/
 .idea/
 

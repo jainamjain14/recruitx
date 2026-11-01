@@ -46,96 +46,8 @@ export interface MockEvaluationResult {
   evaluatedBy?: string;
 }
 
-const INDUSTRY_REQUIREMENTS: Record<string, { required: string[]; optional: string[] }> = {
-  'Interior & Spatial Design': {
-    required: ['Space Planning', 'AutoCAD', 'SketchUp', '3D Visualization', 'Color Theory & Materials', 'Lighting Design'],
-    optional: ['Revit', '3ds Max', 'V-Ray', 'Client Presentations', 'Building Codes & Standards', 'Furniture Sourcing'],
-  },
-  'Sports Coaching & Athlete Training': {
-    required: ['Tactical Analysis', 'Player Development', 'Match Strategy', 'Training Session Planning', 'Conditioning Fundamentals', 'Team Leadership'],
-    optional: ['Injury Prevention & First Aid', 'Sports Psychology', 'Performance Video Analysis', 'Youth Mentorship', 'Fitness Assessment'],
-  },
-  'Game Testing & Quality Assurance': {
-    required: ['Gameplay Testing', 'Bug Tracking (JIRA)', 'Test Case Execution', 'Defect Reporting & Reproduction', 'Regression Testing', 'Quality Assurance'],
-    optional: ['Platform Compliance (Console/PC/Mobile)', 'Performance Profiling', 'Crash Log Analysis', 'Automation Basics', 'Test Planning'],
-  },
-  'Game Development & Engineering': {
-    required: ['Game Engine (Unity/Unreal)', 'C# / C++', 'Game Physics', '3D Math & Vectors', 'Gameplay Mechanics', 'Version Control (Git)'],
-    optional: ['Shader Programming', 'Multiplayer Networking', 'Asset Pipeline', 'Optimization & Profiling', 'AI Pathfinding'],
-  },
-  'Graphic Design & Visual Communication': {
-    required: ['Adobe Photoshop', 'Adobe Illustrator', 'Typography', 'Visual Branding', 'Color Theory', 'Layout Design'],
-    optional: ['InDesign', 'Print Production', 'Digital Illustration', 'Motion Graphics', 'Packaging Design'],
-  },
-  'Marketing & Growth Management': {
-    required: ['Digital Marketing', 'SEO & SEM', 'Campaign Strategy', 'Google Analytics', 'Brand Management', 'Lead Generation'],
-    optional: ['CRM (HubSpot)', 'Social Media Management', 'A/B Testing', 'Content Marketing', 'Copywriting'],
-  },
-  'Video Editing & Post-Production': {
-    required: ['Adobe Premiere Pro', 'After Effects', 'DaVinci Resolve', 'Color Grading', 'Motion Graphics'],
-    optional: ['Final Cut Pro', 'Audio Editing', 'Sound Design', 'Storyboarding', 'Lighting Setup'],
-  },
-  'Film & Movie Direction': {
-    required: ['Film Directing', 'Screenwriting', 'Cinematography', 'Storyboarding', 'Casting'],
-    optional: ['Post-Production', 'Video Editing', 'Lighting Design', 'Sound Mixing', 'Location Scouting'],
-  },
-  'Cinematography': {
-    required: ['Cinematography', 'Camera Operation', 'Lighting & Exposure', 'Color Grading', 'Visual Storytelling'],
-    optional: ['Lenses & Optics', 'DaVinci Resolve', 'Storyboarding', 'Camera Rigging', 'Post-Production'],
-  },
-  'UI/UX & Creative Design': {
-    required: ['Figma', 'Adobe Photoshop', 'UI/UX Design', 'Wireframing', 'Prototyping'],
-    optional: ['Adobe Illustrator', 'User Research', 'Design Systems', 'Design Tokens', 'Micro-interactions'],
-  },
-  'Finance & Accounting': {
-    required: ['Financial Reporting', 'Advanced Excel', 'Accounting', 'Financial Analysis', 'Budgeting'],
-    optional: ['Tally Prime', 'Taxation', 'Corporate Finance', 'Audit & Compliance', 'QuickBooks'],
-  },
-  'Sales & Business Development': {
-    required: ['B2B Sales', 'Lead Generation', 'Client Negotiation', 'CRM Management', 'Sales Pipeline'],
-    optional: ['Market Research', 'Deal Closing', 'Account Management', 'Cold Calling', 'Contract Negotiation'],
-  },
-  'Human Resources & Recruitment': {
-    required: ['Talent Acquisition', 'HR Operations', 'Recruitment', 'Employee Relations', 'Payroll Management'],
-    optional: ['Performance Appraisal', 'HR Compliance', 'Labor Law', 'HRIS Systems', 'Onboarding'],
-  },
-  'Cybersecurity': {
-    required: ['Cybersecurity', 'Network Security', 'Linux', 'Threat Detection', 'Incident Response', 'Python'],
-    optional: ['SIEM Tools', 'Penetration Testing', 'Identity Management', 'Vulnerability Assessment', 'Cryptography'],
-  },
-  'Java Enterprise Development': {
-    required: ['Java', 'Object-Oriented Programming (OOP)', 'Data Structures', 'Spring Boot', 'SQL', 'Git'],
-    optional: ['Microservices', 'Hibernate', 'RESTful APIs', 'JUnit', 'Docker', 'Maven'],
-  },
-  'Data Analytics': {
-    required: ['SQL', 'Python', 'Data Analysis', 'Tableau', 'Spreadsheets', 'Data Visualization'],
-    optional: ['R Programming', 'PowerBI', 'Statistics', 'Pandas', 'Business Intelligence'],
-  },
-  'Software Engineering': {
-    required: ['JavaScript', 'TypeScript', 'React.js', 'Node.js', 'SQL', 'Git'],
-    optional: ['MongoDB', 'Docker', 'AWS', 'System Design', 'REST API', 'GraphQL', 'Redis', 'Kubernetes'],
-  },
-  'Artificial Intelligence & Data Science': {
-    required: ['Python', 'Machine Learning', 'Data Analysis', 'Pandas', 'SQL'],
-    optional: ['NumPy', 'TensorFlow', 'PyTorch', 'Deep Learning', 'Scikit-Learn', 'Big Data'],
-  },
-  'Cloud Infrastructure & DevOps': {
-    required: ['AWS', 'Docker', 'Kubernetes', 'Linux', 'CI/CD'],
-    optional: ['Terraform', 'Cloud Architecture', 'Python', 'Shell Scripting', 'Monitoring (Grafana)'],
-  },
-  'Civil & Structural Engineering': {
-    required: ['AutoCAD', 'Structural Analysis', 'Construction Management', 'Building Materials', 'Site Supervision'],
-    optional: ['STAAD Pro', 'Revit Structure', 'Surveying', 'Quantity Estimation', 'Geotechnical Engineering'],
-  },
-  'Education & Teaching': {
-    required: ['Curriculum Planning', 'Instructional Design', 'Classroom Management', 'Student Assessment', 'Subject Matter Expertise'],
-    optional: ['Educational Technology', 'Differentiated Instruction', 'Parent Communication', 'Pedagogical Research'],
-  },
-  'Culinary Arts & Food Service': {
-    required: ['Culinary Techniques', 'Menu Planning', 'Food Safety & Hygiene', 'Kitchen Operations', 'Recipe Standardization'],
-    optional: ['Cost Control & Inventory', 'Pastry & Baking', 'Food Presentation', 'Kitchen Leadership'],
-  },
-};
+// Universal Dynamic Profession & Skill Benchmarks (Zero Hardcoded Restrictions)
+const INDUSTRY_REQUIREMENTS: Record<string, { required: string[]; optional: string[] }> = {};
 
 export class AIService {
   /**
@@ -222,119 +134,29 @@ export class AIService {
   /**
    * Resolve industry benchmark requirement set based on candidate role / headline
    */
-  static getIndustryRequirementSet(targetRole: string) {
-    const lower = targetRole.toLowerCase();
-
-    // 1. Interior & Spatial Design (must be checked BEFORE generic 'design')
-    if (lower.includes('interior') || lower.includes('spatial') || lower.includes('space plan') || lower.includes('home decor') || (lower.includes('architecture') && !lower.includes('software'))) {
-      return INDUSTRY_REQUIREMENTS['Interior & Spatial Design'];
-    }
-
-    // 2. Sports Coaching & Athletics
-    if (lower.includes('coach') || lower.includes('football') || lower.includes('soccer') || lower.includes('athlete') || lower.includes('sports training') || lower.includes('athletics')) {
-      return INDUSTRY_REQUIREMENTS['Sports Coaching & Athlete Training'];
-    }
-
-    // 3. Game Testing & QA
-    if ((lower.includes('game') && (lower.includes('test') || lower.includes('qa'))) || lower.includes('game tester') || lower.includes('game qa') || lower.includes('qa tester')) {
-      return INDUSTRY_REQUIREMENTS['Game Testing & Quality Assurance'];
-    }
-
-    // 4. Game Development & Engineering
-    if (lower.includes('game dev') || lower.includes('game program') || lower.includes('unity') || lower.includes('unreal') || lower.includes('game engine')) {
-      return INDUSTRY_REQUIREMENTS['Game Development & Engineering'];
-    }
-
-    // 5. Graphic Design & Visual Communication
-    if (lower.includes('graphic') || lower.includes('visual communication') || lower.includes('illustration') || lower.includes('branding')) {
-      return INDUSTRY_REQUIREMENTS['Graphic Design & Visual Communication'];
-    }
-
-    // 6. UI/UX & Digital Product Design
-    if (lower.includes('ui') || lower.includes('ux') || lower.includes('product design') || lower.includes('figma') || lower.includes('wireframe')) {
-      return INDUSTRY_REQUIREMENTS['UI/UX & Creative Design'];
-    }
-
-    // 7. Civil & Structural Engineering
-    if (lower.includes('civil') || lower.includes('construction') || lower.includes('structural')) {
-      return INDUSTRY_REQUIREMENTS['Civil & Structural Engineering'];
-    }
-
-    // 8. Education & Teaching
-    if (lower.includes('teach') || lower.includes('education') || lower.includes('instructor') || lower.includes('professor') || lower.includes('academic')) {
-      return INDUSTRY_REQUIREMENTS['Education & Teaching'];
-    }
-
-    // 9. Culinary Arts
-    if (lower.includes('chef') || lower.includes('culinary') || lower.includes('cooking') || lower.includes('baker') || lower.includes('food service')) {
-      return INDUSTRY_REQUIREMENTS['Culinary Arts & Food Service'];
-    }
-
-    // 10. Film & Video Production
-    if (lower.includes('cinematograph') || lower.includes('camera') || lower.includes('dop')) {
-      return INDUSTRY_REQUIREMENTS['Cinematography'];
-    }
-    if (
-      lower.includes('film') ||
-      lower.includes('movie') ||
-      lower.includes('director') ||
-      lower.includes('direction') ||
-      lower.includes('screenplay') ||
-      lower.includes('script')
-    ) {
-      return INDUSTRY_REQUIREMENTS['Film & Movie Direction'];
-    }
-    if (lower.includes('video') || lower.includes('edit') || lower.includes('post-production')) {
-      return INDUSTRY_REQUIREMENTS['Video Editing & Post-Production'];
-    }
-
-    // 11. Business, Finance & Operations
-    if (lower.includes('finance') || lower.includes('account') || lower.includes('audit') || lower.includes('tax')) {
-      return INDUSTRY_REQUIREMENTS['Finance & Accounting'];
-    }
-    if (lower.includes('market') || lower.includes('growth') || lower.includes('brand') || lower.includes('campaign')) {
-      return INDUSTRY_REQUIREMENTS['Marketing & Growth Management'];
-    }
-    if (lower.includes('sales') || lower.includes('business dev')) {
-      return INDUSTRY_REQUIREMENTS['Sales & Business Development'];
-    }
-    if (lower.includes('hr') || lower.includes('human resource') || lower.includes('talent')) {
-      return INDUSTRY_REQUIREMENTS['Human Resources & Recruitment'];
-    }
-
-    // 12. Tech & Engineering
-    if (lower.includes('cyber') || lower.includes('security') || lower.includes('infosec')) {
-      return INDUSTRY_REQUIREMENTS['Cybersecurity'];
-    }
-    if (lower.includes('java') || lower.includes('spring')) {
-      return INDUSTRY_REQUIREMENTS['Java Enterprise Development'];
-    }
-    if (lower.includes('data analyst') || lower.includes('analytics') || lower.includes('bi analyst') || lower.includes('business intelligence')) {
-      return INDUSTRY_REQUIREMENTS['Data Analytics'];
-    }
-    if (lower.includes('ai') || lower.includes('data science') || lower.includes('machine learning')) {
-      return INDUSTRY_REQUIREMENTS['Artificial Intelligence & Data Science'];
-    }
-    if (lower.includes('cloud') || lower.includes('devops') || lower.includes('aws') || lower.includes('azure')) {
-      return INDUSTRY_REQUIREMENTS['Cloud Infrastructure & DevOps'];
-    }
-
-    if (INDUSTRY_REQUIREMENTS[targetRole]) {
-      return INDUSTRY_REQUIREMENTS[targetRole];
-    }
-
-    // Only assign Software Engineering if explicitly related to software development
-    const isSoftwareTech = lower.includes('software') || lower.includes('developer') || lower.includes('programmer') || lower.includes('full stack') || lower.includes('backend') || lower.includes('frontend') || lower.includes('coding');
-    if (isSoftwareTech) {
-      return INDUSTRY_REQUIREMENTS['Software Engineering'];
-    }
-
-    // Dynamic role-aligned benchmark for unlisted professions (never force software engineering)
+  /**
+   * Resolve industry benchmark requirement set dynamically for ANY candidate role / profession.
+   * Completely universal, future-proof, and never restricted to hardcoded lists.
+   */
+  static getIndustryRequirementSet(targetRole: string): { required: string[]; optional: string[] } {
+    const roleClean = (targetRole || 'Professional Specialist').trim();
     return {
-      required: [`Core ${targetRole} Competencies`, 'Domain Tools & Methodologies', 'Workflow Planning', 'Professional Execution'],
-      optional: ['Advanced Practice', 'Project Coordination', 'Industry Standards'],
+      required: [
+        `${roleClean} Core Principles & Methodology`,
+        `Applied ${roleClean} Techniques & Tools`,
+        'Quality Assurance & Domain Standards',
+        'Workflow Planning & Execution',
+        'Professional Documentation & Reporting',
+      ],
+      optional: [
+        `Advanced ${roleClean} Systems & Specializations`,
+        'Cross-Functional Project Coordination',
+        'Regulatory Compliance & Best Practices',
+        'Performance Optimization & Continuous Learning',
+      ],
     };
   }
+
 
   /**
    * Real-Time Skill Gap Analysis Engine:
@@ -642,22 +464,31 @@ Return ONLY a valid raw JSON object with:
       }
     }
 
-    // Inspect first 10 lines of cleanText for explicit title keywords
-    const firstLines = cleanText.split('\n').slice(0, 10).join(' ');
-    if (/interior design|interior designer/i.test(firstLines)) {
-      detectedDomain = 'Interior & Spatial Design';
-      extractedSkills = INDUSTRY_REQUIREMENTS['Interior & Spatial Design'].required;
-    } else if (/football coach|soccer coach|sports coach/i.test(firstLines)) {
-      detectedDomain = 'Sports Coaching & Athlete Training';
-      extractedSkills = INDUSTRY_REQUIREMENTS['Sports Coaching & Athlete Training'].required;
-    } else if (/game tester|games tester|game qa|qa tester/i.test(firstLines)) {
-      detectedDomain = 'Game Testing & Quality Assurance';
-      extractedSkills = INDUSTRY_REQUIREMENTS['Game Testing & Quality Assurance'].required;
+    // Dynamic universal domain & profession identification (supports ALL professions)
+    if (!detectedDomain) {
+      const headerLines = cleanText.split('\n').slice(0, 5).map(l => l.trim()).filter(l => l.length > 2 && l.length < 50);
+      for (const line of headerLines) {
+        if (!line.includes('@') && !line.includes('http')) {
+          const cleanLine = line.replace(/[^a-zA-Z0-9\s&/\-]/g, '').trim();
+          if (cleanLine.length > 3) {
+            detectedDomain = cleanLine;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!detectedDomain && fileName) {
+      detectedDomain = fileName.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').trim();
     }
 
     if (!detectedDomain) {
-      detectedDomain = 'Creative & Professional Management';
-      extractedSkills = ['Project Direction', 'Strategic Planning', 'Team Leadership', 'Operations', 'Creative Writing'];
+      detectedDomain = 'Professional Specialist';
+    }
+
+    if (extractedSkills.length === 0) {
+      const dynReq = this.getIndustryRequirementSet(detectedDomain);
+      extractedSkills = dynReq.required;
     }
 
     const headline = `${detectedDomain} | ${extractedSkills.slice(0, 3).join(' • ')}`;
@@ -683,7 +514,7 @@ Return ONLY a valid raw JSON object with:
       const prompt = `Analyze this resume document or image carefully and determine the candidate's PRIMARY PROFESSION.
 CRITICAL INSTRUCTIONS:
 - You must identify their genuine profession from their actual job title, projects, education, and stated career summary.
-- DO NOT default to "Software Engineer" or "Computer Science" if the person is in a different profession (such as Interior Designer, Football Coach, Game Tester, UI/UX Designer, Data Analyst, Graphic Designer, Accountant, Chef, Civil Engineer).
+- RecruitX is a UNIVERSAL platform supporting ALL professions, industries, and job roles (e.g. Marine Biologist, Fashion Designer, Commercial Pilot, Archaeologist, Full Stack Developer, Sommelier, etc.). NEVER default to Software Engineering.
 - If candidate is an Interior Designer, fieldOfInterest must be "Interior Design" or "Interior & Spatial Design".
 - If candidate is a Football Coach, fieldOfInterest must be "Sports Coaching & Athlete Training".
 - If candidate is a Game Tester, fieldOfInterest must be "Game Testing & Quality Assurance".
@@ -727,7 +558,7 @@ Do not wrap in markdown codeblocks. Return raw JSON.`;
       const prompt = `Analyze this resume document carefully and determine the candidate's PRIMARY PROFESSION.
 CRITICAL INSTRUCTIONS:
 - You must identify their genuine profession from their actual job title, projects, education, and stated career summary.
-- DO NOT default to "Software Engineer" or "Computer Science" if the person is in a different profession (such as Interior Designer, Football Coach, Game Tester, UI/UX Designer, Data Analyst, Graphic Designer, Accountant, Chef, Civil Engineer).
+- RecruitX is a UNIVERSAL platform supporting ALL professions, industries, and job roles (e.g. Marine Biologist, Fashion Designer, Commercial Pilot, Archaeologist, Full Stack Developer, Sommelier, etc.). NEVER default to Software Engineering.
 - If candidate is an Interior Designer, fieldOfInterest must be "Interior Design" or "Interior & Spatial Design".
 - If candidate is a Football Coach, fieldOfInterest must be "Sports Coaching & Athlete Training".
 - If candidate is a Game Tester, fieldOfInterest must be "Game Testing & Quality Assurance".
@@ -1150,130 +981,7 @@ Return ONLY a valid raw JSON object with:
     // Role-specific fallback generator (guarantees NO generic software engineering for other roles)
     const lowerRole = targetRole.toLowerCase();
     const companyPrefix = normalizedCompany ? `${normalizedCompany} ` : '';
-
-    if (lowerRole.includes('interior') || lowerRole.includes('spatial')) {
-      return {
-        trackTitle: normalizedCompany ? `${normalizedCompany} - Interior & Spatial Design Track` : `Interior & Spatial Design Placement Track`,
-        targetRole,
-        targetCompany: normalizedCompany,
-        isCompanySpecific: Boolean(normalizedCompany),
-        milestones: [
-          {
-            title: `Step 1: Space Planning & Design Fundamentals for ${companyPrefix || 'Interior Roles'}`,
-            desc: `Master spatial layouts, ergonomic standards, architectural scales, and color theory principles for residential and commercial environments.`,
-            actionUrl: '/student/resume',
-            actionLabel: 'Update Design Skills',
-          },
-          {
-            title: `Step 2: CAD Drafting & 3D Visualization Portfolio`,
-            desc: `Produce detailed 2D floor plans, electrical schematics in AutoCAD, and photorealistic 3D interior renders using SketchUp / 3ds Max.`,
-            actionUrl: '/student/resume',
-            actionLabel: 'Add Design Projects',
-          },
-          {
-            title: `Step 3: Materials, Finishes & Sustainable Specifications`,
-            desc: `Curate material mood boards, lighting schedules, and sustainable finish specifications tailored to ${companyPrefix || 'client'} aesthetic standards.`,
-            actionUrl: '/student/roadmap',
-            actionLabel: 'View Design Courses',
-          },
-          {
-            title: `Step 4: Design Critique & Client Presentation Simulation`,
-            desc: `Prepare comprehensive design proposal decks, BOQ (Bill of Quantities), and practice presenting spatial concepts to ${companyPrefix || 'hiring'} design directors.`,
-            actionUrl: '/student/mock-interview',
-            actionLabel: 'Practice Presentation',
-          },
-          {
-            title: `Step 5: Portfolio Review & ${companyPrefix}Placement Finalization`,
-            desc: `Submit your verified interior portfolio showcasing residential and commercial space solutions to secure your designer offer.`,
-            actionUrl: '/student/jobs',
-            actionLabel: 'Apply for Design Roles',
-          },
-        ],
-      };
-    }
-
-    if (lowerRole.includes('coach') || lowerRole.includes('football') || lowerRole.includes('soccer')) {
-      return {
-        trackTitle: normalizedCompany ? `${normalizedCompany} - Sports Coaching & Football Development Track` : `Sports Coaching & Football Development Track`,
-        targetRole,
-        targetCompany: normalizedCompany,
-        isCompanySpecific: Boolean(normalizedCompany),
-        milestones: [
-          {
-            title: `Step 1: Tactical Methodology & Game Model Foundations`,
-            desc: `Establish core coaching philosophy, tactical formations (4-3-3, 3-5-2), phase transitions, and positional play principles.`,
-            actionUrl: '/student/resume',
-            actionLabel: 'Update Coaching Profile',
-          },
-          {
-            title: `Step 2: Training Session Design & Conditioning Microcycles`,
-            desc: `Architect age-appropriate training microcycles, drill progressions, and physical conditioning sessions incorporating injury prevention.`,
-            actionUrl: '/student/resume',
-            actionLabel: 'Upload Session Plans',
-          },
-          {
-            title: `Step 3: Video Match Analysis & Player Performance Profiling`,
-            desc: `Analyze opponent game footage, track individual player KPIs, and produce actionable scouting/tactical presentation decks.`,
-            actionUrl: '/student/roadmap',
-            actionLabel: 'View Coaching Courses',
-          },
-          {
-            title: `Step 4: Player Leadership & Coach-Athlete Communication Mocks`,
-            desc: `Practice halftime tactical adjustments, motivational speaking, safeguarding protocols, and athlete leadership interview scenarios.`,
-            actionUrl: '/student/mock-interview',
-            actionLabel: 'Start Coaching Mock',
-          },
-          {
-            title: `Step 5: Academy / Club Hiring Loop & ${companyPrefix}Placement`,
-            desc: `Present your coaching portfolio and seasonal development plan to club directors and academy managers to secure placement.`,
-            actionUrl: '/student/jobs',
-            actionLabel: 'Browse Coaching Openings',
-          },
-        ],
-      };
-    }
-
-    if (lowerRole.includes('game test') || lowerRole.includes('games test') || lowerRole.includes('game qa') || lowerRole.includes('qa tester')) {
-      return {
-        trackTitle: normalizedCompany ? `${normalizedCompany} - Game Quality Assurance & Testing Track` : `Game Quality Assurance & Testing Track`,
-        targetRole,
-        targetCompany: normalizedCompany,
-        isCompanySpecific: Boolean(normalizedCompany),
-        milestones: [
-          {
-            title: `Step 1: Game QA Fundamentals & Bug Lifecycle Mastery`,
-            desc: `Master defect tracking in JIRA, bug classification, severity vs priority triage, and rigorous bug reproduction step formatting.`,
-            actionUrl: '/student/resume',
-            actionLabel: 'Update QA Skills',
-          },
-          {
-            title: `Step 2: Test Case Design & Gameplay Verification Matrix`,
-            desc: `Design comprehensive test suites covering collision boundaries, progression blockers, physics anomalies, and save-state integrity.`,
-            actionUrl: '/student/resume',
-            actionLabel: 'Add Test Cases',
-          },
-          {
-            title: `Step 3: Platform Compliance & Console/PC/Mobile Standards`,
-            desc: `Audit certification requirements across PlayStation, Xbox, iOS, Android, and Steam (framerate stability, memory profiling, crash logs).`,
-            actionUrl: '/student/roadmap',
-            actionLabel: 'View QA Courses',
-          },
-          {
-            title: `Step 4: Live Bug Hunt & Technical QA Assessment Simulation`,
-            desc: `Execute timed playtesting sessions, isolate elusive edge-case defects, and generate professional QA diagnostic reports.`,
-            actionUrl: '/student/mock-interview',
-            actionLabel: 'Start QA Mock',
-          },
-          {
-            title: `Step 5: Studio QA Loop & ${companyPrefix}Placement Acceptance`,
-            desc: `Submit your verified QA test suite portfolio to game studios and publishing houses to secure an official game tester offer.`,
-            actionUrl: '/student/jobs',
-            actionLabel: 'Apply for QA Roles',
-          },
-        ],
-      };
-    }
-
+    // Universal role-tailored domain roadmap generator (Works for ANY profession & company)
     // Default role-tailored domain fallback
     const domainReq = this.getIndustryRequirementSet(targetRole);
     const topSkills = domainReq.required.slice(0, 3).join(', ');

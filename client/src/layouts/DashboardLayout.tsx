@@ -187,7 +187,7 @@ export const DashboardLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#FAFBFD] flex flex-col">
       {/* 1. Global Announcement Banner (Fixed Top) */}
-      <AnnouncementBanner />
+      {user?.role !== 'recruiter' && <AnnouncementBanner />}
 
       <div className="flex-1 flex">
         {/* Desktop Sidebar */}
@@ -276,7 +276,7 @@ export const DashboardLayout: React.FC = () => {
       <NotificationCenterDrawer />
 
       {/* 3. Center Screen Overlay: High-Priority Decision Modals */}
-      <NotificationModal />
+      {user?.role !== 'recruiter' && <NotificationModal />}
 
       {/* 4. Real-Time Corner Toasts / Snackbars */}
       <NotificationToastContainer />

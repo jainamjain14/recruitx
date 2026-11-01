@@ -43,6 +43,8 @@ export const RecruiterNotifications: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredNotifications = notifications.filter((n) => {
+    // Exclude campaign & announcement notifications from recruiter interface
+    if (n.type === 'placement_drive' || n.announcementId) return false;
     if (activeTab === 'unread' && n.read) return false;
     if (activeTab === 'applications' && n.type !== 'application_update') return false;
     if (activeTab === 'interviews' && n.type !== 'interview_invite') return false;
@@ -68,7 +70,7 @@ export const RecruiterNotifications: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Real-time alerts for candidate job applications, interview responses, and campus placement updates.
+            Real-time alerts for candidate job applications and interview updates.
           </p>
         </div>
 
