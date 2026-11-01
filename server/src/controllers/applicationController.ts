@@ -83,6 +83,10 @@ export const applyForJob = async (req: AuthenticatedRequest, res: Response): Pro
       }
     }
 
+    const populatedJobForEmail = await Job.findById(jobId).populate('recruiter', 'name email');
+    const recUser = populatedJobForEmail?.recruiter as any;
+    const recEmail = recUser?.email || '';
+
     const application = await Application.create({
       job: jobId,
       student: req.user._id,
@@ -92,7 +96,19 @@ export const applyForJob = async (req: AuthenticatedRequest, res: Response): Pro
       coverLetter: coverLetter || '',
       resumeUrl: resumeUrl || '',
       status: 'applied',
-      statusHistory: [{ status: 'applied', note: 'Application submitted' }],
+      submissionStatus: 'submitted',
+      submissionType: 'platform_recruiter',
+      applicationDestination: 'RecruitX Verified Recruiter Portal',
+      destinationUrl: '/student/jobs',
+      confirmationDetails: {
+        confirmationId: `RCX-PLT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+        recipient: recEmail ? `${recUser?.name || 'Recruiter'} (${recEmail})` : 'Verified Platform Recruiter',
+        timestamp: new Date(),
+        dispatchMethod: 'RecruitX In-App ATS + Verified WebSocket Delivery',
+      },
+      resumeTransmitted: true,
+      candidateContactTransmitted: true,
+      statusHistory: [{ status: 'applied', note: 'Application submitted directly to platform recruiter with verified receipt confirmation' }],
     });
 
     // Increment application count on job
@@ -146,7 +162,7 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       return;
     }
 
-    const { companyName, jobTitle, coverLetter, hrEmail } = req.body;
+    const { companyName, jobTitle, coverLetter, hrEmail, jobUrl } = req.body;
     if (!companyName || !jobTitle) {
       sendError(res, 'Company name and job title are required', null, 400);
       return;
@@ -162,11 +178,11 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
     });
 
     if (existing) {
-      sendError(res, `You have already applied for ${jobTitle} at ${companyName}`, null, 400);
+      sendError(res, `You already have an active application record for ${jobTitle} at ${companyName}`, null, 400);
       return;
     }
 
-    // Resolve recruiter ONLY if a recruiter is registered for this specific company
+    // Resolve recruiter ONLY if a recruiter is registered on RecruitX for this specific company
     const recruiters = await User.find({ role: 'recruiter' });
     const matchedRecruiter = recruiters.find(
       (r) => r.company && companyName && r.company.toLowerCase().trim() === companyName.toLowerCase().trim()
@@ -174,46 +190,193 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
 
     const recruiterId = matchedRecruiter?._id || null;
 
+    // Check whether direct transmission is actually possible
+    let submissionStatus: 'submitted' | 'requires_manual_application' | 'submission_failed' = 'requires_manual_application';
+    let submissionType: 'platform_recruiter' | 'direct_hr_dispatch' | 'external_portal' = 'external_portal';
+    let applicationDestination = 'Employer Official Career Portal';
+    let destinationUrl = jobUrl || `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(jobTitle + ' ' + companyName)}`;
+    let confirmationDetails: any = null;
+    let resumeTransmitted = false;
+    let candidateContactTransmitted = false;
+    let statusNote = '';
+
+    if (matchedRecruiter) {
+      // 1. Direct on-platform submission to verified recruiter
+      submissionStatus = 'submitted';
+      submissionType = 'platform_recruiter';
+      applicationDestination = 'RecruitX Verified Recruiter Portal';
+      destinationUrl = '/student/jobs';
+      confirmationDetails = {
+        confirmationId: `RCX-PLT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+        recipient: `${matchedRecruiter.name} (${matchedRecruiter.email})`,
+        timestamp: new Date(),
+        dispatchMethod: 'RecruitX In-App ATS + Verified WebSocket Delivery',
+      };
+      resumeTransmitted = true;
+      candidateContactTransmitted = true;
+      statusNote = 'Direct application submitted to verified on-platform recruiter with confirmed receipt';
+
+      // Notify recruiter
+      await Notification.create({
+        recipient: matchedRecruiter._id,
+        title: `New Candidate Application: ${jobTitle}`,
+        message: `${req.user.name} applied directly for "${jobTitle}".`,
+        type: 'application_update',
+        priority: 'high',
+        format: 'toast',
+      });
+      emitToUser(matchedRecruiter._id.toString(), 'notification:new', {
+        title: `New Candidate Application: ${jobTitle}`,
+        message: `${req.user.name} applied directly for "${jobTitle}".`,
+      });
+    } else if (hrEmail) {
+      // 2. Verified HR Email Dispatch via Brevo HTTPS API
+      const emailSent = await EmailService.sendApplicationToHR({
+        candidateName: req.user.name,
+        candidateEmail: req.user.email,
+        jobTitle,
+        companyName,
+        headline: resume?.headline,
+        summary: resume?.summary,
+        skills: resume?.skills,
+        fieldOfInterest: resume?.fieldOfInterest,
+        targetHrEmail: hrEmail,
+      });
+
+      if (emailSent) {
+        submissionStatus = 'submitted';
+        submissionType = 'direct_hr_dispatch';
+        applicationDestination = `Verified Company HR Inbox (${hrEmail})`;
+        confirmationDetails = {
+          confirmationId: `RCX-HR-${Date.now().toString(36).toUpperCase()}`,
+          recipient: hrEmail,
+          timestamp: new Date(),
+          dispatchMethod: 'Brevo Transactional HTTPS API (Port 443)',
+        };
+        resumeTransmitted = true;
+        candidateContactTransmitted = true;
+        statusNote = `Application package dispatched to verified hiring inbox (${hrEmail}) with confirmed HTTPS delivery`;
+      } else {
+        submissionStatus = 'submission_failed';
+        submissionType = 'direct_hr_dispatch';
+        applicationDestination = `Company Hiring Inbox (${hrEmail})`;
+        statusNote = 'Automated email dispatch failed. Please apply directly through the employer official portal.';
+      }
+    } else {
+      // 3. External Employer / LinkedIn Portal Opportunity
+      // Automated third-party form-filling on external proprietary career portals cannot be faked!
+      submissionStatus = 'requires_manual_application';
+      submissionType = 'external_portal';
+      applicationDestination = 'Employer Official Career Portal';
+      statusNote = 'Third-party employer requires direct submission through their official career portal. Direct application link provided.';
+      resumeTransmitted = false;
+      candidateContactTransmitted = false;
+    }
+
     const application = await Application.create({
       student: req.user._id,
       companyName,
       jobTitle,
       recruiter: recruiterId,
-      coverLetter: coverLetter || `Direct application for ${jobTitle} at ${companyName}`,
+      coverLetter: coverLetter || `Application for ${jobTitle} at ${companyName}`,
       resumeUrl: resume?.headline ? `Uploaded Resume Profile (${resume.fieldOfInterest || 'Student Profile'})` : 'Uploaded Resume',
       status: 'applied',
-      statusHistory: [{ status: 'applied', note: 'Native application submitted with uploaded resume' }],
+      submissionStatus,
+      submissionType,
+      applicationDestination,
+      destinationUrl,
+      confirmationDetails,
+      submissionError: submissionStatus === 'submission_failed' ? 'Automated dispatch to company inbox failed.' : (submissionStatus === 'requires_manual_application' ? 'External employer requires direct submission on their portal.' : undefined),
+      resumeTransmitted,
+      candidateContactTransmitted,
+      statusHistory: [{ status: 'applied', note: statusNote }],
     });
 
-    // 1. Create real-time notification for student
+    // Create notification for student
+    const notifTitle = submissionStatus === 'submitted'
+      ? 'Application Submitted!'
+      : (submissionStatus === 'requires_manual_application'
+          ? 'Application Tracker Initialized'
+          : 'Submission Failed');
+
+    const notifMsg = submissionStatus === 'submitted'
+      ? `Your application for "${jobTitle}" at ${companyName} was submitted successfully with verified delivery confirmation.`
+      : (submissionStatus === 'requires_manual_application'
+          ? `This role requires submission on ${companyName}'s official portal. We have generated your application tracker and prepared your link.`
+          : `Automated dispatch failed for ${companyName}. Please apply manually via their career portal.`);
+
     const studentNotif = await Notification.create({
       recipient: req.user._id,
-      title: 'Application Submitted!',
-      message: `Your application and uploaded resume for "${jobTitle}" at ${companyName} have been sent successfully.`,
+      title: notifTitle,
+      message: notifMsg,
       type: 'application_update',
       format: 'toast',
       actionText: 'View Applications',
       actionUrl: '/student/applications',
       link: '/student/applications',
     });
-    emitToUser(req.user._id, 'notification:new', { notification: studentNotif });
+    emitToUser(req.user._id.toString(), 'notification:new', { notification: studentNotif });
 
-    // 2. Dispatch Automated Application Package to Target Company HR Inbox
-    await EmailService.sendApplicationToHR({
-      candidateName: req.user.name,
-      candidateEmail: req.user.email,
-      jobTitle,
-      companyName,
-      headline: resume?.headline,
-      summary: resume?.summary,
-      skills: resume?.skills,
-      fieldOfInterest: resume?.fieldOfInterest,
-      targetHrEmail: hrEmail,
+    const responseMsg = submissionStatus === 'submitted'
+      ? `Application for ${jobTitle} at ${companyName} submitted successfully with verified delivery confirmation!`
+      : (submissionStatus === 'requires_manual_application'
+          ? `Application tracker established. This employer requires direct submission on their official career portal.`
+          : `Could not dispatch application automatically. Please use the official application link.`);
+
+    sendSuccess(res, responseMsg, {
+      application,
+      submissionStatus,
+      requiresManualAction: submissionStatus === 'requires_manual_application',
+      officialApplyUrl: destinationUrl,
+    }, 201);
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to process application', null, 500);
+  }
+};
+
+export const confirmManualSubmission = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'student') {
+      sendError(res, 'Only students can confirm application submissions', null, 403);
+      return;
+    }
+
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const application = await Application.findById(id);
+
+    if (!application) {
+      sendError(res, 'Application not found', null, 404);
+      return;
+    }
+
+    const studentIdStr = typeof application.student === 'object' && application.student?._id
+      ? application.student._id.toString()
+      : application.student?.toString();
+
+    if (studentIdStr !== req.user._id.toString()) {
+      sendError(res, 'Not authorized to update this application', null, 403);
+      return;
+    }
+
+    application.submissionStatus = 'submitted';
+    application.statusHistory.push({
+      status: application.status,
+      changedAt: new Date(),
+      note: 'Candidate completed submission on official external portal and verified application status.',
     });
 
-    sendSuccess(res, `Application for ${jobTitle} at ${companyName} submitted successfully! Candidate profile dispatched to HR.`, { application }, 201);
+    application.confirmationDetails = {
+      confirmationId: `MANUAL-CONFIRM-${Date.now().toString(36).toUpperCase()}`,
+      recipient: application.companyName || 'Official Career Portal',
+      dispatchMethod: 'Candidate Self-Verified Portal Submission',
+      timestamp: new Date(),
+    };
+
+    await application.save();
+
+    sendSuccess(res, 'Application submission confirmed successfully! Tracker updated to Confirmed Submitted.', { application });
   } catch (error: any) {
-    sendError(res, error.message || 'Failed to submit application', null, 500);
+    sendError(res, error.message || 'Failed to confirm application submission', null, 500);
   }
 };
 

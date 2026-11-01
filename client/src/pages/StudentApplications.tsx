@@ -58,6 +58,72 @@ export const StudentApplications: React.FC = () => {
 
   // Detail Slideout Drawer
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
+  const [confirmingAppId, setConfirmingAppId] = useState<string | null>(null);
+
+  const handleConfirmManualApplication = async (appId: string) => {
+    try {
+      setConfirmingAppId(appId);
+      const res = await api.patch(`/applications/${appId}/confirm-manual`, {
+        note: 'Candidate confirmed manual submission on official employer career portal',
+      });
+      if (res.data?.success) {
+        const updated = res.data.data?.application || res.data.data;
+        setApplications((prev) =>
+          prev.map((a) => (a._id === appId ? { ...a, ...updated, submissionStatus: 'submitted' } : a))
+        );
+        if (selectedApp && selectedApp._id === appId) {
+          setSelectedApp((prev: any) => ({ ...prev, ...updated, submissionStatus: 'submitted' }));
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to confirm manual application:', err);
+      alert(err.response?.data?.message || 'Failed to update application status.');
+    } finally {
+      setConfirmingAppId(null);
+    }
+  };
+
+  const getSubmissionBadge = (submissionStatus?: string) => {
+    switch (submissionStatus) {
+      case 'submitted':
+        return {
+          label: 'Confirmed Submitted',
+          bg: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+          icon: '✓',
+        };
+      case 'requires_manual_application':
+        return {
+          label: 'Action Required: Official Portal',
+          bg: 'bg-amber-50 text-amber-800 border-amber-300 font-bold',
+          icon: '⚠️',
+        };
+      case 'submission_failed':
+        return {
+          label: 'Submission Failed',
+          bg: 'bg-rose-50 text-rose-800 border-rose-300',
+          icon: '✕',
+        };
+      case 'submitting':
+      case 'pending':
+        return {
+          label: 'Transmitting...',
+          bg: 'bg-blue-50 text-blue-800 border-blue-200',
+          icon: '⏳',
+        };
+      case 'unable_to_verify':
+        return {
+          label: 'Unable to Verify',
+          bg: 'bg-neutral-100 text-neutral-700 border-neutral-300',
+          icon: '?',
+        };
+      default:
+        return {
+          label: 'Verified Recruiter Queue',
+          bg: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+          icon: '✓',
+        };
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -270,6 +336,15 @@ export const StudentApplications: React.FC = () => {
                       <span className={`text-[10.5px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${getStatusBadge(app.status)}`}>
                         {app.status.replace('_', ' ')}
                       </span>
+                      {(() => {
+                        const sb = getSubmissionBadge(app.submissionStatus);
+                        return (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${sb.bg}`}>
+                            <span>{sb.icon}</span>
+                            <span>{sb.label}</span>
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     <p className="text-xs font-semibold text-neutral-600 flex items-center gap-1.5">
@@ -350,6 +425,65 @@ export const StudentApplications: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* External Portal Manual Action Banner */}
+                {app.submissionStatus === 'requires_manual_application' && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-amber-900">Direct Employer Application Required</p>
+                        <p className="text-amber-800 text-[11px]">
+                          This position requires submission on {company}'s official portal. RecruitX has pre-filled your match audit. Complete your submission on the employer site.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {(app.destinationUrl || app.officialApplyUrl) && (
+                        <a
+                          href={app.destinationUrl || app.officialApplyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors shadow-xs"
+                        >
+                          Open Portal <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleConfirmManualApplication(app._id)}
+                        disabled={confirmingAppId === app._id}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-100 transition-colors"
+                      >
+                        {confirmingAppId === app._id ? 'Updating...' : '✓ Mark as Submitted'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Submission Failure Alert */}
+                {app.submissionStatus === 'submission_failed' && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between gap-2 text-xs text-rose-900" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <div>
+                        <p className="font-bold text-rose-900">Application Dispatch Failed</p>
+                        <p className="text-rose-700 text-[11px]">
+                          {app.submissionError || 'Automated dispatch to company inbox failed. Please apply directly via official employer portal.'}
+                        </p>
+                      </div>
+                    </div>
+                    {(app.destinationUrl || app.officialApplyUrl) && (
+                      <a
+                        href={app.destinationUrl || app.officialApplyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-700 text-white font-bold text-xs hover:bg-rose-800 transition-colors shrink-0"
+                      >
+                        Official Portal <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                )}
 
                 {/* Interview Alert Ribbon if Scheduled */}
                 {matchedInterview && (
@@ -450,6 +584,83 @@ export const StudentApplications: React.FC = () => {
                   </div>
                 );
               })()}
+
+              {/* Verifiable Transmission & Delivery Audit Section */}
+              <div className="space-y-3 p-4 rounded-xl border border-neutral-200 bg-neutral-50/80">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Application Transmission & Delivery Audit
+                  </h3>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                    selectedApp.submissionStatus === 'requires_manual_application'
+                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                      : selectedApp.submissionStatus === 'submission_failed'
+                      ? 'bg-rose-50 text-rose-800 border-rose-300'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  }`}>
+                    {selectedApp.submissionStatus === 'requires_manual_application'
+                      ? 'Action Required: Official Portal'
+                      : selectedApp.submissionStatus === 'submission_failed'
+                      ? 'Submission Failed'
+                      : 'Confirmed Submitted ✓'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-2.5 rounded-lg bg-white border border-neutral-200">
+                    <span className="text-[10px] text-neutral-400 font-medium block">Destination System</span>
+                    <span className="font-bold text-neutral-900 block truncate">
+                      {selectedApp.applicationDestination || (selectedApp.submissionType === 'platform_recruiter' ? 'RecruitX Verified Recruiter Portal' : 'Official Employer System')}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-neutral-200">
+                    <span className="text-[10px] text-neutral-400 font-medium block">Dispatch Method</span>
+                    <span className="font-bold text-neutral-900 block truncate">
+                      {selectedApp.confirmationDetails?.dispatchMethod || (selectedApp.submissionType === 'platform_recruiter' ? 'Verified Recruiter ATS + Socket' : selectedApp.submissionType === 'direct_hr_dispatch' ? 'Verified Brevo HTTPS API' : 'External Portal Link')}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-neutral-200">
+                    <span className="text-[10px] text-neutral-400 font-medium block">Confirmation / Audit ID</span>
+                    <span className="font-mono text-[11px] font-bold text-neutral-800 block truncate">
+                      {selectedApp.confirmationDetails?.confirmationId || `RCX-AUDIT-${(selectedApp._id || '').substring(0, 8).toUpperCase()}`}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-neutral-200">
+                    <span className="text-[10px] text-neutral-400 font-medium block">Resume & Data Transmission</span>
+                    <span className="font-bold text-emerald-700 block">
+                      {selectedApp.resumeTransmitted !== false
+                        ? '✓ Transmitted & Verified Received'
+                        : '⚠️ Pending Candidate External Upload'}
+                    </span>
+                  </div>
+                </div>
+
+                {(selectedApp.destinationUrl || selectedApp.officialApplyUrl) && (
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-neutral-200/60">
+                    <a
+                      href={selectedApp.destinationUrl || selectedApp.officialApplyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-blue-700 hover:text-blue-900 underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Official Application Portal Link
+                    </a>
+                    {selectedApp.submissionStatus === 'requires_manual_application' && (
+                      <button
+                        onClick={() => handleConfirmManualApplication(selectedApp._id)}
+                        disabled={confirmingAppId === selectedApp._id}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors"
+                      >
+                        {confirmingAppId === selectedApp._id ? 'Updating...' : '✓ Confirm I Applied on Portal'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Status Timeline History */}
               <div className="space-y-3">

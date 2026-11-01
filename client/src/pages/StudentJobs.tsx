@@ -50,6 +50,11 @@ interface CompanyJob {
   lng: number;
   distanceMiles?: number;
   hrEmail?: string;
+  isPlatformJob?: boolean;
+  isVerifiedActive?: boolean;
+  verificationSource?: string;
+  applicationType?: string;
+  directApplyUrl?: string;
 }
 
 const PRESET_INDIAN_CITIES = [
@@ -139,7 +144,15 @@ export const StudentJobs: React.FC = () => {
   const [autoApplyMaxApps, setAutoApplyMaxApps] = useState<number>(5);
   const [autoApplying, setAutoApplying] = useState(false);
   const [autoApplyError, setAutoApplyError] = useState<string | null>(null);
-  const [autoApplyResult, setAutoApplyResult] = useState<{ appliedCount: number; message: string; applications: any[] } | null>(null);
+  const [autoApplyResult, setAutoApplyResult] = useState<{
+    appliedCount: number;
+    submittedCount?: number;
+    requiresManualCount?: number;
+    submittedApplications?: any[];
+    manualReviewApplications?: any[];
+    message?: string;
+    applications?: any[];
+  } | null>(null);
 
   // GPS Permission Prompt State
   const [gpsModalOpen, setGpsModalOpen] = useState(false);
@@ -326,7 +339,7 @@ export const StudentJobs: React.FC = () => {
     }
   };
 
-  const handleNativeApply = async (company: string, title: string, hrEmail?: string) => {
+  const handleNativeApply = async (company: string, title: string, hrEmail?: string, jobUrl?: string, isPlatformJob?: boolean) => {
     const key = `${company}-${title}`;
     setApplyingKey(key);
 
@@ -335,10 +348,18 @@ export const StudentJobs: React.FC = () => {
         companyName: decodeHtmlEntities(company),
         jobTitle: decodeHtmlEntities(title),
         hrEmail,
+        jobUrl,
       });
 
       setAppliedCompany((prev) => [...prev, key]);
-      alert(`🎉 ${res.data?.message || `Application for ${title} at ${company} submitted successfully with your uploaded resume!`}`);
+      
+      if (res.data?.data?.requiresManualAction && res.data.data.officialApplyUrl) {
+        window.open(res.data.data.officialApplyUrl, '_blank', 'noopener,noreferrer');
+        alert(`📋 Application tracker established for ${title} at ${company}. We have opened the official employer portal in a new tab so you can complete your submission!`);
+      } else {
+        alert(`🎉 ${res.data?.message || `Application for ${title} at ${company} submitted successfully with verified delivery confirmation!`}`);
+      }
+      await fetchExistingApplications();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to submit application');
     } finally {
@@ -512,19 +533,54 @@ export const StudentJobs: React.FC = () => {
             )}
 
             {autoApplyResult && (
-              <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 space-y-2">
-                <div className="flex items-center gap-2 font-bold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>{autoApplyResult.message}</span>
-                </div>
-                {autoApplyResult.applications.length > 0 && (
-                  <div className="space-y-1 pl-6 pt-1 text-[11px] text-emerald-700">
-                    {autoApplyResult.applications.map((app: any) => (
-                      <div key={app._id} className="flex justify-between items-center">
-                        <span>• {app.jobTitle} at <strong>{app.companyName}</strong></span>
-                        <span className="font-semibold text-emerald-800">Applied ✓</span>
-                      </div>
-                    ))}
+              <div className="space-y-3">
+                {autoApplyResult.submittedApplications && autoApplyResult.submittedApplications.length > 0 && (
+                  <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-2">
+                    <div className="flex items-center gap-2 font-bold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>{autoApplyResult.submittedCount} Application(s) Confirmed & Submitted Directly:</span>
+                    </div>
+                    <div className="space-y-1.5 pl-6 pt-1 text-[11px] text-emerald-800">
+                      {autoApplyResult.submittedApplications.map((app: any) => (
+                        <div key={app._id} className="flex justify-between items-center bg-white/70 px-2 py-1.5 rounded border border-emerald-200/60">
+                          <span>• {app.jobTitle} at <strong>{app.companyName}</strong></span>
+                          <span className="font-mono text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            {app.confirmationDetails?.confirmationId || 'Confirmed ✓'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {autoApplyResult.manualReviewApplications && autoApplyResult.manualReviewApplications.length > 0 && (
+                  <div className="p-3.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+                    <div className="flex items-center gap-2 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      <span>{autoApplyResult.requiresManualCount} Role(s) Require Direct Employer Portal Application:</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 pl-6">
+                      These employers require direct submission through their official career portals. Application trackers have been initialized:
+                    </p>
+                    <div className="space-y-1.5 pl-6 pt-1 text-[11px] text-amber-800">
+                      {autoApplyResult.manualReviewApplications.map((app: any) => (
+                        <div key={app._id} className="flex justify-between items-center bg-white/70 px-2 py-1.5 rounded border border-amber-200/60">
+                          <span>• {app.jobTitle} at <strong>{app.companyName}</strong></span>
+                          {app.destinationUrl ? (
+                            <a
+                              href={app.destinationUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-bold text-[10px] text-blue-700 hover:underline flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-200"
+                            >
+                              Apply on Portal ↗
+                            </a>
+                          ) : (
+                            <span className="font-semibold text-amber-800">Manual Portal</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -953,6 +1009,15 @@ export const StudentJobs: React.FC = () => {
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 border border-neutral-200">
                           {job.workMode}
                         </span>
+                        {job.isPlatformJob ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                            <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" /> Platform Verified Recruiter
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-2.5 h-2.5 text-blue-600" /> LinkedIn Live Verified (Active & Hiring)
+                          </span>
+                        )}
                         {isNearby && distFromDevice !== null && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
                             <MapPin className="w-2.5 h-2.5" /> Nearby (&lt;{nearbyRadius} km)
@@ -1067,25 +1132,41 @@ export const StudentJobs: React.FC = () => {
                       </strong>
                     </span>
                   </div>
-                  <Button
-                    onClick={() => handleNativeApply(job.company, job.title, job.hrEmail)}
-                    disabled={isApplied || isApplying}
-                    size="sm"
-                    className="flex items-center gap-1.5"
-                    variant={isApplied ? 'secondary' : 'primary'}
-                  >
-                    {isApplied ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Application Sent (Resume Attached)
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-3.5 h-3.5" />
-                        {isApplying ? 'Submitting Application...' : `Apply Now to ${decodeHtmlEntities(job.company)}`}
-                      </>
+                  <div className="flex items-center gap-2">
+                    {job.jobUrl && !job.isPlatformJob && (
+                      <a
+                        href={job.jobUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-blue-700 hover:underline flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors"
+                      >
+                        Official Job Link ↗
+                      </a>
                     )}
-                  </Button>
+                    <Button
+                      onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, job.jobUrl, job.isPlatformJob)}
+                      disabled={isApplied || isApplying}
+                      size="sm"
+                      className="flex items-center gap-1.5"
+                      variant={isApplied ? 'secondary' : 'primary'}
+                    >
+                      {isApplied ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Tracked in Applications
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          {isApplying
+                            ? 'Processing...'
+                            : job.isPlatformJob
+                            ? 'Apply via RecruitX (Instant Dispatch)'
+                            : 'Apply on Official Portal ↗'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </Card>
             );

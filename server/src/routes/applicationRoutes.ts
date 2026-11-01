@@ -4,6 +4,7 @@ import { authorize } from '../middleware/roleMiddleware.js';
 import {
   applyForJob,
   applyDirectCompanyJob,
+  confirmManualSubmission,
   getApplications,
   updateApplicationStatus,
 } from '../controllers/applicationController.js';
@@ -14,6 +15,7 @@ router.use(authenticate);
 // Student only: apply for job opportunities
 router.post('/', authorize('student'), applyForJob);
 router.post('/apply-direct', authorize('student'), applyDirectCompanyJob);
+router.patch('/:id/confirm-manual', authorize('student'), confirmManualSubmission);
 
 // Recruiter & Admin only: review and transition application stage
 router.patch('/:id/status', authorize('recruiter', 'admin'), updateApplicationStatus);

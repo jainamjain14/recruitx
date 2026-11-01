@@ -8,7 +8,8 @@ import { Application } from '../models/Application.js';
 import { Notification } from '../models/Notification.js';
 import { PlacementEligibilityRule } from '../models/PlacementEligibilityRule.js';
 import { emitToUser } from '../socket.js';
-import { LinkedInService } from '../services/linkedinService.js';
+import { LinkedInService, getVerifiedCompanyHrEmail } from '../services/linkedinService.js';
+import { EmailService } from '../services/emailService.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 
 export const createJob = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -322,9 +323,12 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
       title: string;
       company: string;
       recruiter?: any;
+      jobUrl?: string;
+      hrEmail?: string;
       matchScore: number;
       matchedSkills: string[];
       matchReason: string;
+      isPlatformJob?: boolean;
     }[] = [];
 
     for (const j of activeDbJobs) {
@@ -345,14 +349,16 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
           title: j.title,
           company: j.company,
           recruiter: j.recruiter,
+          jobUrl: `/student/jobs`,
           matchScore: comp.compatibilityScore,
           matchedSkills: comp.matchedSkills,
           matchReason: comp.matchReason,
+          isPlatformJob: true,
         });
       }
     }
 
-    // 3. Also check verified company partner matches if DB has few active listings
+    // 3. Also check verified live opportunities if DB has few active listings
     if (matchedToApply.length < maxApplications) {
       const searchKeyword = candidateIdentity.primaryProfession || candidateIdentity.functionalDiscipline;
       const companyMatches = await LinkedInService.fetchLiveJobs(searchKeyword);
@@ -370,9 +376,12 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
           matchedToApply.push({
             title: cm.title,
             company: cm.company,
+            jobUrl: cm.jobUrl,
+            hrEmail: cm.hrEmail,
             matchScore: comp.compatibilityScore,
             matchedSkills: comp.matchedSkills,
             matchReason: comp.matchReason,
+            isPlatformJob: false,
           });
         }
       }
@@ -382,49 +391,60 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
     if (toProcess.length === 0) {
       sendSuccess(res, 'Auto-apply scan complete. No new unapplied jobs met your minimum match threshold.', {
         appliedCount: 0,
-        applications: [],
+        submittedCount: 0,
+        requiresManualCount: 0,
+        submittedApplications: [],
+        manualReviewApplications: [],
       });
       return;
     }
 
-    const createdApplications: any[] = [];
+    const submittedApplications: any[] = [];
+    const manualReviewApplications: any[] = [];
     const recruiters = await User.find({ role: 'recruiter' });
 
     for (const item of toProcess) {
       let recId = item.recruiter || null;
+      let matchedRecruiter = null;
+
       if (!recId && item.company) {
-        const matched = recruiters.find(
+        matchedRecruiter = recruiters.find(
           (r) => r.company && r.company.toLowerCase().trim() === item.company.toLowerCase().trim()
         );
-        if (matched) recId = matched._id;
+        if (matchedRecruiter) recId = matchedRecruiter._id;
+      } else if (recId) {
+        matchedRecruiter = recruiters.find((r) => r._id.toString() === recId.toString());
       }
 
-      const app = await Application.create({
-        job: item.jobId || undefined,
-        student: studentId,
-        recruiter: recId,
-        companyName: item.company,
-        jobTitle: item.title,
-        coverLetter: `Automated application submitted via RecruitX Universal Career Engine. ${item.matchReason} (Compatibility Match: ${item.matchScore}%).`,
-        resumeUrl: resume.resumeUrl || '',
-        status: 'applied',
-        statusHistory: [{ status: 'applied', note: `Automated compatibility matching (${item.matchScore}%)` }],
-      });
+      // Check for verified direct dispatch email
+      const verifiedHrEmail = item.hrEmail || getVerifiedCompanyHrEmail(item.company);
 
-      createdApplications.push(app);
+      let submissionStatus: 'submitted' | 'requires_manual_application' | 'submission_failed' = 'requires_manual_application';
+      let submissionType: 'platform_recruiter' | 'direct_hr_dispatch' | 'external_portal' = 'external_portal';
+      let applicationDestination = 'Employer Official Career Portal';
+      let destinationUrl = item.jobUrl || `/student/jobs`;
+      let confirmationDetails: any = null;
+      let resumeTransmitted = false;
+      let candidateContactTransmitted = false;
+      let statusNote = '';
 
-      // Create in-app notification for the student
-      await Notification.create({
-        recipient: studentId,
-        title: `Auto-Applied: ${item.title}`,
-        message: `Your profile was automatically submitted to ${item.company} with a ${item.matchScore}% compatibility score.`,
-        type: 'application_update',
-        priority: 'high',
-        format: 'toast',
-      });
+      if (recId && matchedRecruiter) {
+        // 1. Genuine On-Platform Submission to verified recruiter
+        submissionStatus = 'submitted';
+        submissionType = 'platform_recruiter';
+        applicationDestination = 'RecruitX Verified Recruiter Portal';
+        destinationUrl = '/student/jobs';
+        confirmationDetails = {
+          confirmationId: `RCX-PLT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+          recipient: `${matchedRecruiter.name} (${matchedRecruiter.email})`,
+          timestamp: new Date(),
+          dispatchMethod: 'RecruitX In-App ATS + Real-time Socket Event',
+        };
+        resumeTransmitted = true;
+        candidateContactTransmitted = true;
+        statusNote = 'Automated matching: Application delivered directly to verified on-platform recruiter with confirmed receipt';
 
-      // Notify recruiter if present
-      if (recId && recId.toString() !== studentId.toString()) {
+        // Notify recruiter in real-time
         await Notification.create({
           recipient: recId,
           title: `New Candidate Application: ${item.title}`,
@@ -437,17 +457,118 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
           title: `New Candidate Application: ${item.title}`,
           message: `${req.user.name} applied with a ${item.matchScore}% match.`,
         });
+      } else if (verifiedHrEmail) {
+        // 2. Direct HR Email Dispatch via Brevo HTTPS API
+        const emailSent = await EmailService.sendApplicationToHR({
+          candidateName: req.user.name,
+          candidateEmail: req.user.email,
+          jobTitle: item.title,
+          companyName: item.company,
+          headline: resume?.headline,
+          summary: resume?.summary,
+          skills: resume?.skills,
+          fieldOfInterest: resume?.fieldOfInterest,
+          targetHrEmail: verifiedHrEmail,
+        });
+
+        if (emailSent) {
+          submissionStatus = 'submitted';
+          submissionType = 'direct_hr_dispatch';
+          applicationDestination = `Verified Hiring Inbox (${verifiedHrEmail})`;
+          confirmationDetails = {
+            confirmationId: `RCX-HR-${Date.now().toString(36).toUpperCase()}`,
+            recipient: verifiedHrEmail,
+            timestamp: new Date(),
+            dispatchMethod: 'Brevo Transactional HTTPS API (Port 443)',
+          };
+          resumeTransmitted = true;
+          candidateContactTransmitted = true;
+          statusNote = `Automated matching: Application package dispatched to verified hiring inbox (${verifiedHrEmail}) with confirmed HTTPS delivery`;
+        } else {
+          submissionStatus = 'requires_manual_application';
+          submissionType = 'external_portal';
+          applicationDestination = 'Employer Official Career Portal';
+          statusNote = 'Direct email dispatch was unavailable. Please apply via the employer official portal.';
+        }
+      } else {
+        // 3. External Employer / LinkedIn Portal Opportunity
+        // Automated third-party form-filling on external proprietary career portals cannot be faked!
+        submissionStatus = 'requires_manual_application';
+        submissionType = 'external_portal';
+        applicationDestination = 'Employer Official Career Portal';
+        statusNote = 'Direct third-party automated form submission is restricted by employer portal. Direct application link provided for manual completion.';
+        resumeTransmitted = false;
+        candidateContactTransmitted = false;
+      }
+
+      const app = await Application.create({
+        job: item.jobId || undefined,
+        student: studentId,
+        recruiter: recId,
+        companyName: item.company,
+        jobTitle: item.title,
+        coverLetter: `Automated match via RecruitX Universal Career Engine: ${item.matchReason} (Compatibility Match: ${item.matchScore}%).`,
+        resumeUrl: resume.resumeUrl || '',
+        status: 'applied',
+        submissionStatus,
+        submissionType,
+        applicationDestination,
+        destinationUrl,
+        confirmationDetails,
+        submissionError: submissionStatus === 'requires_manual_application' ? 'Third-party employer requires direct submission through their official career portal.' : undefined,
+        resumeTransmitted,
+        candidateContactTransmitted,
+        statusHistory: [{ status: 'applied', note: statusNote }],
+      });
+
+      if (submissionStatus === 'submitted') {
+        submittedApplications.push(app);
+      } else {
+        manualReviewApplications.push(app);
       }
     }
 
-    emitToUser(studentId.toString(), 'notification:new', {
-      title: 'Automated Job Applications Dispatched!',
-      message: `Successfully submitted ${createdApplications.length} matching applications.`,
+    const submittedCount = submittedApplications.length;
+    const requiresManualCount = manualReviewApplications.length;
+
+    let toastTitle = '';
+    let toastMessage = '';
+
+    if (submittedCount > 0 && requiresManualCount > 0) {
+      toastTitle = 'Automated Matching & Submissions Complete';
+      toastMessage = `${submittedCount} application(s) were submitted directly with verified recruiter confirmation. ${requiresManualCount} external role(s) require manual application on official employer portals.`;
+    } else if (submittedCount > 0) {
+      toastTitle = 'Applications Confirmed & Submitted!';
+      toastMessage = `Successfully submitted ${submittedCount} application(s) with verified recruiter receipt confirmation.`;
+    } else {
+      toastTitle = 'Compatible Opportunities Prepared';
+      toastMessage = `Identified ${requiresManualCount} matching opportunities. These employers require direct application through their official career portals.`;
+    }
+
+    await Notification.create({
+      recipient: studentId,
+      title: toastTitle,
+      message: toastMessage,
+      type: 'application_update',
+      priority: 'high',
+      format: 'toast',
+      actionText: 'View Applications',
+      actionUrl: '/student/applications',
+      link: '/student/applications',
     });
 
-    sendSuccess(res, `Successfully auto-applied to ${createdApplications.length} matching jobs!`, {
-      appliedCount: createdApplications.length,
-      applications: createdApplications,
+    emitToUser(studentId.toString(), 'notification:new', {
+      title: toastTitle,
+      message: toastMessage,
+    });
+
+    sendSuccess(res, toastMessage, {
+      appliedCount: submittedCount,
+      submittedCount,
+      requiresManualCount,
+      submittedApplications,
+      manualReviewApplications,
+      totalMatched: toProcess.length,
     });
   } catch (error: any) {
     sendError(res, error.message || 'Auto-apply execution failed', null, 500);

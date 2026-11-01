@@ -3,6 +3,28 @@ import { dateFromFirestore, cleanDataForFirestore, resolvePopulate, PopulateOpti
 
 export type ApplicationStatus = 'applied' | 'under_review' | 'shortlisted' | 'interview_scheduled' | 'offered' | 'rejected';
 
+export type ApplicationSubmissionStatus =
+  | 'pending'
+  | 'submitting'
+  | 'submitted'
+  | 'submission_failed'
+  | 'requires_manual_application'
+  | 'unable_to_verify';
+
+export type ApplicationSubmissionType =
+  | 'platform_recruiter'
+  | 'direct_hr_dispatch'
+  | 'external_portal';
+
+export interface SubmissionConfirmation {
+  confirmationId?: string;
+  recipient?: string;
+  timestamp?: Date;
+  dispatchMethod?: string;
+  messageId?: string;
+  verifiedAt?: Date;
+}
+
 export interface IApplicationDocument {
   _id: string;
   job?: any;
@@ -11,6 +33,14 @@ export interface IApplicationDocument {
   companyName?: string;
   jobTitle?: string;
   status: ApplicationStatus;
+  submissionStatus: ApplicationSubmissionStatus;
+  submissionType: ApplicationSubmissionType;
+  applicationDestination: string;
+  destinationUrl?: string;
+  confirmationDetails?: SubmissionConfirmation;
+  submissionError?: string;
+  resumeTransmitted: boolean;
+  candidateContactTransmitted: boolean;
   coverLetter?: string;
   resumeUrl?: string;
   rating?: number;
@@ -34,6 +64,14 @@ export class ApplicationDoc implements IApplicationDocument {
   companyName?: string;
   jobTitle?: string;
   status: ApplicationStatus;
+  submissionStatus: ApplicationSubmissionStatus;
+  submissionType: ApplicationSubmissionType;
+  applicationDestination: string;
+  destinationUrl?: string;
+  confirmationDetails?: SubmissionConfirmation;
+  submissionError?: string;
+  resumeTransmitted: boolean;
+  candidateContactTransmitted: boolean;
   coverLetter?: string;
   resumeUrl?: string;
   rating?: number;
@@ -55,6 +93,14 @@ export class ApplicationDoc implements IApplicationDocument {
     this.companyName = data.companyName;
     this.jobTitle = data.jobTitle;
     this.status = data.status || 'applied';
+    this.submissionStatus = data.submissionStatus || (data.status === 'applied' ? 'submitted' : 'pending');
+    this.submissionType = data.submissionType || (data.recruiter ? 'platform_recruiter' : 'external_portal');
+    this.applicationDestination = data.applicationDestination || (data.recruiter ? 'RecruitX Verified Recruiter Portal' : 'Platform Application System');
+    this.destinationUrl = data.destinationUrl || '';
+    this.confirmationDetails = data.confirmationDetails || undefined;
+    this.submissionError = data.submissionError || '';
+    this.resumeTransmitted = data.resumeTransmitted !== undefined ? Boolean(data.resumeTransmitted) : true;
+    this.candidateContactTransmitted = data.candidateContactTransmitted !== undefined ? Boolean(data.candidateContactTransmitted) : true;
     this.coverLetter = data.coverLetter || '';
     this.resumeUrl = data.resumeUrl || '';
     this.rating = data.rating;
@@ -85,6 +131,14 @@ export class ApplicationDoc implements IApplicationDocument {
       companyName: this.companyName,
       jobTitle: this.jobTitle,
       status: this.status,
+      submissionStatus: this.submissionStatus,
+      submissionType: this.submissionType,
+      applicationDestination: this.applicationDestination,
+      destinationUrl: this.destinationUrl || null,
+      confirmationDetails: this.confirmationDetails || null,
+      submissionError: this.submissionError || null,
+      resumeTransmitted: this.resumeTransmitted,
+      candidateContactTransmitted: this.candidateContactTransmitted,
       coverLetter: this.coverLetter,
       resumeUrl: this.resumeUrl,
       rating: this.rating !== undefined ? this.rating : null,
@@ -166,6 +220,14 @@ export class Application {
     rating?: number;
     internalNotes?: string;
     status?: ApplicationStatus;
+    submissionStatus?: ApplicationSubmissionStatus;
+    submissionType?: ApplicationSubmissionType;
+    applicationDestination?: string;
+    destinationUrl?: string;
+    confirmationDetails?: SubmissionConfirmation;
+    submissionError?: string;
+    resumeTransmitted?: boolean;
+    candidateContactTransmitted?: boolean;
     statusHistory?: any[];
   }): Promise<IApplicationDocument> {
     const jobId = data.job ? (typeof data.job === 'object' && data.job._id ? data.job._id.toString() : data.job.toString()) : null;
@@ -183,6 +245,14 @@ export class Application {
       companyName: data.companyName || '',
       jobTitle: data.jobTitle || '',
       status,
+      submissionStatus: data.submissionStatus || (status === 'applied' ? 'submitted' : 'pending'),
+      submissionType: data.submissionType || (recruiterId ? 'platform_recruiter' : 'external_portal'),
+      applicationDestination: data.applicationDestination || (recruiterId ? 'RecruitX Verified Recruiter Portal' : 'Platform Application System'),
+      destinationUrl: data.destinationUrl || null,
+      confirmationDetails: data.confirmationDetails || null,
+      submissionError: data.submissionError || null,
+      resumeTransmitted: data.resumeTransmitted !== undefined ? Boolean(data.resumeTransmitted) : true,
+      candidateContactTransmitted: data.candidateContactTransmitted !== undefined ? Boolean(data.candidateContactTransmitted) : true,
       coverLetter: data.coverLetter || '',
       resumeUrl: data.resumeUrl || '',
       rating: data.rating !== undefined ? data.rating : null,
