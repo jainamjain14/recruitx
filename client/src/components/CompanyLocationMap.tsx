@@ -532,7 +532,7 @@ export const CompanyLocationMap: React.FC<CompanyLocationMapProps> = ({
                   className="flex items-center gap-1 text-xs"
                 >
                   <Send className="w-3 h-3" />
-                  {appliedKeys.includes(`${selectedCompany.company}-${selectedCompany.title}`) ? 'Applied' : 'Apply Now'}
+                  {appliedKeys.includes(`${selectedCompany.company}-${selectedCompany.title}`) ? 'Tracked ✓' : 'Apply Now'}
                 </Button>
               </div>
             </div>

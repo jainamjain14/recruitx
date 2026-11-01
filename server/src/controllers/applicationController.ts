@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types/index.js';
 import { Application, ApplicationSubmissionStatus } from '../models/Application.js';
-import { AtsVerificationService } from '../services/atsVerificationService.js';
+import { AtsVerificationService, APPLICATION_STATUS_CONFIG } from '../services/atsVerificationService.js';
 import { Job } from '../models/Job.js';
 import { Resume } from '../models/Resume.js';
 import { PlacementEligibilityRule } from '../models/PlacementEligibilityRule.js';
@@ -109,7 +109,8 @@ export const applyForJob = async (req: AuthenticatedRequest, res: Response): Pro
       jobTitle: job.title,
       coverLetter: coverLetter || '',
       resumeUrl: resumeUrl || '',
-      status: 'applied',
+      status: 'awaiting_employer_verification',
+      evidenceClassification: 'internal_recruitx',
       submissionStatus: 'submitted',
       submissionType: 'platform_recruiter',
       applicationDestination: 'RecruitX Verified Recruiter Portal',
@@ -288,6 +289,14 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       candidateContactTransmitted = false;
     }
 
+    const initialStatus = submissionStatus === 'requires_manual_application'
+      ? 'external_application_required'
+      : 'awaiting_employer_verification';
+
+    const evidenceClassification = matchedRecruiter
+      ? 'internal_recruitx'
+      : (submissionType === 'direct_hr_dispatch' ? 'external_system_response' : 'internal_recruitx');
+
     const application = await Application.create({
       student: req.user._id,
       companyName,
@@ -295,7 +304,8 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       recruiter: recruiterId,
       coverLetter: coverLetter || `Application for ${jobTitle} at ${companyName}`,
       resumeUrl: resume?.headline ? `Uploaded Resume Profile (${resume.fieldOfInterest || 'Student Profile'})` : 'Uploaded Resume',
-      status: 'applied',
+      status: initialStatus,
+      evidenceClassification,
       submissionStatus,
       submissionType,
       applicationDestination,
@@ -304,7 +314,7 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       submissionError: (submissionStatus as any) === 'submission_failed' ? 'Automated dispatch to company inbox failed.' : (submissionStatus === 'requires_manual_application' ? 'External employer requires direct submission on their portal.' : undefined),
       resumeTransmitted,
       candidateContactTransmitted,
-      statusHistory: [{ status: 'applied', note: statusNote }],
+      statusHistory: [{ status: initialStatus, note: statusNote }],
     });
 
     // Create notification for student
@@ -374,23 +384,37 @@ export const confirmManualSubmission = async (req: AuthenticatedRequest, res: Re
     }
 
     // Mark as External Submission — Awaiting Verification
+    application.status = 'awaiting_employer_verification';
+    application.primaryStatus = 'awaiting_employer_verification';
     application.submissionStatus = 'external_awaiting_verification';
+    application.evidenceClassification = 'candidate_provided';
     application.verificationLifecycleStage = 'dispatched';
     application.statusHistory.push({
-      status: application.status,
+      status: 'awaiting_employer_verification',
       changedAt: new Date(),
-      note: 'Candidate completed external career portal submission — External Submission Awaiting Verification.',
+      note: 'Candidate completed external career portal submission — Submitted, Awaiting Employer Verification.',
     });
 
     application.confirmationDetails = {
       confirmationId: `EXT-DISPATCH-${application._id}`,
       recipient: application.companyName || 'Official Career Portal',
-      dispatchMethod: 'Candidate External Portal Dispatch',
+      dispatchMethod: 'Candidate Self-Reported Portal Submission',
       timestamp: new Date(),
       verifiedAt: new Date(),
     };
 
     await application.save();
+
+    try {
+      await Notification.create({
+        recipient: req.user._id,
+        title: 'Application Submission Recorded',
+        message: `Submission recorded for ${application.companyName || 'Employer'} — awaiting independent employer verification.`,
+        type: 'application_update',
+        priority: 'normal',
+        format: 'toast',
+      });
+    } catch (e) {}
 
     sendSuccess(res, 'Application marked as External Submission — Awaiting Verification. Please link your employer confirmation email or ATS reference once received.', { application });
   } catch (error: any) {
@@ -429,6 +453,7 @@ export const linkEmployerReceipt = async (req: AuthenticatedRequest, res: Respon
       externalReferenceNumber,
       employerSenderEmail,
       employerConfirmationSnippet,
+      rawEmailHeaders,
       receivedAt,
     } = req.body;
 
@@ -438,6 +463,7 @@ export const linkEmployerReceipt = async (req: AuthenticatedRequest, res: Respon
       externalReferenceNumber,
       employerSenderEmail,
       employerConfirmationSnippet,
+      rawEmailHeaders,
       receivedAt,
     });
 
@@ -447,31 +473,79 @@ export const linkEmployerReceipt = async (req: AuthenticatedRequest, res: Respon
     }
 
     application.employerReceipt = verification.receipt;
-    application.submissionStatus = 'submitted';
-    application.verificationLifecycleStage = 'employer_receipt_confirmed';
     application.externalAtsName = AtsVerificationService.detectAtsProvider(externalReferenceNumber, employerSenderEmail);
-    application.externalStatus = 'Application Received by Employer';
 
-    application.confirmationDetails = {
-      confirmationId: verification.receipt.externalReferenceNumber || `EXT-CONFIRMED-${application._id}`,
-      recipient: verification.receipt.employerSenderEmail || application.companyName || 'Employer ATS',
-      dispatchMethod: `Verified Employer Confirmation Receipt [${application.externalAtsName}]`,
-      timestamp: verification.receipt.confirmedAt,
-      verifiedAt: new Date(),
-    };
+    if (verification.isIndependentlyAuthenticated) {
+      application.status = 'employer_receipt_confirmed';
+      application.primaryStatus = 'employer_receipt_confirmed';
+      application.submissionStatus = 'submitted';
+      application.evidenceClassification = 'independently_authenticated';
+      application.verificationLifecycleStage = 'employer_receipt_confirmed';
+      application.externalStatus = 'Application Received by Employer';
 
-    application.statusHistory.push({
-      status: application.status,
-      changedAt: new Date(),
-      note: `Employer-side receipt confirmed: ATS Reference #${verification.receipt.externalReferenceNumber || 'CONFIRMED'} via ${verification.receipt.employerSenderEmail || 'employer confirmation'}.`,
-    });
+      application.confirmationDetails = {
+        confirmationId: verification.receipt.externalReferenceNumber || `EXT-CONFIRMED-${application._id}`,
+        recipient: verification.receipt.employerSenderEmail || application.companyName || 'Employer ATS',
+        dispatchMethod: `Independently Authenticated [${application.externalAtsName}] via DKIM/SPF`,
+        timestamp: verification.receipt.confirmedAt,
+        verifiedAt: new Date(),
+      };
+
+      application.statusHistory.push({
+        status: 'employer_receipt_confirmed',
+        changedAt: new Date(),
+        note: `Employer-side receipt independently confirmed: ${verification.receipt.verifiedNotes}`,
+      });
+
+      try {
+        await Notification.create({
+          recipient: req.user._id,
+          title: 'Employer Application Receipt Independently Confirmed',
+          message: `Authentic employer receipt verified for ${application.companyName} via cryptographic email headers (Ref #${verification.receipt.externalReferenceNumber || 'CONFIRMED'}).`,
+          type: 'application_update',
+          priority: 'high',
+          format: 'toast',
+        });
+      } catch (e) {}
+    } else {
+      application.status = 'awaiting_employer_verification';
+      application.primaryStatus = 'awaiting_employer_verification';
+      application.submissionStatus = 'external_awaiting_verification';
+      application.evidenceClassification = 'candidate_provided';
+      application.verificationLifecycleStage = 'dispatched';
+      application.externalStatus = 'Awaiting Independent Employer Confirmation';
+
+      application.statusHistory.push({
+        status: 'awaiting_employer_verification',
+        changedAt: new Date(),
+        note: `Candidate attached employer reference #${verification.receipt.externalReferenceNumber || 'REF'} (Self-reported; awaiting independent authentication).`,
+      });
+
+      try {
+        await Notification.create({
+          recipient: req.user._id,
+          title: 'Employer Reference Number Saved',
+          message: `Reference #${verification.receipt.externalReferenceNumber || 'REF'} saved for ${application.companyName}. Awaiting independent employer verification.`,
+          type: 'application_update',
+          priority: 'normal',
+          format: 'toast',
+        });
+      } catch (e) {}
+    }
 
     await application.save();
 
-    sendSuccess(res, 'Employer confirmation receipt verified and linked successfully! Application stage updated to Employer Receipt Confirmed.', {
-      application,
-      receipt: verification.receipt,
-    });
+    sendSuccess(
+      res,
+      verification.isIndependentlyAuthenticated
+        ? 'Employer confirmation receipt independently authenticated! Status updated to Employer Receipt Confirmed.'
+        : 'Employer reference details recorded in candidate audit records. Status is Submitted — Awaiting Employer Verification.',
+      {
+        application,
+        receipt: verification.receipt,
+        isIndependentlyAuthenticated: verification.isIndependentlyAuthenticated,
+      }
+    );
   } catch (error: any) {
     sendError(res, error.message || 'Failed to link employer confirmation receipt', null, 500);
   }
@@ -605,6 +679,10 @@ export const getApplications = async (req: AuthenticatedRequest, res: Response):
         const atsEval = AtsVerificationService.evaluateApplicationVerification(app);
         return {
           ...app,
+          status: atsEval.authoritativeStatus,
+          authoritativeStatus: atsEval.authoritativeStatus,
+          evidenceClassification: atsEval.evidenceClassification,
+          statusConfig: APPLICATION_STATUS_CONFIG[atsEval.authoritativeStatus],
           recruiter: recruiterData,
           atsVerification: atsEval,
           candidateProfile: r ? {

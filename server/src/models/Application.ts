@@ -1,7 +1,30 @@
 import { db, Collections } from '../config/firebase.js';
 import { dateFromFirestore, cleanDataForFirestore, resolvePopulate, PopulateOption } from './firestoreHelper.js';
 
-export type ApplicationStatus = 'applied' | 'under_review' | 'shortlisted' | 'interview_scheduled' | 'offered' | 'rejected';
+export type PrimaryApplicationStatus =
+  | 'saved_in_recruitx'
+  | 'external_application_required'
+  | 'awaiting_employer_verification'
+  | 'employer_receipt_confirmed'
+  | 'employer_status_updated'
+  | 'submission_failed'
+  | 'unable_to_verify';
+
+export type EmployerHiringStage =
+  | 'applied'
+  | 'under_review'
+  | 'shortlisted'
+  | 'interview_scheduled'
+  | 'offered'
+  | 'rejected';
+
+export type ApplicationStatus = PrimaryApplicationStatus | EmployerHiringStage;
+
+export type EvidenceClassification =
+  | 'internal_recruitx'
+  | 'candidate_provided'
+  | 'external_system_response'
+  | 'independently_authenticated';
 
 export type ApplicationSubmissionStatus =
   | 'pending'
@@ -25,7 +48,13 @@ export type ApplicationSubmissionType =
   | 'external_portal';
 
 export interface EmployerReceipt {
-  receiptSource: 'recruiter_in_app_review' | 'employer_confirmation_email' | 'external_ats_reference' | 'authorized_integration_sync';
+  receiptSource:
+    | 'recruiter_in_app_review'
+    | 'employer_confirmation_email'
+    | 'external_ats_reference'
+    | 'authorized_integration_sync'
+    | 'employer_webhook'
+    | 'candidate_self_reported';
   externalReferenceNumber?: string;
   employerSenderEmail?: string;
   employerConfirmationSnippet?: string;
@@ -33,6 +62,9 @@ export interface EmployerReceipt {
   receiptHash?: string;
   confirmedAt: Date;
   verifiedNotes?: string;
+  isIndependentlyAuthenticated?: boolean;
+  rawEmailHeaders?: string;
+  evidenceClassification?: EvidenceClassification;
 }
 
 export interface SubmissionConfirmation {
@@ -52,6 +84,9 @@ export interface IApplicationDocument {
   companyName?: string;
   jobTitle?: string;
   status: ApplicationStatus;
+  primaryStatus?: PrimaryApplicationStatus;
+  hiringStage?: EmployerHiringStage;
+  evidenceClassification?: EvidenceClassification;
   submissionStatus: ApplicationSubmissionStatus;
   submissionType: ApplicationSubmissionType;
   applicationDestination: string;
@@ -80,47 +115,96 @@ export interface IApplicationDocument {
 }
 
 export class ApplicationDoc implements IApplicationDocument {
-  _id: string;
-  job?: any;
-  student: any;
-  recruiter?: any;
-  companyName?: string;
-  jobTitle?: string;
-  status: ApplicationStatus;
-  submissionStatus: ApplicationSubmissionStatus;
-  submissionType: ApplicationSubmissionType;
-  applicationDestination: string;
-  destinationUrl?: string;
-  confirmationDetails?: SubmissionConfirmation;
-  verificationLifecycleStage: VerificationLifecycleStage;
-  employerReceipt?: EmployerReceipt;
-  externalAtsName?: string;
-  externalStatus?: string;
-  submissionError?: string;
-  resumeTransmitted: boolean;
-  candidateContactTransmitted: boolean;
-  coverLetter?: string;
-  resumeUrl?: string;
-  rating?: number;
-  internalNotes?: string;
-  appliedAt: Date;
-  statusHistory: {
+  declare _id: string;
+  declare job?: any;
+  declare student: any;
+  declare recruiter?: any;
+  declare companyName?: string;
+  declare jobTitle?: string;
+  declare status: ApplicationStatus;
+  declare primaryStatus?: PrimaryApplicationStatus;
+  declare hiringStage?: EmployerHiringStage;
+  declare evidenceClassification?: EvidenceClassification;
+  declare isIndependentlyAuthenticated?: boolean;
+  declare submissionStatus: ApplicationSubmissionStatus;
+  declare submissionType: ApplicationSubmissionType;
+  declare applicationDestination: string;
+  declare destinationUrl?: string;
+  declare confirmationDetails?: SubmissionConfirmation;
+  declare verificationLifecycleStage: VerificationLifecycleStage;
+  declare employerReceipt?: EmployerReceipt;
+  declare externalAtsName?: string;
+  declare externalStatus?: string;
+  declare submissionError?: string;
+  declare resumeTransmitted: boolean;
+  declare candidateContactTransmitted: boolean;
+  declare coverLetter?: string;
+  declare resumeUrl?: string;
+  declare rating?: number;
+  declare internalNotes?: string;
+  declare appliedAt: Date;
+  declare statusHistory: {
     status: ApplicationStatus;
     changedAt: Date;
     note?: string;
   }[];
-  createdAt: Date;
-  updatedAt: Date;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
-  constructor(data: any, id: string) {
-    this._id = id;
+  constructor(data: any, id?: string) {
+    this._id = id || data._id || data.id || '';
     this.job = data.job;
     this.student = data.student;
     this.recruiter = data.recruiter;
     this.companyName = data.companyName;
     this.jobTitle = data.jobTitle;
-    this.status = data.status || 'applied';
-    this.submissionStatus = data.submissionStatus || (data.status === 'applied' ? 'submitted' : 'pending');
+    this.hiringStage = data.hiringStage || (['under_review', 'shortlisted', 'interview_scheduled', 'offered', 'rejected'].includes(data.status) ? data.status : undefined);
+
+    if (data.primaryStatus && ['saved_in_recruitx', 'external_application_required', 'awaiting_employer_verification', 'employer_receipt_confirmed', 'employer_status_updated', 'submission_failed', 'unable_to_verify'].includes(data.primaryStatus)) {
+      this.status = data.primaryStatus;
+    } else if (data.status && ['saved_in_recruitx', 'external_application_required', 'awaiting_employer_verification', 'employer_receipt_confirmed', 'employer_status_updated', 'submission_failed', 'unable_to_verify'].includes(data.status)) {
+      this.status = data.status;
+    } else if (this.hiringStage) {
+      this.status = 'employer_status_updated';
+    } else if (data.submissionStatus === 'requires_manual_application') {
+      this.status = 'external_application_required';
+    } else if (data.submissionStatus === 'external_awaiting_verification' || (data.submissionStatus as string) === 'dispatched' || data.portalSubmissionConfirmedAt) {
+      this.status = 'awaiting_employer_verification';
+    } else if (data.submissionStatus === 'submission_failed') {
+      this.status = 'submission_failed';
+    } else if (data.submissionStatus === 'unable_to_verify') {
+      this.status = 'unable_to_verify';
+    } else if (data.employerReceipt?.isIndependentlyAuthenticated || data.isIndependentlyAuthenticated || data.evidenceClassification === 'independently_authenticated') {
+      this.status = 'employer_receipt_confirmed';
+    } else if (data.recruiter) {
+      this.status = 'awaiting_employer_verification';
+    } else if (data.submissionType === 'external_portal' || !data.recruiter) {
+      this.status = 'external_application_required';
+    } else {
+      this.status = 'awaiting_employer_verification';
+    }
+
+    this.primaryStatus = (this.status as PrimaryApplicationStatus);
+
+    if (data.evidenceClassification) {
+      this.evidenceClassification = data.evidenceClassification;
+    } else if (data.employerReceipt?.isIndependentlyAuthenticated || data.isIndependentlyAuthenticated || data.evidenceClassification === 'independently_authenticated') {
+      this.evidenceClassification = 'independently_authenticated';
+    } else if (data.confirmationDetails?.messageId && data.submissionType === 'direct_hr_dispatch') {
+      this.evidenceClassification = 'external_system_response';
+    } else if (data.employerReceipt?.receiptSource === 'candidate_self_reported' || data.submissionStatus === 'external_awaiting_verification' || (data.submissionStatus as string) === 'dispatched' || data.portalSubmissionConfirmedAt) {
+      this.evidenceClassification = 'candidate_provided';
+    } else {
+      this.evidenceClassification = 'internal_recruitx';
+    }
+
+    this.submissionStatus = data.submissionStatus || (
+      this.status === 'external_application_required' ? 'requires_manual_application' :
+      this.status === 'awaiting_employer_verification' ? 'external_awaiting_verification' :
+      this.status === 'employer_receipt_confirmed' ? 'submitted' :
+      this.status === 'employer_status_updated' ? 'submitted' :
+      this.status === 'submission_failed' ? 'submission_failed' : 'pending'
+    );
     this.submissionType = data.submissionType || (data.recruiter ? 'platform_recruiter' : 'external_portal');
     this.applicationDestination = data.applicationDestination || (data.recruiter ? 'RecruitX Verified Recruiter Portal' : 'Platform Application System');
     this.destinationUrl = data.destinationUrl || '';
@@ -169,6 +253,9 @@ export class ApplicationDoc implements IApplicationDocument {
       companyName: this.companyName,
       jobTitle: this.jobTitle,
       status: this.status,
+      primaryStatus: this.primaryStatus || this.status,
+      hiringStage: this.hiringStage || null,
+      evidenceClassification: this.evidenceClassification || 'internal_recruitx',
       submissionStatus: this.submissionStatus,
       submissionType: this.submissionType,
       applicationDestination: this.applicationDestination,
@@ -251,6 +338,12 @@ class ApplicationQueryBuilder<T> implements PromiseLike<T> {
 }
 
 export class Application {
+  constructor(data?: any, id?: string) {
+    if (data) {
+      return new ApplicationDoc(data, id) as any;
+    }
+  }
+
   static async create(data: {
     job?: any;
     student: any;
@@ -262,6 +355,7 @@ export class Application {
     rating?: number;
     internalNotes?: string;
     status?: ApplicationStatus;
+    evidenceClassification?: EvidenceClassification;
     submissionStatus?: ApplicationSubmissionStatus;
     submissionType?: ApplicationSubmissionType;
     applicationDestination?: string;
@@ -275,14 +369,42 @@ export class Application {
     resumeTransmitted?: boolean;
     candidateContactTransmitted?: boolean;
     statusHistory?: any[];
+    portalSubmissionConfirmedAt?: Date | string;
+    isIndependentlyAuthenticated?: boolean;
   }): Promise<IApplicationDocument> {
     const jobId = data.job ? (typeof data.job === 'object' && data.job._id ? data.job._id.toString() : data.job.toString()) : null;
     const studentId = typeof data.student === 'object' && data.student._id ? data.student._id.toString() : data.student.toString();
     const recruiterId = data.recruiter ? (typeof data.recruiter === 'object' && data.recruiter._id ? data.recruiter._id.toString() : data.recruiter.toString()) : null;
 
     const now = new Date();
-    const status = data.status || 'applied';
-    const statusHistory = data.statusHistory || [{ status, changedAt: now, note: 'Application submitted' }];
+
+    let computedStatus: ApplicationStatus = data.status || 'applied';
+    if (!data.status || data.status === 'applied') {
+      if (data.submissionStatus === 'requires_manual_application' || (!recruiterId && data.submissionType !== 'direct_hr_dispatch')) {
+        computedStatus = 'external_application_required';
+      } else if (data.submissionStatus === 'external_awaiting_verification' || (data.submissionStatus as string) === 'dispatched' || data.portalSubmissionConfirmedAt) {
+        computedStatus = 'awaiting_employer_verification';
+      } else if (data.submissionStatus === 'submission_failed') {
+        computedStatus = 'submission_failed';
+      } else if (data.submissionStatus === 'unable_to_verify') {
+        computedStatus = 'unable_to_verify';
+      } else if (data.employerReceipt?.isIndependentlyAuthenticated || data.isIndependentlyAuthenticated || data.evidenceClassification === 'independently_authenticated') {
+        computedStatus = 'employer_receipt_confirmed';
+      } else if (recruiterId) {
+        computedStatus = 'awaiting_employer_verification';
+      } else {
+        computedStatus = 'external_application_required';
+      }
+    }
+
+    const status = computedStatus;
+    const evidenceClassification: EvidenceClassification = data.evidenceClassification || (
+      data.employerReceipt?.isIndependentlyAuthenticated ? 'independently_authenticated' :
+      data.confirmationDetails?.messageId && data.submissionType === 'direct_hr_dispatch' ? 'external_system_response' :
+      data.submissionStatus === 'external_awaiting_verification' ? 'candidate_provided' :
+      'internal_recruitx'
+    );
+    const statusHistory = data.statusHistory || [{ status, changedAt: now, note: 'Application record created' }];
 
     const docData = cleanDataForFirestore({
       job: jobId,
@@ -291,7 +413,16 @@ export class Application {
       companyName: data.companyName || '',
       jobTitle: data.jobTitle || '',
       status,
-      submissionStatus: data.submissionStatus || (status === 'applied' ? 'submitted' : 'pending'),
+      primaryStatus: status,
+      hiringStage: (['under_review', 'shortlisted', 'interview_scheduled', 'offered', 'rejected'].includes(status) ? status : null),
+      evidenceClassification,
+      submissionStatus: data.submissionStatus || (
+        status === 'external_application_required' ? 'requires_manual_application' :
+        status === 'awaiting_employer_verification' ? 'external_awaiting_verification' :
+        status === 'employer_receipt_confirmed' ? 'submitted' :
+        status === 'employer_status_updated' ? 'submitted' :
+        status === 'submission_failed' ? 'submission_failed' : 'pending'
+      ),
       submissionType: data.submissionType || (recruiterId ? 'platform_recruiter' : 'external_portal'),
       applicationDestination: data.applicationDestination || (recruiterId ? 'RecruitX Verified Recruiter Portal' : 'Platform Application System'),
       destinationUrl: data.destinationUrl || null,

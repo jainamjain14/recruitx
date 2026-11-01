@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -15,7 +16,7 @@ import {
   Sparkles,
   ShieldCheck,
   Send,
-  Map,
+  ExternalLink,
   ListFilter,
   Navigation,
   Mail,
@@ -127,6 +128,7 @@ const resolveDetailedLocation = (lat: number, lng: number): { shortLabel: string
 };
 
 export const StudentJobs: React.FC = () => {
+  const navigate = useNavigate();
   const [targetDomain, setTargetDomain] = useState('Marketing & Growth Management');
   const [companyJobs, setCompanyJobs] = useState<CompanyJob[]>([]);
   const [search, setSearch] = useState('');
@@ -134,6 +136,7 @@ export const StudentJobs: React.FC = () => {
   const [nearbyRadius, setNearbyRadius] = useState<number>(50); // 50 km default radius
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [appliedCompany, setAppliedCompany] = useState<string[]>([]);
+  const [existingAppsMap, setExistingAppsMap] = useState<Record<string, any>>({});
   const [applyingKey, setApplyingKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -334,6 +337,15 @@ export const StudentJobs: React.FC = () => {
       const apps = res.data?.data?.applications || [];
       const appliedKeys = apps.map((a: any) => `${a.companyName || a.job?.company}-${a.jobTitle || a.job?.title}`);
       setAppliedCompany(appliedKeys);
+
+      const appMap: Record<string, any> = {};
+      apps.forEach((a: any) => {
+        const comp = (a.companyName || a.job?.company || '').toLowerCase().trim();
+        const tit = (a.jobTitle || a.job?.title || '').toLowerCase().trim();
+        appMap[`${comp}-${tit}`] = a;
+        appMap[`${a.companyName || a.job?.company}-${a.jobTitle || a.job?.title}`] = a;
+      });
+      setExistingAppsMap(appMap);
     } catch (err) {
       console.error(err);
     }
@@ -1143,29 +1155,110 @@ export const StudentJobs: React.FC = () => {
                         Official Job Link ↗
                       </a>
                     )}
-                    <Button
-                      onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, job.jobUrl, job.isPlatformJob)}
-                      disabled={isApplied || isApplying}
-                      size="sm"
-                      className="flex items-center gap-1.5"
-                      variant={isApplied ? 'secondary' : 'primary'}
-                    >
-                      {isApplied ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          Tracked in Applications
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" />
-                          {isApplying
-                            ? 'Processing...'
-                            : job.isPlatformJob
-                            ? 'Apply via RecruitX (Instant Dispatch)'
-                            : 'Apply on Official Portal ↗'}
-                        </>
-                      )}
-                    </Button>
+                    {(() => {
+                      const cleanComp = decodeHtmlEntities(job.company).toLowerCase().trim();
+                      const cleanTit = decodeHtmlEntities(job.title).toLowerCase().trim();
+                      const existingApp = existingAppsMap[`${cleanComp}-${cleanTit}`] || existingAppsMap[companyKey];
+                      const appStatus = existingApp?.authoritativeStatus || existingApp?.status;
+
+                      if (existingApp && appStatus === 'external_application_required') {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-amber-50 text-amber-900 border-amber-300 flex items-center gap-1">
+                              <span>⚠️</span> Action Required
+                            </span>
+                            <a
+                              href={job.jobUrl || existingApp.destinationUrl || `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(job.title + ' ' + job.company)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors shadow-xs"
+                            >
+                              Complete on Portal <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        );
+                      }
+
+                      if (existingApp && appStatus === 'awaiting_employer_verification') {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-sky-50 text-sky-900 border-sky-300 flex items-center gap-1">
+                              <span>⏳</span> Awaiting Verification
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => navigate('/student/applications')}
+                              className="text-xs"
+                            >
+                              View in Tracker
+                            </Button>
+                          </div>
+                        );
+                      }
+
+                      if (existingApp && appStatus === 'employer_receipt_confirmed') {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-emerald-50 text-emerald-900 border-emerald-300 flex items-center gap-1 font-bold">
+                              <span>✓</span> Receipt Confirmed
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => navigate('/student/applications')}
+                              className="text-xs text-emerald-800 border-emerald-300 bg-emerald-50"
+                            >
+                              Verified Receipt
+                            </Button>
+                          </div>
+                        );
+                      }
+
+                      if (existingApp && appStatus === 'employer_status_updated') {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-purple-50 text-purple-900 border-purple-300 flex items-center gap-1">
+                              <span>⚡</span> {(existingApp.hiringStage || existingApp.status || '').replace('_', ' ').toUpperCase()}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => navigate('/student/applications')}
+                              className="text-xs text-purple-800 border-purple-300 bg-purple-50"
+                            >
+                              Pipeline View
+                            </Button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <Button
+                          onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, job.jobUrl, job.isPlatformJob)}
+                          disabled={isApplied || isApplying}
+                          size="sm"
+                          className="flex items-center gap-1.5"
+                          variant={isApplied ? 'secondary' : 'primary'}
+                        >
+                          {isApplied ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-neutral-600" />
+                              Tracked in Applications
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-3.5 h-3.5" />
+                              {isApplying
+                                ? 'Processing...'
+                                : job.isPlatformJob
+                                ? 'Apply via RecruitX (Instant Dispatch)'
+                                : 'Apply on Official Portal ↗'}
+                            </>
+                          )}
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </div>
               </Card>

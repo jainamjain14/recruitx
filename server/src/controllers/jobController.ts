@@ -507,6 +507,14 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         candidateContactTransmitted = false;
       }
 
+      const computedAppStatus = submissionStatus === 'requires_manual_application'
+        ? 'external_application_required'
+        : 'awaiting_employer_verification';
+
+      const evidenceClassification = (recId && matchedRecruiter)
+        ? 'internal_recruitx'
+        : (submissionType === 'direct_hr_dispatch' ? 'external_system_response' : 'internal_recruitx');
+
       const app = await Application.create({
         job: item.jobId || undefined,
         student: studentId,
@@ -515,7 +523,8 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         jobTitle: item.title,
         coverLetter: `Automated match via RecruitX Universal Career Engine: ${item.matchReason} (Compatibility Match: ${item.matchScore}%).`,
         resumeUrl: resume.resumeUrl || '',
-        status: 'applied',
+        status: computedAppStatus,
+        evidenceClassification,
         submissionStatus,
         submissionType,
         applicationDestination,
@@ -524,7 +533,7 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         submissionError: submissionStatus === 'requires_manual_application' ? 'Third-party employer requires direct submission through their official career portal.' : undefined,
         resumeTransmitted,
         candidateContactTransmitted,
-        statusHistory: [{ status: 'applied', note: statusNote }],
+        statusHistory: [{ status: computedAppStatus, note: statusNote }],
       });
 
       if (submissionStatus === 'submitted') {
@@ -541,13 +550,13 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
     let toastMessage = '';
 
     if (submittedCount > 0 && requiresManualCount > 0) {
-      toastTitle = 'Automated Matching & Submissions Complete';
-      toastMessage = `${submittedCount} application(s) were submitted directly with verified recruiter confirmation. ${requiresManualCount} external role(s) require manual application on official employer portals.`;
+      toastTitle = 'Matching & Direct Dispatches Complete';
+      toastMessage = `${submittedCount} application(s) dispatched to verified recruiter queues. ${requiresManualCount} external role(s) require manual submission on official employer portals.`;
     } else if (submittedCount > 0) {
-      toastTitle = 'Applications Confirmed & Submitted!';
-      toastMessage = `Successfully submitted ${submittedCount} application(s) with verified recruiter receipt confirmation.`;
+      toastTitle = 'Applications Dispatched to Recruiter Queue';
+      toastMessage = `Dispatched ${submittedCount} application(s) directly to verified recruiter queues.`;
     } else {
-      toastTitle = 'Compatible Opportunities Prepared';
+      toastTitle = 'Action Required: Complete on Employer Portals';
       toastMessage = `Identified ${requiresManualCount} matching opportunities. These employers require direct application through their official career portals.`;
     }
 

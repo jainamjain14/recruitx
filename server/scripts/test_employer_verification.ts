@@ -252,3 +252,4 @@ assert(evalStatusUpdated.hasAuthorizedIntegration === true, 'Platform recruiter 
 console.log('\n================================================================');
 console.log(`  ALL ${totalTests} TESTS PASSED SUCCESSFULLY (${passedTests}/${totalTests})!`);
 console.log('================================================================');
+

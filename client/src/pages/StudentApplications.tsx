@@ -30,13 +30,145 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 
-export type ApplicationStatus =
-  | 'applied'
-  | 'under_review'
-  | 'shortlisted'
-  | 'interview_scheduled'
-  | 'offered'
-  | 'rejected';
+export type PrimaryApplicationStatus =
+  | 'saved_in_recruitx'
+  | 'external_application_required'
+  | 'awaiting_employer_verification'
+  | 'employer_receipt_confirmed'
+  | 'employer_status_updated'
+  | 'submission_failed'
+  | 'unable_to_verify';
+
+export type EvidenceClassification =
+  | 'internal_recruitx'
+  | 'candidate_provided'
+  | 'external_system_response'
+  | 'independently_authenticated';
+
+export const APPLICATION_STATUS_CONFIG: Record<
+  PrimaryApplicationStatus,
+  {
+    label: string;
+    badgeBg: string;
+    badgeText: string;
+    borderColor: string;
+    icon: string;
+    description: string;
+    actionRequired: boolean;
+  }
+> = {
+  saved_in_recruitx: {
+    label: 'Saved in RecruitX',
+    badgeBg: 'bg-neutral-100',
+    badgeText: 'text-neutral-700',
+    borderColor: 'border-neutral-300',
+    icon: '💾',
+    description: 'Application information is stored internally in your candidate database.',
+    actionRequired: false,
+  },
+  external_application_required: {
+    label: 'External Application Required',
+    badgeBg: 'bg-amber-50',
+    badgeText: 'text-amber-900',
+    borderColor: 'border-amber-300 font-bold',
+    icon: '⚠️',
+    description: 'Candidate must complete submission on the employer official career portal.',
+    actionRequired: true,
+  },
+  awaiting_employer_verification: {
+    label: 'Submitted — Awaiting Employer Verification',
+    badgeBg: 'bg-sky-50',
+    badgeText: 'text-sky-900',
+    borderColor: 'border-sky-300 font-semibold',
+    icon: '⏳',
+    description: 'Application was submitted, but independent employer receipt has not yet been established.',
+    actionRequired: false,
+  },
+  employer_receipt_confirmed: {
+    label: 'Employer Receipt Confirmed',
+    badgeBg: 'bg-emerald-50',
+    badgeText: 'text-emerald-900',
+    borderColor: 'border-emerald-400 font-bold',
+    icon: '✓',
+    description: 'Genuine external evidence independently confirms the employer application system received it.',
+    actionRequired: false,
+  },
+  employer_status_updated: {
+    label: 'Employer Status Updated',
+    badgeBg: 'bg-purple-50',
+    badgeText: 'text-purple-900',
+    borderColor: 'border-purple-300 font-bold',
+    icon: '⚡',
+    description: 'Authentic employer or authorized ATS information confirms a progression in your application status.',
+    actionRequired: false,
+  },
+  submission_failed: {
+    label: 'Submission Failed',
+    badgeBg: 'bg-rose-50',
+    badgeText: 'text-rose-900',
+    borderColor: 'border-rose-300 font-bold',
+    icon: '✕',
+    description: 'Actual submission attempt failed. Please review error details.',
+    actionRequired: true,
+  },
+  unable_to_verify: {
+    label: 'Unable to Verify',
+    badgeBg: 'bg-neutral-100',
+    badgeText: 'text-neutral-700',
+    borderColor: 'border-neutral-300',
+    icon: '?',
+    description: 'Submission or receipt cannot currently be independently established.',
+    actionRequired: true,
+  },
+};
+
+export const getEvidenceBadge = (level?: string) => {
+  switch (level) {
+    case 'independently_authenticated':
+      return {
+        label: 'Independently Authenticated (ATS / DKIM)',
+        bg: 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold',
+        icon: '🛡️',
+      };
+    case 'external_system_response':
+      return {
+        label: 'External System Response (Gateway)',
+        bg: 'bg-blue-50 text-blue-900 border-blue-200 font-medium',
+        icon: '🌐',
+      };
+    case 'candidate_provided':
+      return {
+        label: 'Candidate Self-Reported Evidence',
+        bg: 'bg-amber-50 text-amber-900 border-amber-300 font-medium',
+        icon: '👤',
+      };
+    default:
+      return {
+        label: 'RecruitX Internal Record',
+        bg: 'bg-neutral-100 text-neutral-700 border-neutral-200 font-medium',
+        icon: '📋',
+      };
+  }
+};
+
+export const getAppStatus = (app: any): PrimaryApplicationStatus => {
+  if (!app) return 'external_application_required';
+  if (app.authoritativeStatus && APPLICATION_STATUS_CONFIG[app.authoritativeStatus as PrimaryApplicationStatus]) {
+    return app.authoritativeStatus as PrimaryApplicationStatus;
+  }
+  if (app.status && APPLICATION_STATUS_CONFIG[app.status as PrimaryApplicationStatus]) {
+    return app.status as PrimaryApplicationStatus;
+  }
+  if (app.hiringStage && app.hiringStage !== 'applied') return 'employer_status_updated';
+  if (['under_review', 'shortlisted', 'interview_scheduled', 'offered', 'rejected'].includes(app.status)) return 'employer_status_updated';
+  if (app.employerReceipt?.isIndependentlyAuthenticated) return 'employer_receipt_confirmed';
+  if (app.submissionStatus === 'external_awaiting_verification' || app.status === 'awaiting_employer_verification') return 'awaiting_employer_verification';
+  if (app.submissionStatus === 'requires_manual_application' || app.status === 'external_application_required') return 'external_application_required';
+  if (app.submissionStatus === 'submission_failed') return 'submission_failed';
+  if (app.submissionStatus === 'unable_to_verify') return 'unable_to_verify';
+  if (app.recruiter) return 'awaiting_employer_verification';
+  return 'external_application_required';
+};
 
 interface ProgressStep {
   key: string;
@@ -62,26 +194,19 @@ const VERIFICATION_LIFECYCLE_STEPS: VerificationLifecycleStep[] = [
   { key: 'recorded', label: '1. Recorded', desc: 'Application recorded in RecruitX candidate database.' },
   { key: 'dispatched', label: '2. Dispatched', desc: 'Dispatched to employer career portal / recruiter queue.' },
   { key: 'external_accepted', label: '3. Gateway Accepted', desc: 'Transmission accepted by receiving employer gateway.' },
-  { key: 'employer_receipt_confirmed', label: '4. Employer Receipt', desc: 'Authentic ATS reference number or employer email receipt confirmed.' },
+  { key: 'employer_receipt_confirmed', label: '4. Employer Receipt', desc: 'Authentic ATS reference number or verified email receipt confirmed.' },
   { key: 'employer_status_updated', label: '5. Employer Action', desc: 'Hiring team actively progressing candidate through ATS screening.' },
 ];
 
 const getLifecycleStepIdx = (app: any): number => {
   if (!app) return 0;
-  const stage = app.verificationLifecycleStage;
-  switch (stage) {
-    case 'employer_status_updated': return 4;
-    case 'employer_receipt_confirmed': return 3;
-    case 'external_accepted': return 2;
-    case 'dispatched': return 1;
-    case 'recorded': return 0;
-    default:
-      if (app.status && app.status !== 'applied') return 4;
-      if (app.employerReceipt) return 3;
-      if (app.submissionStatus === 'submitted') return 2;
-      if (app.submissionStatus === 'external_awaiting_verification') return 1;
-      return 0;
+  const status = getAppStatus(app);
+  if (status === 'employer_status_updated') return 4;
+  if (status === 'employer_receipt_confirmed') return 3;
+  if (status === 'awaiting_employer_verification') {
+    return app.submissionType === 'direct_hr_dispatch' || app.recruiter ? 2 : 1;
   }
+  return 0;
 };
 
 export const StudentApplications: React.FC = () => {
@@ -102,6 +227,7 @@ export const StudentApplications: React.FC = () => {
   const [receiptSenderEmail, setReceiptSenderEmail] = useState('');
   const [receiptSnippet, setReceiptSnippet] = useState('');
   const [receiptDate, setReceiptDate] = useState('');
+  const [receiptHeaders, setReceiptHeaders] = useState('');
   const [linkingReceipt, setLinkingReceipt] = useState(false);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [receiptSuccess, setReceiptSuccess] = useState<string | null>(null);
@@ -111,6 +237,7 @@ export const StudentApplications: React.FC = () => {
     setReceiptRefNumber(app.employerReceipt?.externalReferenceNumber || '');
     setReceiptSenderEmail(app.employerReceipt?.employerSenderEmail || '');
     setReceiptSnippet(app.employerReceipt?.employerConfirmationSnippet || '');
+    setReceiptHeaders(app.employerReceipt?.rawEmailHeaders || '');
     setReceiptDate(
       app.employerReceipt?.confirmedAt
         ? new Date(app.employerReceipt.confirmedAt).toISOString().split('T')[0]
@@ -138,6 +265,7 @@ export const StudentApplications: React.FC = () => {
         externalReferenceNumber: receiptRefNumber.trim(),
         employerSenderEmail: receiptSenderEmail.trim(),
         employerConfirmationSnippet: receiptSnippet.trim(),
+        rawEmailHeaders: receiptHeaders.trim() || undefined,
         receivedAt: receiptDate || new Date().toISOString(),
       });
 
@@ -291,7 +419,7 @@ export const StudentApplications: React.FC = () => {
   };
 
 
-  const getStepIndex = (status: ApplicationStatus): number => {
+  const getStepIndex = (status: string): number => {
     switch (status) {
       case 'applied':
         return 0;
@@ -329,22 +457,23 @@ export const StudentApplications: React.FC = () => {
     }
   };
 
-  // Filter applications
+  // Filter applications by authoritative status
   const filteredApps = applications.filter((app) => {
     const title = decodeHtmlEntities(app.jobTitle || app.job?.title || '').toLowerCase();
     const company = decodeHtmlEntities(app.companyName || app.job?.company || '').toLowerCase();
     const matchesSearch = title.includes(search.toLowerCase()) || company.includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || app.status === statusFilter;
+    const appStatus = getAppStatus(app);
+    const matchesStatus = statusFilter === 'ALL' || appStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  // KPI Metrics
+  // KPI Metrics based on mutually exclusive statuses
   const totalCount = applications.length;
-  const inReviewCount = applications.filter(
-    (a) => a.status === 'under_review' || a.status === 'shortlisted'
+  const externalReqCount = applications.filter((a) => getAppStatus(a) === 'external_application_required').length;
+  const awaitingCount = applications.filter((a) => getAppStatus(a) === 'awaiting_employer_verification').length;
+  const verifiedCount = applications.filter(
+    (a) => getAppStatus(a) === 'employer_receipt_confirmed' || getAppStatus(a) === 'employer_status_updated'
   ).length;
-  const interviewCount = applications.filter((a) => a.status === 'interview_scheduled').length;
-  const offerCount = applications.filter((a) => a.status === 'offered').length;
 
   return (
     <div className="space-y-6">
@@ -358,21 +487,21 @@ export const StudentApplications: React.FC = () => {
 
       {/* KPI Metric Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3.5 border-neutral-200">
-          <span className="text-[11px] font-semibold text-neutral-500 block">Total Submitted</span>
+        <Card className="p-3.5 border-neutral-200 bg-white">
+          <span className="text-[11px] font-semibold text-neutral-500 block">Tracked Opportunities</span>
           <span className="text-xl font-bold text-neutral-900 mt-0.5 block">{totalCount}</span>
         </Card>
-        <Card className="p-3.5 border-neutral-200">
-          <span className="text-[11px] font-semibold text-neutral-500 block">In Review / Screen</span>
-          <span className="text-xl font-bold text-blue-700 mt-0.5 block">{inReviewCount}</span>
+        <Card className="p-3.5 border-amber-300 bg-amber-50/40">
+          <span className="text-[11px] font-bold text-amber-900 block">External Action Required</span>
+          <span className="text-xl font-bold text-amber-800 mt-0.5 block">{externalReqCount}</span>
         </Card>
-        <Card className="p-3.5 border-neutral-200">
-          <span className="text-[11px] font-semibold text-neutral-500 block">Interviews Scheduled</span>
-          <span className="text-xl font-bold text-purple-700 mt-0.5 block">{interviewCount}</span>
+        <Card className="p-3.5 border-sky-300 bg-sky-50/40">
+          <span className="text-[11px] font-bold text-sky-900 block">Awaiting Verification</span>
+          <span className="text-xl font-bold text-sky-800 mt-0.5 block">{awaitingCount}</span>
         </Card>
-        <Card className="p-3.5 border-neutral-200">
-          <span className="text-[11px] font-semibold text-neutral-500 block">Offers Extended</span>
-          <span className="text-xl font-bold text-emerald-700 mt-0.5 block">{offerCount}</span>
+        <Card className="p-3.5 border-emerald-300 bg-emerald-50/40">
+          <span className="text-[11px] font-bold text-emerald-900 block">Employer Confirmed</span>
+          <span className="text-xl font-bold text-emerald-800 mt-0.5 block">{verifiedCount}</span>
         </Card>
       </div>
 
@@ -397,13 +526,14 @@ export const StudentApplications: React.FC = () => {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="text-xs p-1.5 rounded-lg border border-neutral-200 bg-white font-semibold text-neutral-800 focus:outline-none cursor-pointer"
           >
-            <option value="ALL">All Applications ({totalCount})</option>
-            <option value="applied">Applied</option>
-            <option value="under_review">Under Review</option>
-            <option value="shortlisted">Shortlisted</option>
-            <option value="interview_scheduled">Interview Scheduled</option>
-            <option value="offered">Offer Extended</option>
-            <option value="rejected">Archived / Rejected</option>
+            <option value="ALL">All Application Statuses ({totalCount})</option>
+            <option value="external_application_required">External Application Required ({externalReqCount})</option>
+            <option value="awaiting_employer_verification">Submitted — Awaiting Verification ({awaitingCount})</option>
+            <option value="employer_receipt_confirmed">Employer Receipt Confirmed</option>
+            <option value="employer_status_updated">Employer Status Updated</option>
+            <option value="submission_failed">Submission Failed</option>
+            <option value="unable_to_verify">Unable to Verify</option>
+            <option value="saved_in_recruitx">Saved in RecruitX</option>
           </select>
         </div>
       </div>
@@ -449,18 +579,33 @@ export const StudentApplications: React.FC = () => {
                       <h3 className="text-base font-bold text-neutral-900 hover:text-neutral-700 transition-colors">
                         {title}
                       </h3>
-                      <span className={`text-[10.5px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${getStatusBadge(app.status)}`}>
-                        {app.status.replace('_', ' ')}
-                      </span>
+                      {/* Authoritative Mutually Exclusive Application Status Badge */}
                       {(() => {
-                        const sb = getSubmissionBadge(app.submissionStatus, app.employerReceipt);
+                        const curStatus = getAppStatus(app);
+                        const cfg = APPLICATION_STATUS_CONFIG[curStatus];
                         return (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${sb.bg}`}>
-                            <span>{sb.icon}</span>
-                            <span>{sb.label}</span>
+                          <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${cfg.badgeBg} ${cfg.badgeText} ${cfg.borderColor}`}>
+                            <span>{cfg.icon}</span>
+                            <span>{cfg.label}</span>
                           </span>
                         );
                       })()}
+                      {/* Evidence Classification Badge */}
+                      {(() => {
+                        const ev = getEvidenceBadge(app.evidenceClassification);
+                        return (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1 ${ev.bg}`}>
+                            <span>{ev.icon}</span>
+                            <span>{ev.label}</span>
+                          </span>
+                        );
+                      })()}
+                      {/* Specific Hiring Pipeline Sub-Stage if Updated */}
+                      {(app.hiringStage || (app.status && ['under_review', 'shortlisted', 'interview_scheduled', 'offered', 'rejected'].includes(app.status))) && (
+                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300">
+                          Stage: {(app.hiringStage || app.status).replace('_', ' ')}
+                        </span>
+                      )}
                     </div>
 
                     <p className="text-xs font-semibold text-neutral-600 flex items-center gap-1.5">
@@ -555,15 +700,15 @@ export const StudentApplications: React.FC = () => {
                   )}
                 </div>
 
-                {/* External Portal Manual Action Banner */}
-                {app.submissionStatus === 'requires_manual_application' && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs" onClick={(e) => e.stopPropagation()}>
+                {/* External Portal Action Required Banner */}
+                {getAppStatus(app) === 'external_application_required' && (
+                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-bold text-amber-900">Direct Employer Application Required</p>
-                        <p className="text-amber-800 text-[11px]">
-                          This position requires submission on {company}'s official portal. RecruitX has pre-filled your match audit. Complete your submission on the employer site.
+                        <p className="font-bold text-amber-950">Action Required: Official Employer Application</p>
+                        <p className="text-amber-900 text-[11px]">
+                          This opportunity requires direct submission on {company}'s career portal. RecruitX has saved this opportunity in your candidate tracker. Click below to submit directly on their portal.
                         </p>
                       </div>
                     </div>
@@ -589,15 +734,15 @@ export const StudentApplications: React.FC = () => {
                   </div>
                 )}
 
-                {/* External Portal Awaiting Verification Banner */}
-                {app.submissionStatus === 'external_awaiting_verification' && (
-                  <div className="p-3 bg-amber-50/80 border border-amber-300 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs" onClick={(e) => e.stopPropagation()}>
+                {/* Submitted — Awaiting Employer Verification Banner */}
+                {getAppStatus(app) === 'awaiting_employer_verification' && (
+                  <div className="p-3 bg-sky-50 border border-sky-300 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-start gap-2">
-                      <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <Clock className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-bold text-amber-950">External Submission — Awaiting Verification</p>
-                        <p className="text-amber-800 text-[11px]">
-                          Submitted on {company}'s portal. Once you receive your confirmation email or ATS reference number (e.g. Workday, Greenhouse, Taleo), link it here to confirm receipt with cryptographic evidence.
+                        <p className="font-bold text-sky-950">Submitted — Awaiting Independent Employer Verification</p>
+                        <p className="text-sky-900 text-[11px]">
+                          Submission recorded for {company}. Have an official confirmation email or ATS reference number? Link it or paste raw email headers for independent cryptographic verification.
                         </p>
                       </div>
                     </div>
@@ -606,7 +751,7 @@ export const StudentApplications: React.FC = () => {
                         onClick={() => openReceiptModal(app)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-700 text-white font-bold text-xs hover:bg-emerald-800 transition-colors shadow-xs"
                       >
-                        <ShieldCheck className="w-3.5 h-3.5" /> Link Employer Receipt
+                        <ShieldCheck className="w-3.5 h-3.5" /> Link Email / Headers
                       </button>
                     </div>
                   </div>
@@ -697,9 +842,27 @@ export const StudentApplications: React.FC = () => {
             {/* Drawer Header */}
             <div className="p-5 border-b border-neutral-200 flex items-center justify-between bg-neutral-50/70">
               <div>
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${getStatusBadge(selectedApp.status)}`}>
-                  {selectedApp.status.replace('_', ' ')}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(() => {
+                    const curStatus = getAppStatus(selectedApp);
+                    const cfg = APPLICATION_STATUS_CONFIG[curStatus];
+                    return (
+                      <span className={`text-[10.5px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${cfg.badgeBg} ${cfg.badgeText} ${cfg.borderColor}`}>
+                        <span>{cfg.icon}</span>
+                        <span>{cfg.label}</span>
+                      </span>
+                    );
+                  })()}
+                  {(() => {
+                    const ev = getEvidenceBadge(selectedApp.evidenceClassification);
+                    return (
+                      <span className={`text-[9.5px] font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1 ${ev.bg}`}>
+                        <span>{ev.icon}</span>
+                        <span>{ev.label}</span>
+                      </span>
+                    );
+                  })()}
+                </div>
                 <h2 className="text-base font-bold text-neutral-900 mt-1">
                   {decodeHtmlEntities(selectedApp.jobTitle || selectedApp.job?.title || 'Position')}
                 </h2>
@@ -1179,12 +1342,32 @@ export const StudentApplications: React.FC = () => {
                   Employer Confirmation Snippet / Message Text
                 </label>
                 <textarea
-                  rows={3}
-                  placeholder='e.g. "Thank you for applying to the position of Software Engineer. Your application has been received and our hiring team is currently reviewing your profile."'
+                  rows={2}
+                  placeholder='e.g. "Thank you for applying to the position of Software Engineer. Your application has been received."'
                   value={receiptSnippet}
                   onChange={(e) => setReceiptSnippet(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-xs resize-none"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-neutral-800 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    Raw Email Headers (DKIM / SPF Authentication)
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-semibold uppercase">Enables Independent Proof</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Optional: Paste original email headers (e.g. Gmail: Show Original, Outlook: Message Details). If DKIM=pass from the employer domain is detected, your receipt is independently authenticated!"
+                  value={receiptHeaders}
+                  onChange={(e) => setReceiptHeaders(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-[11px] font-mono resize-none bg-neutral-50"
+                />
+                <p className="text-[10.5px] text-neutral-400">
+                  Headers containing dkim=pass from @company.com cryptographically prove employer receipt without manual intervention.
+                </p>
               </div>
 
               <div className="space-y-1">

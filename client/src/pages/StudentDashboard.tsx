@@ -15,14 +15,73 @@ import {
   GraduationCap,
   X,
   UserCheck,
+  AlertCircle,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
 
-const statusColor: Record<string, string> = {
-  'applied': 'text-neutral-700 bg-neutral-100',
-  'shortlisted': 'text-blue-700 bg-blue-50',
-  'interview_scheduled': 'text-purple-700 bg-purple-50',
-  'offered': 'text-emerald-800 bg-emerald-50 font-bold',
-  'rejected': 'text-red-700 bg-red-50',
+const getAppAuthoritativeStatus = (app: any): { label: string; badgeClass: string; icon: string; datePrefix: string } => {
+  const status = app.authoritativeStatus || app.primaryStatus || app.status;
+
+  switch (status) {
+    case 'external_application_required':
+      return {
+        label: 'Action Required ⚠️',
+        badgeClass: 'text-amber-700 bg-amber-50 border-amber-200',
+        icon: '⚠️',
+        datePrefix: 'Recorded',
+      };
+    case 'awaiting_employer_verification':
+      return {
+        label: 'Submitted ⏳',
+        badgeClass: 'text-sky-700 bg-sky-50 border-sky-200',
+        icon: '⏳',
+        datePrefix: 'Dispatched',
+      };
+    case 'employer_receipt_confirmed':
+      return {
+        label: 'Receipt Confirmed ✓',
+        badgeClass: 'text-emerald-700 bg-emerald-50 border-emerald-200 font-bold',
+        icon: '✓',
+        datePrefix: 'Confirmed',
+      };
+    case 'employer_status_updated':
+      const stage = (app.hiringStage || app.status || 'review').replace(/_/g, ' ');
+      return {
+        label: `Pipeline: ${stage} ⚡`,
+        badgeClass: 'text-purple-700 bg-purple-50 border-purple-200 font-medium',
+        icon: '⚡',
+        datePrefix: 'Updated',
+      };
+    case 'saved_in_recruitx':
+      return {
+        label: 'Saved in RecruitX',
+        badgeClass: 'text-slate-600 bg-slate-50 border-slate-200',
+        icon: '💾',
+        datePrefix: 'Saved',
+      };
+    case 'submission_failed':
+      return {
+        label: 'Submission Failed',
+        badgeClass: 'text-red-700 bg-red-50 border-red-200',
+        icon: '✕',
+        datePrefix: 'Failed',
+      };
+    case 'unable_to_verify':
+      return {
+        label: 'Unable to Verify',
+        badgeClass: 'text-zinc-600 bg-zinc-50 border-zinc-200',
+        icon: '?',
+        datePrefix: 'Checked',
+      };
+    default:
+      return {
+        label: (status || 'Tracked').replace(/_/g, ' '),
+        badgeClass: 'text-neutral-600 bg-neutral-50 border-neutral-200',
+        icon: '•',
+        datePrefix: 'Recorded',
+      };
+  }
 };
 
 export const StudentDashboard: React.FC = () => {
@@ -135,8 +194,13 @@ export const StudentDashboard: React.FC = () => {
       {/* Real Live Stats Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4">
-          <p className="text-2xl font-bold text-neutral-900">{applications.length}</p>
-          <p className="text-xs text-neutral-500 mt-1">Jobs Applied</p>
+          <div className="flex items-center justify-between">
+            <p className="text-2xl font-bold text-neutral-900">{applications.length}</p>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {applications.filter((a) => (a.authoritativeStatus || a.primaryStatus) === 'employer_receipt_confirmed').length} Confirmed
+            </span>
+          </div>
+          <p className="text-xs text-neutral-500 mt-1">Tracked Applications</p>
         </Card>
         <Card className="p-4">
           <p className="text-2xl font-bold text-neutral-900">{interviews.length}</p>
@@ -165,7 +229,7 @@ export const StudentDashboard: React.FC = () => {
 
             {applications.length === 0 ? (
               <div className="p-6 text-center space-y-2">
-                <p className="text-xs text-neutral-500">No applications submitted yet.</p>
+                <p className="text-xs text-neutral-500">No applications tracked yet.</p>
                 <Button variant="secondary" size="sm" onClick={() => navigate('/student/jobs')}>
                   Browse Live Openings
                 </Button>
@@ -176,15 +240,18 @@ export const StudentDashboard: React.FC = () => {
                   const company = app.companyName || app.job?.company || 'Company';
                   const title = app.jobTitle || app.job?.title || 'Role';
                   const date = new Date(app.appliedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                  const statusInfo = getAppAuthoritativeStatus(app);
 
                   return (
-                    <div key={app._id} className="flex items-center justify-between px-5 py-3.5">
-                      <div>
-                        <p className="text-xs font-semibold text-neutral-900">{title}</p>
-                        <p className="text-[11px] text-neutral-400 mt-0.5">{company} · Applied {date}</p>
+                    <div key={app._id} className="flex items-center justify-between px-5 py-3.5 hover:bg-neutral-50/50 transition-colors">
+                      <div className="min-w-0 pr-3">
+                        <p className="text-xs font-semibold text-neutral-900 truncate">{title}</p>
+                        <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                          {company} · {statusInfo.datePrefix} {date}
+                        </p>
                       </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border uppercase tracking-wider ${statusColor[app.status] || 'text-neutral-600 bg-neutral-50'}`}>
-                        {app.status.replace('_', ' ')}
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap tracking-wide shrink-0 ${statusInfo.badgeClass}`}>
+                        {statusInfo.label}
                       </span>
                     </div>
                   );

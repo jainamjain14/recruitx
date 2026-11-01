@@ -32,6 +32,7 @@ import messageRoutes from "./routes/messageRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 
 import assessmentRoutes from "./routes/assessmentRoutes.js";
+import webhookRoutes from "./routes/webhookRoutes.js";
 
 import { apiLimiter } from "./middleware/rateLimiter.js";
 
@@ -288,6 +289,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/courses", courseRoutes);
 
 app.use("/api/assessments", assessmentRoutes);
+app.use("/api/webhooks", webhookRoutes);
 
 
 
