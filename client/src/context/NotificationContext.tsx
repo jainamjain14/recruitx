@@ -31,7 +31,7 @@ interface NotificationContextType {
   addToast: (toast: Omit<ToastItem, 'id' | 'timestamp'>) => void;
   removeToast: (id: string) => void;
   refreshNotifications: () => Promise<void>;
-  handleClickAction: (actionUrl?: string, announcementId?: string) => void;
+  handleClickAction: (actionUrl?: string, announcementId?: string, metadata?: any) => void;
   triggerSimulatedNotification: (type: 'modal' | 'banner' | 'toast' | 'slideout' | 'application') => void;
 }
 
@@ -328,6 +328,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       window.dispatchEvent(new CustomEvent('recruitx:job-deleted', { detail: payload }));
     });
 
+    socket.on('application:new', (payload: any) => {
+      window.dispatchEvent(new CustomEvent('recruitx:application-new', { detail: payload }));
+    });
+
     return () => {
       socket.off('notification:new');
       socket.off('announcement:new');
@@ -335,6 +339,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       socket.off('job:published');
       socket.off('job:updated');
       socket.off('job:deleted');
+      socket.off('application:new');
       socket.disconnect();
     };
   }, [token, user]);
@@ -405,16 +410,27 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   const startHotspotTour = () => setIsHotspotTourOpen(true);
   const endHotspotTour = () => setIsHotspotTourOpen(false);
 
-  const handleClickAction = (actionUrl?: string, announcementId?: string) => {
+  const handleClickAction = (actionUrl?: string, announcementId?: string, metadata?: any) => {
     if (announcementId) {
       notificationService.trackClick(announcementId);
     }
-    if (actionUrl) {
-      if (actionUrl.startsWith('http://') || actionUrl.startsWith('https://')) {
-        window.open(actionUrl, '_blank');
+    if (!actionUrl) return;
+
+    let target = actionUrl;
+    if (target === '/student/applications' || target.startsWith('/student/applications')) {
+      const jId = metadata?.jobId;
+      const aId = metadata?.applicationId;
+      if (jId) {
+        target = `/student/jobs?jobId=${jId}${aId ? `&appId=${aId}` : ''}`;
       } else {
-        window.location.href = actionUrl;
+        target = '/student/jobs';
       }
+    }
+
+    if (target.startsWith('http://') || target.startsWith('https://')) {
+      window.open(target, '_blank', 'noopener,noreferrer');
+    } else {
+      window.location.href = target;
     }
   };
 

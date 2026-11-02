@@ -717,19 +717,37 @@ Return ONLY a valid JSON:
       }
     }
 
-    // 4. Sort: highest compatibility score first (or by distance if location provided)
-    if (userLat !== undefined && userLng !== undefined && !isNaN(userLat) && !isNaN(userLng)) {
-      matchedJobs.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity));
-      allEvaluatedJobs.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity));
-    } else {
-      matchedJobs.sort((a, b) => b.matchPercentage - a.matchPercentage);
-      // Under all openings, sort platform jobs and high matches to top, then remaining
-      allEvaluatedJobs.sort((a, b) => {
-        if (a.isPlatformJob && !b.isPlatformJob) return -1;
-        if (!a.isPlatformJob && b.isPlatformJob) return 1;
-        return b.matchPercentage - a.matchPercentage;
-      });
-    }
+    // 4. Sort: Platform verified recruiter jobs ALWAYS take primary top priority, followed by distance & compatibility
+    const hasCoordinates = userLat !== undefined && userLng !== undefined && !isNaN(userLat) && !isNaN(userLng);
+
+    allEvaluatedJobs.sort((a, b) => {
+      // Platform jobs always appear at the top of Browse All Openings
+      if (a.isPlatformJob && !b.isPlatformJob) return -1;
+      if (!a.isPlatformJob && b.isPlatformJob) return 1;
+
+      // Within same category (both platform or both external):
+      if (hasCoordinates) {
+        const distA = a.distanceMiles ?? 999999;
+        const distB = b.distanceMiles ?? 999999;
+        if (Math.abs(distA - distB) > 2) {
+          return distA - distB;
+        }
+      }
+      return (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0);
+    });
+
+    matchedJobs.sort((a, b) => {
+      if (a.isPlatformJob && !b.isPlatformJob) return -1;
+      if (!a.isPlatformJob && b.isPlatformJob) return 1;
+      if (hasCoordinates) {
+        const distA = a.distanceMiles ?? 999999;
+        const distB = b.distanceMiles ?? 999999;
+        if (Math.abs(distA - distB) > 5) {
+          return distA - distB;
+        }
+      }
+      return (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0);
+    });
 
     return {
       candidateIdentity,

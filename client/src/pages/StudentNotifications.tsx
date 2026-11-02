@@ -217,7 +217,7 @@ export const StudentNotifications: React.FC = () => {
                         <button
                           onClick={() => {
                             if (!item.read) markAsRead(item._id);
-                            handleClickAction(item.actionUrl || item.link, item.announcementId);
+                            handleClickAction(item.actionUrl || item.link, item.announcementId, item.metadata);
                           }}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 transition-colors shadow-xs"
                         >

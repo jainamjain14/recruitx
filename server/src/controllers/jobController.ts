@@ -8,7 +8,7 @@ import { Application, PrimaryApplicationStatus } from '../models/Application.js'
 import { Notification } from '../models/Notification.js';
 import { PlacementEligibilityRule } from '../models/PlacementEligibilityRule.js';
 import { emitToUser, broadcastEvent } from '../socket.js';
-import { LinkedInService, getVerifiedCompanyHrEmail, INDIAN_CITIES_COORDINATES } from '../services/linkedinService.js';
+import { LinkedInService, getVerifiedCompanyHrEmail, INDIAN_CITIES_COORDINATES, calculateDistanceKm } from '../services/linkedinService.js';
 import { EmailService } from '../services/emailService.js';
 import { CandidateApplicationEmailService } from '../services/candidateApplicationEmailService.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
@@ -189,6 +189,15 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
         }
       }
 
+      let distanceMiles: number | undefined = undefined;
+      if (lat !== undefined && lng !== undefined) {
+        if (j.workMode === 'Remote' || locLower.includes('remote')) {
+          distanceMiles = 0;
+        } else {
+          distanceMiles = calculateDistanceKm(lat, lng, coords.lat, coords.lng);
+        }
+      }
+
       const recruiterId = (j.recruiter as any)?._id?.toString() || j.recruiter?.toString() || '';
       const hrEmail = (j.recruiter as any)?.email || '';
 
@@ -209,6 +218,7 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
         requirements: Array.isArray(j.requirements) ? j.requirements : [],
         lat: coords.lat,
         lng: coords.lng,
+        distanceMiles,
         isPlatformJob: true,
         recruiterId,
         hrEmail,
@@ -773,9 +783,9 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
       type: 'application_update',
       priority: 'high',
       format: 'toast',
-      actionText: 'View Applications',
-      actionUrl: '/student/applications',
-      link: '/student/applications',
+      actionText: 'View Job Opportunities',
+      actionUrl: '/student/jobs',
+      link: '/student/jobs',
     });
 
     emitToUser(studentId.toString(), 'notification:new', {

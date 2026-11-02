@@ -252,7 +252,7 @@ export const NotificationCenterDrawer: React.FC = () => {
                           <button
                             onClick={() => {
                               if (!item.read) markAsRead(item._id);
-                              handleClickAction(item.actionUrl || item.link, item.announcementId);
+                              handleClickAction(item.actionUrl || item.link, item.announcementId, item.metadata);
                               closeNotificationCenter();
                             }}
                             className="inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-900 hover:text-neutral-600 underline underline-offset-2"

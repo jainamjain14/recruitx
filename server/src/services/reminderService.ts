@@ -53,8 +53,8 @@ async function checkAndSendReminders(): Promise<void> {
         format: 'modal',
         priority: 'urgent',
         actionText: 'Join Meeting',
-        actionUrl: '/student/applications',
-        link: '/student/applications',
+        actionUrl: meetingPath,
+        link: meetingPath,
         metadata: {
           meetingLink: meetingPath,
           scheduledAt: interview.scheduledAt,

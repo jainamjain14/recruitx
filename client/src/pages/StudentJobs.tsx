@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -134,6 +134,11 @@ const resolveDetailedLocation = (lat: number, lng: number): { shortLabel: string
 
 export const StudentJobs: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const targetJobId = searchParams.get('jobId');
+  const targetAppId = searchParams.get('appId');
+  const [highlightedJobId, setHighlightedJobId] = useState<string | null>(null);
+  const [jobNotice, setJobNotice] = useState<string | null>(null);
   const [targetDomain, setTargetDomain] = useState('Marketing & Growth Management');
   const [companyJobs, setCompanyJobs] = useState<CompanyJob[]>([]);
   const [search, setSearch] = useState('');
@@ -201,6 +206,41 @@ export const StudentJobs: React.FC = () => {
   // Locality Search State
   const [localitySearchText, setLocalitySearchText] = useState('');
   const [isLocalitySearchOpen, setIsLocalitySearchOpen] = useState(false);
+
+  // Effect to navigate and highlight target job from notifications
+  useEffect(() => {
+    if (targetJobId && companyJobs.length > 0) {
+      setFilterMode('all');
+      const foundJob = companyJobs.find(
+        (j) => (j._id && j._id === targetJobId) || (j.id && j.id === targetJobId)
+      );
+
+      if (foundJob) {
+        setHighlightedJobId(targetJobId);
+        setTimeout(() => {
+          const el = document.getElementById(`job-card-${targetJobId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 300);
+        const timer = setTimeout(() => {
+          setHighlightedJobId(null);
+        }, 5000);
+        return () => clearTimeout(timer);
+      } else if (!loading) {
+        const matchingApp = Object.values(existingAppsMap).find(
+          (a: any) => a._id === targetAppId || a.job === targetJobId || a.job?._id === targetJobId
+        );
+        if (matchingApp) {
+          setJobNotice(
+            `Notice: The job opening "${matchingApp.jobTitle}" at ${matchingApp.companyName} is no longer accepting new applications or has been closed by the recruiter. Your recorded application status is: ${(matchingApp.hiringStage || matchingApp.status || 'Applied').replace(/_/g, ' ').toUpperCase()}.`
+          );
+        } else {
+          setJobNotice('Notice: The referenced job opening is no longer active or has been closed by the employer.');
+        }
+      }
+    }
+  }, [targetJobId, companyJobs, loading, existingAppsMap]);
 
   useEffect(() => {
     // Proactively check browser geolocation permission status
@@ -963,6 +1003,21 @@ export const StudentJobs: React.FC = () => {
         </div>
       </div>
 
+      {jobNotice && (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm">ℹ️</span>
+            <span>{jobNotice}</span>
+          </div>
+          <button
+            onClick={() => setJobNotice(null)}
+            className="text-amber-700 hover:text-amber-900 font-bold ml-2 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-neutral-100 pb-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -1071,7 +1126,15 @@ export const StudentJobs: React.FC = () => {
               : false;
 
             return (
-              <Card key={idx} className="p-6 space-y-4 border-neutral-200 hover:border-neutral-300 transition-all">
+              <Card
+                key={job._id || job.id || idx}
+                id={`job-card-${job._id || job.id || idx}`}
+                className={`p-6 space-y-4 border-neutral-200 hover:border-neutral-300 transition-all ${
+                  highlightedJobId && (job._id === highlightedJobId || job.id === highlightedJobId)
+                    ? 'ring-2 ring-indigo-500 shadow-lg bg-indigo-50/20'
+                    : ''
+                }`}
+              >
                 {/* Top Row: Company Info, Proximity Distance & Match Badge */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
                   <div className="flex items-center gap-3.5">
@@ -1217,7 +1280,7 @@ export const StudentJobs: React.FC = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {job.jobUrl && !job.isPlatformJob && (
+                    {job.jobUrl && !job.isPlatformJob && job.hrEmail && (
                       <a
                         href={job.jobUrl}
                         target="_blank"
@@ -1230,97 +1293,139 @@ export const StudentJobs: React.FC = () => {
                     {(() => {
                       const cleanComp = decodeHtmlEntities(job.company).toLowerCase().trim();
                       const cleanTit = decodeHtmlEntities(job.title).toLowerCase().trim();
-                      const existingApp = existingAppsMap[`${cleanComp}-${cleanTit}`] || existingAppsMap[companyKey];
-                      const appStatus = existingApp?.authoritativeStatus || existingApp?.status;
+                      const existingApp = existingAppsMap[`${cleanComp}-${cleanTit}`] || existingAppsMap[companyKey] || (job._id ? Object.values(existingAppsMap).find((a: any) => (a.job === job._id || a.job?._id === job._id)) : null);
+                      const appStatus = (existingApp?.hiringStage || existingApp?.authoritativeStatus || existingApp?.status || '').toLowerCase().trim();
 
-                      if (existingApp && appStatus === 'external_application_required') {
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-amber-50 text-amber-900 border-amber-300 flex items-center gap-1">
-                              <span>⚠️</span> Action Required
+                      if (existingApp) {
+                        if (appStatus === 'under_review' || appStatus === 'review') {
+                          return (
+                            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full border bg-amber-50 text-amber-900 border-amber-300 flex items-center gap-1.5">
+                              <span>⚡</span> Under Review
                             </span>
-                            <a
-                              href={job.jobUrl || existingApp.destinationUrl || `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(job.title + ' ' + job.company)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors shadow-xs"
-                            >
-                              Complete on Portal <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                          </div>
-                        );
-                      }
-
-                      if (existingApp && (appStatus === 'email_sent' || appStatus === 'email_delivered')) {
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-indigo-50 text-indigo-900 border-indigo-300 flex items-center gap-1.5">
-                              <span>✉️</span> Application Sent
+                          );
+                        }
+                        if (appStatus === 'shortlisted') {
+                          return (
+                            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full border bg-blue-50 text-blue-900 border-blue-300 flex items-center gap-1.5">
+                              <span>⭐</span> Shortlisted
                             </span>
-                            {existingApp.viewSentEmailUrl && (
-                              <a
-                                href={existingApp.viewSentEmailUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[11px] text-indigo-700 hover:underline flex items-center gap-1 font-semibold px-2 py-1 rounded bg-indigo-50 border border-indigo-200"
-                              >
-                                <span>View Email</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                          </div>
-                        );
-                      }
-
-                      if (existingApp && appStatus === 'awaiting_employer_verification') {
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-sky-50 text-sky-900 border-sky-300 flex items-center gap-1.5">
-                              <span>⏳</span> Awaiting Recruiter Review
+                          );
+                        }
+                        if (appStatus === 'interview_scheduled' || appStatus === 'interview') {
+                          return (
+                            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full border bg-purple-50 text-purple-900 border-purple-300 flex items-center gap-1.5">
+                              <span>📅</span> Interview Scheduled
                             </span>
-                          </div>
-                        );
-                      }
-
-                      if (existingApp && appStatus === 'employer_receipt_confirmed') {
-                        return (
-                          <div className="flex items-center gap-2">
+                          );
+                        }
+                        if (appStatus === 'offered' || appStatus === 'hired') {
+                          return (
+                            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full border bg-emerald-50 text-emerald-900 border-emerald-300 flex items-center gap-1.5 font-bold">
+                              <span>🎉</span> Offer Extended
+                            </span>
+                          );
+                        }
+                        if (appStatus === 'rejected') {
+                          return (
+                            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full border bg-neutral-100 text-neutral-700 border-neutral-300 flex items-center gap-1.5">
+                              <span>✕</span> Not Selected
+                            </span>
+                          );
+                        }
+                        if (appStatus === 'email_sent' || appStatus === 'email_delivered') {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-indigo-50 text-indigo-900 border-indigo-300 flex items-center gap-1.5">
+                                <span>✉️</span> Application Sent
+                              </span>
+                              {existingApp.viewSentEmailUrl && (
+                                <a
+                                  href={existingApp.viewSentEmailUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] text-indigo-700 hover:underline flex items-center gap-1 font-semibold px-2 py-1 rounded bg-indigo-50 border border-indigo-200"
+                                >
+                                  <span>View Email</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          );
+                        }
+                        if (appStatus === 'employer_receipt_confirmed') {
+                          return (
                             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-900 border-emerald-300 flex items-center gap-1.5 font-bold">
                               <span>✓</span> Employer Confirmed
                             </span>
-                          </div>
-                        );
-                      }
+                          );
+                        }
+                        if (appStatus === 'external_application_required' && !job.isPlatformJob) {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-amber-50 text-amber-900 border-amber-300 flex items-center gap-1">
+                                <span>⚠️</span> Action Required
+                              </span>
+                              <a
+                                href={job.jobUrl || existingApp.destinationUrl || `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(job.title + ' ' + job.company)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors shadow-xs"
+                              >
+                                Complete on Portal <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          );
+                        }
 
-                      if (existingApp && appStatus === 'employer_status_updated') {
+                        // Default platform job applied badge
                         return (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-purple-50 text-purple-900 border-purple-300 flex items-center gap-1.5">
-                              <span>⚡</span> {(existingApp.hiringStage || existingApp.status || '').replace('_', ' ').toUpperCase()}
-                            </span>
-                          </div>
+                          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-sky-50 text-sky-900 border-sky-300 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Applied — Awaiting Recruiter Review</span>
+                          </span>
                         );
                       }
 
+                      // NOT applied yet:
+                      if (job.isPlatformJob) {
+                        return (
+                          <Button
+                            onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, undefined, true, job._id || job.id, job.recruiterId)}
+                            disabled={isApplying}
+                            size="sm"
+                            className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold shadow-xs text-xs"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-amber-300" />
+                            {isApplying ? 'Applying Automatically...' : 'Apply Automatically'}
+                          </Button>
+                        );
+                      }
+
+                      // External job without direct HR email
+                      if (!job.hrEmail) {
+                        return (
+                          <a
+                            href={job.jobUrl || `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(job.title + ' ' + job.company)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs transition-colors shadow-xs"
+                          >
+                            <span>Apply on Career Portal</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        );
+                      }
+
+                      // External job with verified email
                       return (
                         <Button
-                          onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, job.jobUrl, job.isPlatformJob, job._id || job.id, job.recruiterId)}
-                          disabled={isApplied || isApplying}
+                          onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, job.jobUrl, false, job._id || job.id, job.recruiterId)}
+                          disabled={isApplying}
                           size="sm"
                           className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold shadow-xs text-xs"
-                          variant={isApplied ? 'secondary' : 'primary'}
                         >
-                          {isApplied ? (
-                            <>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Applied
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="w-3.5 h-3.5 text-amber-300" />
-                              {isApplying ? 'Applying Automatically...' : 'Apply Automatically'}
-                            </>
-                          )}
+                          <Mail className="w-3.5 h-3.5 text-amber-300" />
+                          {isApplying ? 'Dispatching Email...' : 'Apply via Verified Email'}
                         </Button>
                       );
                     })()}

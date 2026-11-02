@@ -219,8 +219,16 @@ export const handleBrevoWebhook = async (req: Request, res: Response): Promise<v
               type: 'application_update',
               priority: 'normal',
               format: 'toast',
-              actionUrl: '/student/applications',
-              link: '/student/applications',
+              actionText: 'View Application Status',
+              actionUrl: `/student/jobs?jobId=${application.job || ''}&appId=${application._id}`,
+              link: `/student/jobs?jobId=${application.job || ''}`,
+              metadata: {
+                applicationId: application._id,
+                jobId: application.job,
+                jobTitle: application.jobTitle,
+                companyName: application.companyName,
+                status: 'email_delivered',
+              },
             });
             emitToUser(studentId.toString(), 'notification:new', { notification: notif });
           } catch (e) {}

@@ -49,6 +49,16 @@ interface KanbanColumn {
   borderColor: string;
 }
 
+export const normalizeStage = (status?: string, hiringStage?: string): ApplicationStage => {
+  const s = (hiringStage || status || 'applied').toLowerCase().trim();
+  if (s === 'under_review' || s === 'review' || s === 'under review') return 'under_review';
+  if (s === 'shortlisted' || s === 'shortlist') return 'shortlisted';
+  if (s === 'interview_scheduled' || s === 'interview' || s === 'interviewing') return 'interview_scheduled';
+  if (s === 'offered' || s === 'offer' || s === 'hired') return 'offered';
+  if (s === 'rejected' || s === 'reject' || s === 'archived') return 'rejected';
+  return 'applied';
+};
+
 const KANBAN_COLUMNS: KanbanColumn[] = [
   {
     id: 'applied',
@@ -129,6 +139,23 @@ export const RecruiterApplications: React.FC = () => {
 
   useEffect(() => {
     fetchApplications();
+
+    const handleApplicationEvent = () => {
+      fetchApplications();
+    };
+
+    window.addEventListener('recruitx:application-new', handleApplicationEvent);
+    window.addEventListener('recruitx:job-updated', handleApplicationEvent);
+
+    const interval = setInterval(() => {
+      fetchApplications();
+    }, 20000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('recruitx:application-new', handleApplicationEvent);
+      window.removeEventListener('recruitx:job-updated', handleApplicationEvent);
+    };
   }, []);
 
   const fetchApplications = async () => {
@@ -402,7 +429,7 @@ export const RecruiterApplications: React.FC = () => {
         /* KANBAN BOARD VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 overflow-x-auto pb-4">
           {KANBAN_COLUMNS.map((col) => {
-            const colApps = filteredApps.filter((a) => (a.status || 'applied') === col.id);
+            const colApps = filteredApps.filter((a) => normalizeStage(a.status, a.hiringStage) === col.id);
             const isHovered = dragOverColumn === col.id;
 
             return (
@@ -626,7 +653,7 @@ export const RecruiterApplications: React.FC = () => {
 
                       <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={app.status || 'applied'}
+                          value={normalizeStage(app.status, app.hiringStage)}
                           onChange={(e) => updateStatus(app._id, e.target.value as ApplicationStage)}
                           className="text-xs font-semibold px-2 py-1 rounded bg-neutral-100 border border-neutral-200 text-neutral-800 focus:outline-none"
                         >

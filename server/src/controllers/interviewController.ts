@@ -115,13 +115,15 @@ export const scheduleInterview = async (req: AuthenticatedRequest, res: Response
         type: 'interview_invite',
         format: 'modal',
         priority: 'urgent',
-        actionText: 'Join Meeting / View Application',
-        actionUrl: '/student/applications',
-        link: '/student/applications',
+        actionText: 'Join Meeting / View Details',
+        actionUrl: finalMeetingLink || `/student/jobs?jobId=${jobId || ''}&appId=${applicationId || ''}`,
+        link: finalMeetingLink || `/student/jobs?jobId=${jobId || ''}`,
         metadata: {
           meetingLink: finalMeetingLink,
           scheduledAt,
           interviewId: interview._id,
+          jobId,
+          applicationId,
         },
       });
       emitToUser(targetStudentId, 'notification:new', { notification: notif });

@@ -143,7 +143,8 @@ export const applyForJob = async (req: AuthenticatedRequest, res: Response): Pro
     // Increment application count on job
     job.applicationsCount = (job.applicationsCount || 0) + 1;
     await job.save();
-    emitToUser(job.recruiter, 'notification:new', { notification: recruiterNotif });
+    emitToUser(job.recruiter.toString(), 'notification:new', { notification: recruiterNotif });
+    emitToUser(job.recruiter.toString(), 'application:new', { application });
 
     // Dispatch application email to recruiter
     const populatedJob = await Job.findById(jobId).populate('recruiter', 'name email');
@@ -268,27 +269,12 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       candidateContactTransmitted = true;
       statusNote = 'Direct application submitted to verified on-platform recruiter with confirmed receipt';
 
-      // Notify recruiter and capture persistent notification ID
-      const recNotif = await Notification.create({
-        recipient: matchedRecruiter._id,
-        title: `New Candidate Application: ${jobTitle}`,
-        message: `${req.user.name} applied directly for "${jobTitle}".`,
-        type: 'application_update',
-        priority: 'high',
-        format: 'toast',
-      });
-      emitToUser(matchedRecruiter._id.toString(), 'notification:new', {
-        title: `New Candidate Application: ${jobTitle}`,
-        message: `${req.user.name} applied directly for "${jobTitle}".`,
-        notification: recNotif,
-      });
-
+      // Capture persistent notification ID placeholder
       confirmationDetails = {
         confirmationId: `RCX-ATS-${matchedRecruiter._id}-${Date.now().toString(36).toUpperCase()}`,
         recipient: `${matchedRecruiter.name} (${matchedRecruiter.email})`,
         timestamp: new Date(),
-        dispatchMethod: `RecruitX Verified Recruiter ATS Queue [Notification ID: ${recNotif._id}]`,
-        messageId: recNotif._id,
+        dispatchMethod: `RecruitX Verified Recruiter ATS Queue`,
         verifiedAt: new Date(),
       };
     } else {
@@ -480,6 +466,39 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       }
     }
 
+    // Notify recruiter if application is on-platform
+    if (matchedRecruiter && resolvedRecruiterId) {
+      try {
+        const recNotif = await Notification.create({
+          recipient: resolvedRecruiterId,
+          title: `New Candidate Application: ${jobTitle}`,
+          message: `${req.user.name} applied directly for "${jobTitle}".`,
+          type: 'application_update',
+          priority: 'high',
+          format: 'toast',
+          actionText: 'View Candidate in ATS',
+          actionUrl: '/recruiter/applications',
+          link: '/recruiter/applications',
+          metadata: {
+            applicationId: application._id,
+            jobId: authenticJob ? authenticJob._id : undefined,
+            studentId: req.user._id,
+            studentName: req.user.name,
+            jobTitle,
+            companyName: authenticJob ? authenticJob.company : companyName,
+          },
+        });
+        emitToUser(resolvedRecruiterId, 'notification:new', {
+          title: `New Candidate Application: ${jobTitle}`,
+          message: `${req.user.name} applied directly for "${jobTitle}".`,
+          notification: recNotif,
+        });
+        emitToUser(resolvedRecruiterId, 'application:new', { application });
+      } catch (err) {
+        logger.warn('Could not notify recruiter of new application:', err);
+      }
+    }
+
     // Create notification for student ONLY on real events
     if (initialStatus === 'email_sent' || submissionStatus === 'submitted') {
       const notifTitle = initialStatus === 'email_sent'
@@ -490,15 +509,23 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
         ? `Your application for "${jobTitle}" was sent directly to ${companyName} (${recipientEmail}) with your attached resume.`
         : `Your application for "${jobTitle}" at ${companyName} was submitted successfully with verified delivery confirmation.`;
 
+      const studentJobId = authenticJob ? authenticJob._id : (jobId || '');
       const studentNotif = await Notification.create({
         recipient: req.user._id,
         title: notifTitle,
         message: notifMsg,
         type: 'application_update',
         format: 'toast',
-        actionText: 'View Applications',
-        actionUrl: '/student/applications',
-        link: '/student/applications',
+        actionText: 'View Application Status',
+        actionUrl: `/student/jobs?jobId=${studentJobId}&appId=${application._id}`,
+        link: `/student/jobs?jobId=${studentJobId}`,
+        metadata: {
+          applicationId: application._id,
+          jobId: studentJobId,
+          jobTitle,
+          companyName,
+          status: initialStatus,
+        },
       });
       emitToUser(req.user._id.toString(), 'notification:new', { notification: studentNotif });
     }
@@ -850,9 +877,24 @@ export const getApplications = async (req: AuthenticatedRequest, res: Response):
         }
 
         const atsEval = AtsVerificationService.evaluateApplicationVerification(app);
+
+        // Determine pipeline hiring stage for recruiter Kanban board
+        const rawStatus = (app.status || '').toLowerCase().trim();
+        let recruiterStage = app.hiringStage;
+        if (!recruiterStage) {
+          if (['under_review', 'shortlisted', 'interview_scheduled', 'offered', 'rejected'].includes(rawStatus)) {
+            recruiterStage = rawStatus;
+          } else {
+            recruiterStage = 'applied';
+          }
+        }
+
+        const effectiveStatus = req.user?.role === 'recruiter' ? recruiterStage : atsEval.authoritativeStatus;
+
         return {
           ...app,
-          status: atsEval.authoritativeStatus,
+          status: effectiveStatus,
+          hiringStage: recruiterStage,
           authoritativeStatus: atsEval.authoritativeStatus,
           evidenceClassification: atsEval.evidenceClassification,
           statusConfig: APPLICATION_STATUS_CONFIG[atsEval.authoritativeStatus],
@@ -908,6 +950,7 @@ export const updateApplicationStatus = async (req: AuthenticatedRequest, res: Re
 
     if (status && status !== application.status) {
       application.status = status;
+      application.hiringStage = status;
       application.verificationLifecycleStage = 'employer_status_updated';
       if (!application.employerReceipt && req.user?.role === 'recruiter') {
         application.employerReceipt = {
@@ -924,19 +967,37 @@ export const updateApplicationStatus = async (req: AuthenticatedRequest, res: Re
         note: note || `Employer updated status to ${status.replace('_', ' ')}`,
       });
 
-      // Create real-time notification for student
+      // Create real-time notification for student with job metadata and valid action URL
       const jobTitle = application.jobTitle || (application.job as any)?.title || 'your application';
       const studentId = typeof application.student === 'object' && application.student?._id ? application.student._id : application.student;
+      const jobId = typeof application.job === 'object' && application.job?._id ? application.job._id : application.job;
+
+      const stageDisplayNames: Record<string, string> = {
+        under_review: 'Under Review',
+        shortlisted: 'Shortlisted',
+        interview_scheduled: 'Interview Scheduled',
+        offered: 'Offer Extended',
+        rejected: 'Application Not Selected',
+      };
+      const displayStage = stageDisplayNames[status] || status.replace('_', ' ').toUpperCase();
+
       const statusNotif = await Notification.create({
         recipient: studentId,
-        title: 'Application Status Update',
-        message: `Your application status for "${jobTitle}" has been updated to "${status.replace('_', ' ').toUpperCase()}".`,
+        title: `Application Status: ${displayStage}`,
+        message: `Your application for "${jobTitle}" at ${application.companyName || 'the employer'} was moved to "${displayStage}".`,
         type: 'application_update',
         format: status === 'hired' || status === 'offered' ? 'modal' : 'toast',
         priority: status === 'hired' || status === 'offered' ? 'urgent' : 'high',
-        actionText: 'View Applications',
-        actionUrl: '/student/applications',
-        link: '/student/applications',
+        actionText: 'View Application Status',
+        actionUrl: `/student/jobs?jobId=${jobId || ''}&appId=${application._id}`,
+        link: `/student/jobs?jobId=${jobId || ''}`,
+        metadata: {
+          applicationId: application._id,
+          jobId: jobId || '',
+          jobTitle,
+          companyName: application.companyName || '',
+          status,
+        },
       });
       emitToUser(studentId, 'notification:new', { notification: statusNotif });
     }
