@@ -43,7 +43,6 @@ export const Sidebar: React.FC = () => {
       { label: 'Recruiters', to: '/admin/recruiters' },
       { label: 'Job Postings', to: '/admin/jobs' },
       { label: 'Applications', to: '/admin/applications' },
-      { label: 'Placements', to: '/admin/placements' },
       { label: 'Reports', to: '/admin/reports' },
       { label: 'Settings', to: '/admin/settings' },
       { label: 'Notifications', to: '/admin/notifications', showBadge: true },

@@ -67,7 +67,6 @@ const baseAdminNav: NavItem[] = [
   { label: 'Recruiters', icon: <Building2 className="w-4 h-4" />, path: '/admin/recruiters' },
   { label: 'Job Postings', icon: <Briefcase className="w-4 h-4" />, path: '/admin/jobs' },
   { label: 'Applications', icon: <ClipboardList className="w-4 h-4" />, path: '/admin/applications' },
-  { label: 'Placements', icon: <Star className="w-4 h-4" />, path: '/admin/placements' },
   { label: 'Reports', icon: <BarChart3 className="w-4 h-4" />, path: '/admin/reports' },
   { label: 'Notifications & Campaigns', icon: <Bell className="w-4 h-4" />, path: '/admin/notifications', isNotification: true },
   { label: 'Settings', icon: <Settings className="w-4 h-4" />, path: '/admin/settings' },
