@@ -715,7 +715,7 @@ export const StudentApplications: React.FC = () => {
                 </a>
               ) : (
                 <a
-                  href="https://mail.google.com/mail/u/0/#sent"
+                  href={viewEmailApp.emailProvider === 'outlook' ? 'https://outlook.live.com/mail/0/sentitems' : 'https://mail.google.com/mail/u/0/#sent'}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 text-white font-bold text-xs hover:bg-neutral-800 transition-colors shadow-xs"

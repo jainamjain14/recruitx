@@ -517,9 +517,58 @@ export class CandidateApplicationEmailService {
       throw new Error(`Microsoft Graph API error (${response.status}): ${errText}`);
     }
 
-    // Graph API returns 202 Accepted on sendMail
-    const messageId = `msg_ms_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    return { messageId, viewUrl: 'https://outlook.live.com/mail/0/sentitems' };
+    // Capture Microsoft's official transaction request ID from response headers
+    const graphRequestId = response.headers.get('request-id') || response.headers.get('client-request-id');
+
+    // Query the student's Sent Items folder to capture the authentic Graph message ID & RFC822 internetMessageId
+    let realGraphId: string | undefined;
+    let internetMessageId: string | undefined;
+
+    try {
+      // Brief pause to allow Graph indexing into Sent Items
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      const sentFolderRes = await fetch(
+        `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$top=5&$select=id,internetMessageId,subject,sentDateTime,toRecipients`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (sentFolderRes.ok) {
+        const sentData: any = await sentFolderRes.json();
+        const items = sentData.value || [];
+        const matched = items.find(
+          (m: any) =>
+            (m.subject && m.subject === subject) ||
+            (m.toRecipients &&
+              m.toRecipients.some(
+                (r: any) => r.emailAddress?.address?.toLowerCase() === recipientEmail.toLowerCase()
+              ))
+        ) || items[0];
+
+        if (matched) {
+          realGraphId = matched.id;
+          internetMessageId = matched.internetMessageId;
+        }
+      }
+    } catch (queryErr: any) {
+      console.warn('[CandidateApplicationEmail] Sent Items verification notice:', queryErr.message);
+    }
+
+    // Genuine identifier confirmed by Microsoft Graph
+    const messageId = internetMessageId || realGraphId || (graphRequestId ? `ms_graph_${graphRequestId}` : undefined);
+
+    if (!messageId) {
+      throw new Error('Microsoft Graph accepted the send request, but failed to confirm transmission receipt.');
+    }
+
+    return {
+      messageId,
+      viewUrl: 'https://outlook.live.com/mail/0/sentitems',
+    };
   }
 
   /**

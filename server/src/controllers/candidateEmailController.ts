@@ -217,11 +217,14 @@ export const getMicrosoftConnectUrl = asyncHandler(async (req: AuthenticatedRequ
  * Handles Microsoft OAuth redirect callback
  */
 export const handleMicrosoftCallback = asyncHandler(async (req: Request, res: Response) => {
-  const { code, state, error } = req.query;
+  const code = (req.query.code || req.body?.code) as string | undefined;
+  const state = (req.query.state || req.body?.state) as string | undefined;
+  const error = (req.query.error || req.body?.error) as string | undefined;
+  const errorDesc = (req.query.error_description || req.body?.error_description || error) as string | undefined;
   const clientUrl = process.env.CLIENT_URL || 'https://recruitx-eosin.vercel.app';
 
-  if (error) {
-    res.redirect(`${clientUrl}/student/settings?email_error=${encodeURIComponent(String(error))}`);
+  if (error || errorDesc) {
+    res.redirect(`${clientUrl}/student/settings?email_error=${encodeURIComponent(String(errorDesc || error))}`);
     return;
   }
 
