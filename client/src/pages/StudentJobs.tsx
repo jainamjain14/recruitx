@@ -137,7 +137,7 @@ export const StudentJobs: React.FC = () => {
   const [targetDomain, setTargetDomain] = useState('Marketing & Growth Management');
   const [companyJobs, setCompanyJobs] = useState<CompanyJob[]>([]);
   const [search, setSearch] = useState('');
-  const [filterMode, setFilterMode] = useState<'recommended' | 'all' | 'nearby' | 'high_match' | 'remote'>('recommended');
+  const [filterMode, setFilterMode] = useState<'recommended' | 'all' | 'nearby' | 'high_match' | 'remote'>('all');
   const [nearbyRadius, setNearbyRadius] = useState<number>(50); // 50 km default radius
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [appliedCompany, setAppliedCompany] = useState<string[]>([]);
@@ -236,7 +236,13 @@ export const StudentJobs: React.FC = () => {
     window.addEventListener('recruitx:job-updated', handleRealtimeJobEvent);
     window.addEventListener('recruitx:job-deleted', handleRealtimeJobEvent);
 
+    // Periodic background resynchronization fallback in case websocket is disconnected or missed
+    const syncInterval = setInterval(() => {
+      fetchCompanyMatches();
+    }, 25000);
+
     return () => {
+      clearInterval(syncInterval);
       window.removeEventListener('recruitx:job-published', handleRealtimeJobEvent);
       window.removeEventListener('recruitx:job-updated', handleRealtimeJobEvent);
       window.removeEventListener('recruitx:job-deleted', handleRealtimeJobEvent);
@@ -961,18 +967,6 @@ export const StudentJobs: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-neutral-100 pb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setFilterMode('recommended')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
-              filterMode === 'recommended'
-                ? 'bg-neutral-900 text-white'
-                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-            }`}
-          >
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            Recommended For You
-          </button>
-
-          <button
             onClick={() => setFilterMode('all')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
               filterMode === 'all'
@@ -981,6 +975,18 @@ export const StudentJobs: React.FC = () => {
             }`}
           >
             Browse All Openings ({companyJobs.length})
+          </button>
+
+          <button
+            onClick={() => setFilterMode('recommended')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+              filterMode === 'recommended'
+                ? 'bg-neutral-900 text-white'
+                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+            }`}
+          >
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            Recommended For You ({companyJobs.filter((j) => j.isCompatible !== false && (j.matchPercentage ?? 0) >= 45).length})
           </button>
 
           <button

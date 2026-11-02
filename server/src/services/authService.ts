@@ -405,5 +405,120 @@ export class AuthService {
 
     await user.save();
   }
+
+  /**
+   * Generates a cryptographically secure 6-digit OTP, stores its SHA-256 hash, and dispatches via Brevo
+   */
+  static async requestPasswordResetOtp(email: string): Promise<{ emailSent: boolean }> {
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: cleanEmail });
+
+    // Prevent account enumeration: return success even if user not registered
+    if (!user) {
+      return { emailSent: true };
+    }
+
+    // Rate limiting: 60 seconds cooldown between resend requests
+    if (user.resetPasswordOtpLastSent) {
+      const elapsedSeconds = (Date.now() - new Date(user.resetPasswordOtpLastSent).getTime()) / 1000;
+      if (elapsedSeconds < 60) {
+        const remaining = Math.ceil(60 - elapsedSeconds);
+        throw new Error(`Please wait ${remaining} seconds before requesting a new verification code.`);
+      }
+    }
+
+    // Generate cryptographically secure 6-digit numeric verification code
+    const otpCode = crypto.randomInt(100000, 999999).toString();
+    const otpHash = crypto.createHash('sha256').update(otpCode).digest('hex');
+
+    user.resetPasswordOtpHash = otpHash;
+    user.resetPasswordOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+    user.resetPasswordOtpAttempts = 0;
+    user.resetPasswordOtpLastSent = new Date();
+    await user.save();
+
+    // Dispatch real email via Brevo
+    await EmailService.sendPasswordResetOtpEmail({
+      toEmail: user.email,
+      userName: user.name,
+      otpCode,
+    });
+
+    return { emailSent: true };
+  }
+
+  /**
+   * Verifies the 6-digit OTP code against the stored SHA-256 hash and issues a reset session token
+   */
+  static async verifyPasswordResetOtp(email: string, otp: string): Promise<{ resetSessionToken: string }> {
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: cleanEmail });
+
+    if (!user || !user.resetPasswordOtpHash || !user.resetPasswordOtpExpires) {
+      throw new Error('No active verification code found. Please request a new verification code.');
+    }
+
+    if (new Date() > new Date(user.resetPasswordOtpExpires)) {
+      throw new Error('Verification code has expired. Please request a new code.');
+    }
+
+    if ((user.resetPasswordOtpAttempts || 0) >= 5) {
+      throw new Error('Too many incorrect attempts. Please request a new verification code.');
+    }
+
+    const enteredHash = crypto.createHash('sha256').update(otp.trim()).digest('hex');
+    if (enteredHash !== user.resetPasswordOtpHash) {
+      user.resetPasswordOtpAttempts = (user.resetPasswordOtpAttempts || 0) + 1;
+      await user.save();
+      const remaining = 5 - user.resetPasswordOtpAttempts;
+      throw new Error(
+        remaining > 0
+          ? `Invalid verification code. You have ${remaining} attempt(s) remaining.`
+          : 'Too many incorrect attempts. Please request a new verification code.'
+      );
+    }
+
+    // OTP is valid. Invalidate OTP hash to prevent replay
+    user.resetPasswordOtpHash = undefined;
+    user.resetPasswordOtpExpires = undefined;
+    user.resetPasswordOtpAttempts = 0;
+
+    // Issue a cryptographically secure 10-minute session token for password update
+    const resetSessionToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordSessionToken = crypto.createHash('sha256').update(resetSessionToken).digest('hex');
+    user.resetPasswordSessionExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    return { resetSessionToken };
+  }
+
+  /**
+   * Updates user password using validated reset session token
+   */
+  static async resetPasswordWithOtp(email: string, resetSessionToken: string, newPassword: string): Promise<void> {
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: cleanEmail });
+
+    if (!user || !user.resetPasswordSessionToken || !user.resetPasswordSessionExpires) {
+      throw new Error('Invalid or expired reset session. Please request a new verification code.');
+    }
+
+    if (new Date() > new Date(user.resetPasswordSessionExpires)) {
+      throw new Error('Password reset session has expired. Please request a new verification code.');
+    }
+
+    const sessionHash = crypto.createHash('sha256').update(resetSessionToken.trim()).digest('hex');
+    if (sessionHash !== user.resetPasswordSessionToken) {
+      throw new Error('Invalid reset session token. Please request a new verification code.');
+    }
+
+    // Invalidate reset session and set new password
+    user.password = newPassword;
+    user.resetPasswordSessionToken = undefined;
+    user.resetPasswordSessionExpires = undefined;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+  }
 }
 

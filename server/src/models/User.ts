@@ -46,6 +46,12 @@ export interface IUserDocument {
   onboardingCompleted?: boolean;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
+  resetPasswordOtpHash?: string;
+  resetPasswordOtpExpires?: Date;
+  resetPasswordOtpAttempts?: number;
+  resetPasswordOtpLastSent?: Date;
+  resetPasswordSessionToken?: string;
+  resetPasswordSessionExpires?: Date;
   // Contact Email Management (Part 2)
   contactEmail?: string;
   contactEmailVerified?: boolean;
@@ -101,6 +107,12 @@ export class UserDoc implements IUserDocument {
   declare onboardingCompleted?: boolean;
   declare resetPasswordToken?: string;
   declare resetPasswordExpires?: Date;
+  declare resetPasswordOtpHash?: string;
+  declare resetPasswordOtpExpires?: Date;
+  declare resetPasswordOtpAttempts?: number;
+  declare resetPasswordOtpLastSent?: Date;
+  declare resetPasswordSessionToken?: string;
+  declare resetPasswordSessionExpires?: Date;
   declare contactEmail?: string;
   declare contactEmailVerified?: boolean;
   declare contactEmailVerificationCode?: string;
@@ -150,6 +162,12 @@ export class UserDoc implements IUserDocument {
     this.onboardingCompleted = data.onboardingCompleted ?? false;
     this.resetPasswordToken = data.resetPasswordToken;
     this.resetPasswordExpires = data.resetPasswordExpires ? dateFromFirestore(data.resetPasswordExpires) : undefined;
+    this.resetPasswordOtpHash = data.resetPasswordOtpHash;
+    this.resetPasswordOtpExpires = data.resetPasswordOtpExpires ? dateFromFirestore(data.resetPasswordOtpExpires) : undefined;
+    this.resetPasswordOtpAttempts = data.resetPasswordOtpAttempts || 0;
+    this.resetPasswordOtpLastSent = data.resetPasswordOtpLastSent ? dateFromFirestore(data.resetPasswordOtpLastSent) : undefined;
+    this.resetPasswordSessionToken = data.resetPasswordSessionToken;
+    this.resetPasswordSessionExpires = data.resetPasswordSessionExpires ? dateFromFirestore(data.resetPasswordSessionExpires) : undefined;
 
     // Contact Email
     this.contactEmail = data.contactEmail ? (data.contactEmail as string).toLowerCase().trim() : undefined;
@@ -227,6 +245,12 @@ export class UserDoc implements IUserDocument {
       onboardingCompleted: this.onboardingCompleted ?? false,
       resetPasswordToken: this.resetPasswordToken || null,
       resetPasswordExpires: this.resetPasswordExpires || null,
+      resetPasswordOtpHash: this.resetPasswordOtpHash || null,
+      resetPasswordOtpExpires: this.resetPasswordOtpExpires || null,
+      resetPasswordOtpAttempts: this.resetPasswordOtpAttempts || 0,
+      resetPasswordOtpLastSent: this.resetPasswordOtpLastSent || null,
+      resetPasswordSessionToken: this.resetPasswordSessionToken || null,
+      resetPasswordSessionExpires: this.resetPasswordSessionExpires || null,
       // Contact Email
       contactEmail: this.contactEmail || null,
       contactEmailVerified: this.contactEmailVerified ?? false,

@@ -223,18 +223,7 @@ export class Job {
           snap2.docs.forEach((d: any) => docsMap.set(d.id, d));
         } catch {}
       } else {
-        let q: any = db.collection(Collections.JOBS);
-        if (filter.status && typeof filter.status === 'string') {
-          q = q.where('status', '==', filter.status);
-        }
-        if (filter.jobType) {
-          q = q.where('jobType', '==', filter.jobType);
-        }
-        if (filter.workMode) {
-          q = q.where('workMode', '==', filter.workMode);
-        }
-
-        const snap = await q.get();
+        const snap = await db.collection(Collections.JOBS).get();
         snap.docs.forEach((d: any) => docsMap.set(d.id, d));
       }
 
@@ -252,6 +241,16 @@ export class Job {
       if (filter.status && typeof filter.status === 'string') {
         const targetStatus = filter.status.toLowerCase();
         jobs = jobs.filter((j: any) => (j.status || 'active').toLowerCase() === targetStatus);
+      }
+
+      if (filter.jobType) {
+        const targetType = String(filter.jobType).toLowerCase();
+        jobs = jobs.filter((j: any) => (j.jobType || '').toLowerCase() === targetType);
+      }
+
+      if (filter.workMode) {
+        const targetMode = String(filter.workMode).toLowerCase();
+        jobs = jobs.filter((j: any) => (j.workMode || '').toLowerCase() === targetMode);
       }
 
       // Filter in-memory for regex/search queries

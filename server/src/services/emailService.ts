@@ -381,6 +381,60 @@ export class EmailService {
       html: htmlBody,
     });
   }
+  /**
+   * Dispatches genuine 6-digit password reset verification code via Brevo Transactional HTTPS API
+   */
+  static async sendPasswordResetOtpEmail(payload: {
+    toEmail: string;
+    userName?: string;
+    otpCode: string;
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const { toEmail, userName, otpCode } = payload;
+    const subject = 'RecruitX Password Reset Verification Code';
+
+    const htmlBody = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <div style="border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 24px;">
+          <h2 style="color: #0f172a; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">RecruitX</h2>
+          <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">AI-Driven Campus Placement & Hiring Ecosystem</p>
+        </div>
+
+        <h3 style="color: #0f172a; font-size: 18px; margin: 0 0 12px 0;">RecruitX Password Reset Verification Code</h3>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+          Hi ${userName ? `<strong>${userName}</strong>` : 'there'},<br/>
+          You requested to reset your RecruitX password.
+        </p>
+
+        <p style="color: #475569; font-size: 14px; margin: 0 0 8px 0;">Your verification code is:</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <span style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #0f172a; background-color: #f1f5f9; padding: 14px 28px; border-radius: 8px; border: 1px solid #cbd5e1;">
+            ${otpCode}
+          </span>
+        </div>
+
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 12px 0;">
+          This code expires in <strong>10 minutes</strong>.
+        </p>
+        <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0 0 24px 0;">
+          If you did not request this, you can safely ignore this email.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 16px 0;" />
+        <div style="text-align: center;">
+          <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+            &copy; 2026 RecruitX Platform • Naynam Vakhariya • Jainam Jain • Shiv Gupta
+          </p>
+        </div>
+      </div>
+    `;
+
+    return this.sendMail({
+      to: toEmail,
+      subject,
+      html: htmlBody,
+    });
+  }
+
 /**
    * Dispatches password reset instructions with secure one-time link
    */

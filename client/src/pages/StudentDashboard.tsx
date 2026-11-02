@@ -72,8 +72,11 @@ export const StudentDashboard: React.FC = () => {
         setResumeData(resRes.value.data.data.resume);
       }
 
-      if (jobRes.status === 'fulfilled' && jobRes.value.data?.data?.companies) {
-        setRecommendedJobs(jobRes.value.data.data.companies.slice(0, 4));
+      if (jobRes.status === 'fulfilled' && jobRes.value.data?.data) {
+        const recList = (jobRes.value.data.data.recommendedJobs && jobRes.value.data.data.recommendedJobs.length > 0)
+          ? jobRes.value.data.data.recommendedJobs
+          : (jobRes.value.data.data.companies || []);
+        setRecommendedJobs(recList.slice(0, 4));
       }
 
       if (allJobsRes.status === 'fulfilled' && allJobsRes.value.data?.data?.jobs) {

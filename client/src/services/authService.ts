@@ -58,6 +58,21 @@ export const authService = {
     return response.data;
   },
 
+  requestPasswordResetOtp: async (email: string): Promise<ApiResponse<{ emailSent: boolean }>> => {
+    const response = await api.post<ApiResponse<{ emailSent: boolean }>>('/auth/forgot-password-otp', { email });
+    return response.data;
+  },
+
+  verifyPasswordResetOtp: async (email: string, otp: string): Promise<ApiResponse<{ resetSessionToken: string }>> => {
+    const response = await api.post<ApiResponse<{ resetSessionToken: string }>>('/auth/verify-password-otp', { email, otp });
+    return response.data;
+  },
+
+  resetPasswordWithOtp: async (email: string, resetSessionToken: string, password: string): Promise<ApiResponse> => {
+    const response = await api.post<ApiResponse>('/auth/reset-password-otp', { email, resetSessionToken, password });
+    return response.data;
+  },
+
   resetPassword: async (token: string, password: string): Promise<ApiResponse> => {
     const response = await api.post<ApiResponse>('/auth/reset-password', { token, password });
     return response.data;

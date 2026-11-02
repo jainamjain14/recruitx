@@ -486,12 +486,30 @@ Return ONLY a valid JSON object matching this schema:
     ]));
     const jobTokens = Array.from(new Set([...getTokens(jobRoleLower), ...getTokens(jobTitleLower)]));
 
+    // Common functional synonym clusters to recognize equivalent professional roles across nomenclature
+    const synonymClusters = [
+      new Set(['engineer', 'developer', 'programmer', 'coder', 'architect', 'dev', 'specialist', 'technologist']),
+      new Set(['frontend', 'ui', 'web', 'client', 'react', 'software', 'fullstack', 'application']),
+      new Set(['backend', 'server', 'api', 'systems', 'cloud', 'software', 'fullstack', 'database']),
+      new Set(['doctor', 'physician', 'clinician', 'surgeon', 'medical']),
+      new Set(['designer', 'ui', 'ux', 'product', 'creative']),
+      new Set(['recruiter', 'talent', 'hr', 'human resources', 'staffing']),
+      new Set(['marketer', 'marketing', 'growth', 'seo', 'campaign']),
+      new Set(['analyst', 'data', 'bi', 'analytics', 'statistics']),
+    ];
+
+    const isSynonym = (w1: string, w2: string) => {
+      return synonymClusters.some(cluster => (cluster.has(w1) || cluster.has(stem(w1))) && (cluster.has(w2) || cluster.has(stem(w2))));
+    };
+
     const matchesToken = (t1: string, t2: string) => {
       if (t1 === t2) return true;
       if (t1.includes(t2) || t2.includes(t1)) return true;
       const s1 = stem(t1);
       const s2 = stem(t2);
-      if (s1.length >= 4 && s2.length >= 4 && (s1 === s2 || s1.startsWith(s2) || s2.startsWith(s1))) return true;
+      if (s1 === s2) return true;
+      if (isSynonym(t1, t2) || isSynonym(s1, s2)) return true;
+      if (s1.length >= 4 && s2.length >= 4 && (s1.startsWith(s2) || s2.startsWith(s1))) return true;
       if (t1.length >= 5 && t2.length >= 5 && (t1.startsWith(t2.slice(0, 5)) || t2.startsWith(t1.slice(0, 5)))) return true;
       return false;
     };
@@ -545,9 +563,9 @@ Return ONLY a valid JSON object matching this schema:
     const transferableScore = (transferableSkills.length / totalReqCount) * 50;
     const competencyCoverage = Math.min(100, Math.round(directScore + transferableScore));
 
-    // If candidate demonstrates strong direct technical competency match (>50% coverage with 2+ core skills),
-    // this directly proves functional alignment across varied nomenclature (e.g. Airline Pilot vs First Officer)
-    if (competencyCoverage >= 50 && matchedSkills.length >= 2) {
+    // If candidate demonstrates strong direct technical competency match (>50% coverage with relevant core skills),
+    // this directly proves functional alignment across varied nomenclature (e.g. Airline Pilot vs First Officer, Software Engineer vs Frontend Developer)
+    if (competencyCoverage >= 50 && matchedSkills.length >= Math.min(1, totalReqCount)) {
       functionalAlignment = Math.max(functionalAlignment, Math.min(95, Math.round(competencyCoverage * 0.95)));
     }
 

@@ -89,6 +89,69 @@ export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Respons
   sendSuccess(res, 'Current user profile fetched successfully', { user: req.user });
 });
 
+export const requestPasswordResetOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email || typeof email !== 'string') {
+    sendError(res, 'A valid email address is required', null, 400);
+    return;
+  }
+
+  try {
+    const result = await AuthService.requestPasswordResetOtp(email);
+    sendSuccess(res, 'A 6-digit verification code has been dispatched to your email address.', result);
+  } catch (error: any) {
+    if (error.message?.includes('wait')) {
+      sendError(res, error.message, null, 429);
+      return;
+    }
+    // Prevent user enumeration
+    sendSuccess(res, 'If an account with that email exists, a 6-digit verification code has been dispatched to your email address.', { emailSent: true });
+  }
+});
+
+export const verifyPasswordResetOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { email, otp } = req.body;
+
+  if (!email || typeof email !== 'string') {
+    sendError(res, 'Email address is required', null, 400);
+    return;
+  }
+
+  if (!otp || typeof otp !== 'string' || !/^\d{6}$/.test(otp.trim())) {
+    sendError(res, 'A valid 6-digit verification code is required', null, 400);
+    return;
+  }
+
+  try {
+    const { resetSessionToken } = await AuthService.verifyPasswordResetOtp(email, otp);
+    sendSuccess(res, 'Verification code confirmed. You may now set your new password.', { resetSessionToken });
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to verify code', null, 400);
+  }
+});
+
+export const resetPasswordWithOtp = asyncHandler(async (req: Request, res: Response) => {
+  const { email, resetSessionToken, password } = req.body;
+
+  if (!email || !resetSessionToken || !password) {
+    sendError(res, 'Email, reset session token, and new password are required', null, 400);
+    return;
+  }
+
+  if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) {
+    sendError(res, 'Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, and one number', null, 400);
+    return;
+  }
+
+  try {
+    await AuthService.resetPasswordWithOtp(email, resetSessionToken, password);
+    sendSuccess(res, 'Password has been reset successfully. You can now log in with your new password.');
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to reset password', null, 400);
+  }
+});
+
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const { email } = req.body;
 
@@ -98,6 +161,8 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
   }
 
   try {
+    // Dispatch both OTP code and reset link for maximum client compatibility
+    await AuthService.requestPasswordResetOtp(email);
     const { resetToken, user } = await AuthService.forgotPassword(email);
     const origin = (req.headers.origin as string) || (req.headers.referer ? (() => { try { return new URL(req.headers.referer as string).origin; } catch { return ''; } })() : '');
     const clientUrl = origin || process.env.CLIENT_URL || 'https://recruitx-eosin.vercel.app';
@@ -109,15 +174,11 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
       resetUrl,
     });
 
-    // In development mode, provide token for test convenience; in production, keep secure
-    const isDev = process.env.NODE_ENV !== 'production';
-    sendSuccess(res, 'If an account with that email exists, password reset instructions have been dispatched to your email address.', {
+    sendSuccess(res, 'If an account with that email exists, verification instructions have been dispatched to your email address.', {
       emailSent: true,
-      ...(isDev ? { resetToken, resetUrl, devNotice: 'Development convenience only: Token included for local testing.' } : {}),
     });
   } catch (error: any) {
-    // Avoid user enumeration
-    sendSuccess(res, 'If an account with that email exists, password reset instructions have been dispatched to your email address.', {
+    sendSuccess(res, 'If an account with that email exists, verification instructions have been dispatched to your email address.', {
       emailSent: true,
     });
   }

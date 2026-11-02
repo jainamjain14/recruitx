@@ -5,6 +5,9 @@ import {
   getMe,
   forgotPassword,
   resetPassword,
+  requestPasswordResetOtp,
+  verifyPasswordResetOtp,
+  resetPasswordWithOtp,
   logout,
   updateProfile,
   updatePassword,
@@ -33,6 +36,9 @@ router.put('/profile', authenticate, updateProfile);
 router.put('/password', authenticate, updatePassword);
 router.post('/forgot-password', authLimiter, validateForgotPassword, forgotPassword);
 router.post('/reset-password', authLimiter, validateResetPassword, resetPassword);
+router.post('/forgot-password-otp', authLimiter, requestPasswordResetOtp);
+router.post('/verify-password-otp', authLimiter, verifyPasswordResetOtp);
+router.post('/reset-password-otp', authLimiter, resetPasswordWithOtp);
 router.post('/logout', logout);
 
 export default router;
