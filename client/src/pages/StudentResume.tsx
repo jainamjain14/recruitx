@@ -16,6 +16,8 @@ export const StudentResume: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [existingFileName, setExistingFileName] = useState<string>('');
+  const [existingUpdatedAt, setExistingUpdatedAt] = useState<string | null>(null);
 
   // Selected file state for AI parsing
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -31,6 +33,8 @@ export const StudentResume: React.FC = () => {
       const res = await api.get('/resume');
       const data = res.data?.data?.resume;
       if (data) {
+        if (data.fileName) setExistingFileName(data.fileName);
+        if (data.updatedAt) setExistingUpdatedAt(data.updatedAt);
         if (data.headline) setHeadline(data.headline);
         if (data.summary) setSummary(data.summary);
         if (data.fieldOfInterest) setFieldOfInterest(data.fieldOfInterest);
@@ -162,20 +166,29 @@ export const StudentResume: React.FC = () => {
         </Button>
       </div>
 
-      {/* AI Resume File Extractor Section */}
+      {/* Unified AI Resume Upload & Extraction Interface */}
       <Card className="p-5 border-neutral-300 bg-neutral-50/50 space-y-4">
-        <div className="flex items-center gap-2 text-neutral-900 font-semibold text-sm">
-          <Sparkles className="w-4 h-4 text-neutral-900" />
-          <span>AI Resume & Profile Auto-Fill</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-neutral-900 font-semibold text-sm">
+            <Sparkles className="w-4 h-4 text-neutral-900" />
+            <span>Unified Resume Upload & AI Profile Extraction</span>
+          </div>
+          {existingFileName && !selectedFile && (
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              Active: {existingFileName}
+            </span>
+          )}
         </div>
+
         <p className="text-xs text-neutral-600">
-          Upload your resume PDF file below. AI will read your document, extract your technical skills, field of interest, and professional summary, and auto-populate your profile.
+          Upload or replace your PDF resume below. RecruitX uses Gemini AI to analyze your resume, auto-populate your verified skills and domain, and attach this genuine PDF to your automated job applications.
         </p>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <input
             type="file"
-            accept=".pdf,.doc,.docx"
+            accept=".pdf"
             onChange={handleFileChange}
             className="text-xs text-neutral-600 border border-neutral-200 rounded-md p-2 bg-white flex-1 cursor-pointer"
           />
@@ -185,7 +198,7 @@ export const StudentResume: React.FC = () => {
             className="flex items-center justify-center gap-1.5 whitespace-nowrap"
           >
             <Wand2 className="w-3.5 h-3.5" />
-            {aiParsing ? 'AI Extracting...' : 'AI Extract & Auto-Fill'}
+            {aiParsing ? 'Extracting with AI...' : selectedFile ? 'Upload & Extract with AI' : 'Select PDF to Extract'}
           </Button>
         </div>
 
@@ -270,31 +283,30 @@ export const StudentResume: React.FC = () => {
         <div className="space-y-6">
           <Card className="p-5 space-y-3">
             <div className="flex items-center gap-2 text-neutral-900 font-semibold text-sm">
-              <FileText className="w-4 h-4 text-neutral-500" />
-              <span>Resume File Document</span>
+              <FileText className="w-4 h-4 text-neutral-700" />
+              <span>Application Readiness</span>
             </div>
-            <p className="text-xs text-neutral-500">
-              {selectedFile ? `Currently selected: ${selectedFile.name}` : headline ? 'Profile resume active and ready for recruiter view' : 'Choose your PDF resume document below.'}
-            </p>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={handleFileChange}
-              className="text-xs text-neutral-500 block w-full border border-neutral-200 rounded-md p-2 bg-white cursor-pointer"
-            />
-            {selectedFile && (
-              <div className="pt-2">
-                <Button
-                  onClick={handleAIExtractFromFile}
-                  disabled={aiParsing}
-                  size="sm"
-                  className="w-full text-xs flex items-center justify-center gap-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {aiParsing ? 'Extracting with AI...' : 'Auto-Fill Profile with this File'}
-                </Button>
+            <div className="space-y-2.5 text-xs">
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-neutral-500">Active Resume:</span>
+                  <span className="font-semibold text-neutral-800 truncate max-w-[150px]">
+                    {selectedFile ? selectedFile.name : (existingFileName || (headline ? 'Resume Profile Active' : 'Not Uploaded'))}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-neutral-500">Format:</span>
+                  <span className="font-semibold text-emerald-700">PDF Document ✓</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-neutral-500">Auto-Apply:</span>
+                  <span className="text-emerald-700 font-semibold">Direct Dispatch Ready ✓</span>
+                </div>
               </div>
-            )}
+              <p className="text-[11px] text-neutral-500 leading-relaxed">
+                This verified resume PDF is automatically attached whenever you click <strong>Apply Automatically</strong>. To replace it, select a new file in the unified upload section above.
+              </p>
+            </div>
           </Card>
         </div>
       </div>

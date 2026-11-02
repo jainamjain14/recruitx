@@ -23,7 +23,6 @@ export const Sidebar: React.FC = () => {
       { label: 'My Resume', to: '/student/resume' },
       { label: 'Career Roadmap & Skills', to: '/student/roadmap' },
       { label: 'Job Matches', to: '/student/jobs' },
-      { label: 'Applications', to: '/student/applications' },
       { label: 'Messages', to: '/student/messages' },
       { label: 'Settings', to: '/student/settings' },
       { label: 'Notifications', to: '/student/notifications', showBadge: true },

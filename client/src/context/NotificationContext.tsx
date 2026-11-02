@@ -307,13 +307,37 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       window.dispatchEvent(new CustomEvent('recruitx:message', { detail: payload }));
     });
 
+    // Real-time job publishing, updating, and deactivation
+    socket.on('job:published', (payload: any) => {
+      window.dispatchEvent(new CustomEvent('recruitx:job-published', { detail: payload }));
+      if (user?.role === 'student' && payload?.company) {
+        addToastRef.current({
+          title: 'New Opening Published',
+          message: `${payload.company} posted: ${payload.title}`,
+          type: 'job_alert',
+          actionUrl: '/student/jobs',
+        });
+      }
+    });
+
+    socket.on('job:updated', (payload: any) => {
+      window.dispatchEvent(new CustomEvent('recruitx:job-updated', { detail: payload }));
+    });
+
+    socket.on('job:deleted', (payload: any) => {
+      window.dispatchEvent(new CustomEvent('recruitx:job-deleted', { detail: payload }));
+    });
+
     return () => {
       socket.off('notification:new');
       socket.off('announcement:new');
       socket.off('message:new');
+      socket.off('job:published');
+      socket.off('job:updated');
+      socket.off('job:deleted');
       socket.disconnect();
     };
-  }, [token]);
+  }, [token, user]);
 
   const markAsRead = async (id: string) => {
     try {
@@ -404,7 +428,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
         type: 'interview_invite',
         priority: 'high',
         actionText: 'View Interview Details',
-        actionUrl: '/student/applications',
+        actionUrl: '/student/jobs',
       });
     } else if (format === 'banner') {
       setActiveBanner({
@@ -433,7 +457,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
         targetAudience: 'student',
         priority: 'urgent',
         actionText: 'Accept / Review Offer',
-        actionUrl: '/student/applications',
+        actionUrl: '/student/jobs',
         status: 'active',
         scheduledAt: new Date().toISOString(),
         impressions: 1,

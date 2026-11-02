@@ -44,7 +44,10 @@ export class JobDoc implements IJobDocument {
 
   constructor(data: any, id: string) {
     this._id = id;
-    this.recruiter = data.recruiter;
+    const rawRecruiter = data.recruiter || data.postedBy;
+    this.recruiter = typeof rawRecruiter === 'object' && rawRecruiter?._id
+      ? rawRecruiter._id.toString()
+      : (rawRecruiter ? rawRecruiter.toString() : '');
     this.title = data.title || '';
     this.company = data.company || '';
     this.location = data.location || '';
@@ -64,7 +67,9 @@ export class JobDoc implements IJobDocument {
 
   async save(): Promise<IJobDocument> {
     this.updatedAt = new Date();
-    const recruiterId = typeof this.recruiter === 'object' && this.recruiter?._id ? this.recruiter._id : this.recruiter;
+    const recruiterId = typeof this.recruiter === 'object' && this.recruiter?._id
+      ? this.recruiter._id.toString()
+      : (this.recruiter ? this.recruiter.toString() : '');
 
     const dataToSave = cleanDataForFirestore({
       recruiter: recruiterId,
@@ -202,23 +207,52 @@ export class Job {
 
   static find(filter: any = {}): JobQueryBuilder<IJobDocument[]> {
     return new JobQueryBuilder(async () => {
-      let q: any = db.collection(Collections.JOBS);
+      let docsMap = new Map<string, any>();
 
       if (filter.recruiter) {
-        q = q.where('recruiter', '==', filter.recruiter.toString());
-      }
-      if (filter.status && typeof filter.status === 'string') {
-        q = q.where('status', '==', filter.status);
-      }
-      if (filter.jobType) {
-        q = q.where('jobType', '==', filter.jobType);
-      }
-      if (filter.workMode) {
-        q = q.where('workMode', '==', filter.workMode);
+        const recId = filter.recruiter.toString();
+        // Query by modern 'recruiter' field
+        try {
+          const snap1 = await db.collection(Collections.JOBS).where('recruiter', '==', recId).get();
+          snap1.docs.forEach((d: any) => docsMap.set(d.id, d));
+        } catch {}
+
+        // Query by legacy 'postedBy' field for backwards compatibility
+        try {
+          const snap2 = await db.collection(Collections.JOBS).where('postedBy', '==', recId).get();
+          snap2.docs.forEach((d: any) => docsMap.set(d.id, d));
+        } catch {}
+      } else {
+        let q: any = db.collection(Collections.JOBS);
+        if (filter.status && typeof filter.status === 'string') {
+          q = q.where('status', '==', filter.status);
+        }
+        if (filter.jobType) {
+          q = q.where('jobType', '==', filter.jobType);
+        }
+        if (filter.workMode) {
+          q = q.where('workMode', '==', filter.workMode);
+        }
+
+        const snap = await q.get();
+        snap.docs.forEach((d: any) => docsMap.set(d.id, d));
       }
 
-      const snap = await q.get();
-      let jobs: IJobDocument[] = snap.docs.map((d: any) => new JobDoc(d.data(), d.id));
+      let jobs: IJobDocument[] = Array.from(docsMap.values()).map((d: any) => new JobDoc(d.data(), d.id));
+
+      // Post-process in-memory for complete isolation and accurate filtering
+      if (filter.recruiter) {
+        const recId = filter.recruiter.toString();
+        jobs = jobs.filter((j: any) => {
+          const r = (j.recruiter?._id || j.recruiter || j.postedBy?._id || j.postedBy)?.toString();
+          return r === recId;
+        });
+      }
+
+      if (filter.status && typeof filter.status === 'string') {
+        const targetStatus = filter.status.toLowerCase();
+        jobs = jobs.filter((j: any) => (j.status || 'active').toLowerCase() === targetStatus);
+      }
 
       // Filter in-memory for regex/search queries
       if (filter.$or && Array.isArray(filter.$or)) {

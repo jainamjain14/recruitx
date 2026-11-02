@@ -166,7 +166,9 @@ export class AutomatedApplicationService {
       const tailoredCoverLetter = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong enthusiasm and application for the ${job.title} position. Based on my background in ${resume.fieldOfInterest || student.profession || 'this discipline'} and core skills in ${(resume.skills || []).slice(0, 5).join(', ')}, I am confident in delivering immediate impact to your organization.\n\nKey Match Highlights: ${job.matchReason}\n\nPlease review my attached resume for complete details on my experience and technical background.\n\nSincerely,\n${candidateDisplayName}`;
 
       // Check if job belongs to a platform recruiter
-      const matchedRecruiter = recruiters.find(
+      const matchedRecruiter = (job.recruiterId
+        ? recruiters.find((r) => r._id.toString() === job.recruiterId.toString())
+        : null) || recruiters.find(
         (r) => r.company && r.company.toLowerCase().trim() === job.company.toLowerCase().trim()
       );
 
@@ -259,7 +261,7 @@ export class AutomatedApplicationService {
       }
       // ROUTE 3: Verified Company Recruitment Email
       else {
-        const destination = CandidateApplicationEmailService.resolveApplicationDestination({
+        const destination = await CandidateApplicationEmailService.resolveApplicationDestination({
           companyName: job.company,
           targetHrEmail: job.hrEmail || getVerifiedCompanyHrEmail(job.company),
           jobUrl: job.jobUrl,
@@ -323,6 +325,7 @@ export class AutomatedApplicationService {
 
       // Create persistent Application in Firestore
       const newApp = await Application.create({
+        job: job._id || job.id || undefined,
         student: studentId,
         recruiter: matchedRecruiter ? matchedRecruiter._id : null,
         companyName: job.company,

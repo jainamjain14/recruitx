@@ -1,3 +1,6 @@
+import { EmailService } from './emailService.js';
+import { RecruitmentEmailDiscoveryService } from './recruitmentEmailDiscoveryService.js';
+import { AIService } from './aiService.js';
 import fs from 'fs';
 import path from 'path';
 import { IUserDocument } from '../models/User.js';
@@ -14,14 +17,16 @@ export interface ApplicationDispatchOptions {
   targetHrEmail?: string;
   coverLetter?: string;
   jobUrl?: string;
+  applicationId?: string;
+  jobId?: string;
 }
 
 export interface ApplicationDispatchResult {
-  status: 'sent' | 'requires_portal' | 'requires_connected_account' | 'failed';
+  status: 'sent' | 'requires_portal' | 'requires_connected_account' | 'failed' | 'missing_resume';
   message: string;
   senderEmail?: string;
   recipientEmail?: string;
-  provider?: 'gmail' | 'outlook' | 'gateway';
+  provider?: 'gmail' | 'outlook' | 'gateway' | 'brevo';
   messageId?: string;
   viewSentEmailUrl?: string;
   sentAt?: Date;
@@ -36,49 +41,44 @@ export interface ApplicationDispatchResult {
 export class CandidateApplicationEmailService {
   /**
    * Resolves legitimate application destination for an employer.
-   * If no verified hiring email exists, strictly mandates official career portal.
+   * Discovers and verifies corporate recruitment inboxes, never guessing addresses.
    */
-  static resolveApplicationDestination(options: {
+  static async resolveApplicationDestination(options: {
     companyName: string;
     targetHrEmail?: string;
     jobUrl?: string;
-  }): {
+    jobDescription?: string;
+  }): Promise<{
     method: 'email' | 'portal';
     destinationEmail?: string;
     portalUrl?: string;
     source: string;
-  } {
-    const { companyName, targetHrEmail, jobUrl } = options;
+    confidenceScore?: number;
+    reason?: string;
+  }> {
+    const { companyName, targetHrEmail, jobUrl, jobDescription } = options;
 
-    // Check for test / controlled email override in staging / test runs
-    const testOverride = process.env.TEST_APPLICATION_EMAIL_OVERRIDE;
-    if (testOverride && testOverride.includes('@')) {
+    const discovery = await RecruitmentEmailDiscoveryService.discoverRecruitmentEmail({
+      companyName,
+      targetHrEmail,
+      jobUrl,
+      jobDescription,
+    });
+
+    if (discovery.verified && discovery.email) {
       return {
         method: 'email',
-        destinationEmail: testOverride.trim(),
-        source: 'Controlled Test Email Override (Automated Test Environment)',
+        destinationEmail: discovery.email,
+        source: discovery.sourceType || 'verified_registry',
+        confidenceScore: discovery.confidenceScore,
       };
     }
 
-    const verifiedDbEmail = getVerifiedCompanyHrEmail(companyName);
-    const resolvedEmail = targetHrEmail || verifiedDbEmail;
-    const companyOverride = process.env.COMPANY_HR_EMAIL_OVERRIDE;
-
-    const destinationEmail = companyOverride || resolvedEmail;
-
-    if (destinationEmail && destinationEmail.includes('@') && !destinationEmail.includes('recruitx.internal')) {
-      return {
-        method: 'email',
-        destinationEmail: destinationEmail.toLowerCase().trim(),
-        source: targetHrEmail ? 'Job Post Verified Hiring Email' : 'Verified Company Recruitment Inbox',
-      };
-    }
-
-    // Company does not have a verified public recruitment email -> Mandate official portal
     return {
       method: 'portal',
-      portalUrl: jobUrl || `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(jobTitleToQuery(companyName))}`,
+      portalUrl: jobUrl || `https://www.google.com/search?q=${encodeURIComponent(companyName + ' official careers')}`,
       source: 'Employer Official Career Portal',
+      reason: discovery.reason || `This employer does not provide a verified recruitment email for direct applications. We could not submit your application automatically.`,
     };
   }
 
@@ -86,140 +86,123 @@ export class CandidateApplicationEmailService {
    * Dispatches actual job application to employer hiring inbox
    */
   static async dispatchApplication(options: ApplicationDispatchOptions): Promise<ApplicationDispatchResult> {
-    const { user, resumeData, companyName, jobTitle, targetHrEmail, coverLetter, jobUrl } = options;
+    const { user, resumeData, companyName, jobTitle, targetHrEmail, coverLetter, jobUrl, jobDescription, applicationId, jobId } = options;
 
     // 1. Resolve legitimate destination
-    const destination = this.resolveApplicationDestination({
+    const destination = await this.resolveApplicationDestination({
       companyName,
       targetHrEmail,
       jobUrl,
+      jobDescription,
     });
 
     if (destination.method === 'portal' || !destination.destinationEmail) {
       return {
         status: 'requires_portal',
-        message: `Employer "${companyName}" requires direct submission via their official career portal. RecruitX will not send unverified emails when portal submission is mandatory.`,
+        message: destination.reason || `Employer "${companyName}" does not provide a verified recruitment email for direct applications. We could not submit your application automatically.`,
         portalUrl: destination.portalUrl,
       };
     }
 
-    // 2. Resolve candidate's authorized sending account
-    const tokenInfo = await CandidateEmailAuthService.getValidAccessToken(user);
-
-    // If candidate has not connected Gmail or Outlook via OAuth
-    if (!tokenInfo) {
-      return {
-        status: 'requires_connected_account',
-        message: 'No authorized email account connected. Please connect your Gmail or Outlook account in Settings to send applications directly from your email address, or apply on the official portal.',
-        portalUrl: destination.portalUrl,
-      };
-    }
-
-    const { accessToken, provider, email: senderEmail, name: senderName } = tokenInfo;
     const recipientEmail = destination.destinationEmail;
 
-    // 3. Prepare candidate's resume attachment
-    const resumeAttachment = await this.resolveResumeAttachment(user, resumeData);
+    // 2. Retrieve & strictly validate candidate's actual uploaded resume PDF
+    let resumeAttachment;
+    try {
+      resumeAttachment = await this.resolveResumeAttachment(user, resumeData);
+    } catch (err: any) {
+      return {
+        status: 'failed',
+        message: err.message || 'Failed to validate uploaded resume PDF.',
+        error: err.message,
+      };
+    }
 
-    // 4. Generate personalized application email content
-    const candidateDisplayName = senderName || user.name || 'Applicant';
-    const subject = `Job Application: ${candidateDisplayName} - ${jobTitle} (${companyName})`;
-    const htmlBody = this.generateApplicationHtml({
+    if (!resumeAttachment) {
+      return {
+        status: 'missing_resume',
+        message: 'A valid PDF resume is required before submitting an application. Please upload your resume in the Resume section.',
+        error: 'Missing resume attachment',
+      };
+    }
+
+    // 3. Generate personalized, vacancy-specific application email via Gemini
+    const candidateDisplayName = user.name || 'Candidate';
+    const aiEmail = await AIService.generateTailoredApplicationEmail({
       candidateName: candidateDisplayName,
-      candidateEmail: senderEmail,
+      candidateEmail: user.email,
       candidatePhone: user.phone,
-      candidateLinkedin: user.linkedin,
-      candidatePortfolio: user.portfolio,
+      candidateHeadline: resumeData?.headline || user.title,
+      candidateSummary: resumeData?.summary || user.description,
+      candidateSkills: resumeData?.skills || [],
+      candidateEducation: resumeData?.education || [],
+      candidateExperience: resumeData?.experience || [],
+      candidateProjects: resumeData?.projects || [],
       jobTitle,
       companyName,
-      headline: resumeData?.headline || user.title || 'Applicant',
-      summary: resumeData?.summary || user.description || 'Experienced professional presenting application for your review.',
-      skills: resumeData?.skills || [],
-      coverLetter: coverLetter || `Dear Hiring Team at ${companyName},\n\nI am writing to express my strong enthusiasm and application for the ${jobTitle} role. With my background and hands-on experience, I am confident in delivering immediate value to your organization. Please find my verified resume attached for your evaluation.\n\nSincerely,\n${candidateDisplayName}`,
-      resumeFileName: resumeAttachment?.fileName,
+      jobDescription,
+      requiredSkills: resumeData?.skills,
     });
 
-    // 5. Send actual email via Google Gmail REST API or Microsoft Graph REST API
+    const subject = aiEmail.subject;
+    const htmlBody = aiEmail.bodyHtml;
+
+    // 4. Send email through existing Brevo Transactional Integration
+    // Strict configuration:
+    // From: Verified RecruitX sender identity
+    // To: Verified employer recruitment email
+    // Reply-To: Student's actual contact email
+    // Attachment: Student's actual resume PDF
     try {
-      if (provider === 'gmail') {
-        const sendResult = await this.sendViaGmailApi({
-          accessToken,
-          senderEmail,
-          senderName: candidateDisplayName,
-          recipientEmail,
-          subject,
-          htmlBody,
-          attachment: resumeAttachment,
-        });
+      const brevoResult = await EmailService.sendApplicationViaBrevo({
+        candidateName: candidateDisplayName,
+        candidateEmail: user.email,
+        candidatePhone: user.phone,
+        jobTitle,
+        companyName,
+        recipientEmail,
+        subject,
+        htmlBody,
+        textBody: aiEmail.bodyText,
+        resumeAttachment,
+        applicationId,
+        studentId: user._id.toString(),
+        jobId,
+      });
 
-        console.log(`[CandidateApplicationEmail] ✨ Application successfully sent via Gmail API! Message ID: ${sendResult.id} (From: ${senderEmail} -> To: ${recipientEmail})`);
-
-        return {
-          status: 'sent',
-          message: `Application email successfully sent to ${companyName} (${recipientEmail}) from your connected Gmail account (${senderEmail}).`,
-          senderEmail,
-          recipientEmail,
-          provider: 'gmail',
-          messageId: sendResult.id,
-          viewSentEmailUrl: sendResult.viewUrl || `https://mail.google.com/mail/u/0/#search/rfc822msgid:${encodeURIComponent(sendResult.id)}`,
-          sentAt: new Date(),
-          resumeAttached: Boolean(resumeAttachment),
-          resumeFileName: resumeAttachment?.fileName,
-          resumeFileSize: resumeAttachment?.fileSize,
-          rawResponse: sendResult,
-        };
-      } else if (provider === 'outlook') {
-        const sendResult = await this.sendViaMicrosoftGraph({
-          accessToken,
-          senderEmail,
-          senderName: candidateDisplayName,
-          recipientEmail,
-          subject,
-          htmlBody,
-          attachment: resumeAttachment,
-        });
-
-        console.log(`[CandidateApplicationEmail] ✨ Application successfully sent via Microsoft Graph API! (From: ${senderEmail} -> To: ${recipientEmail})`);
+      if (brevoResult.success && brevoResult.messageId) {
+        console.log(`[CandidateApplicationEmail] ✨ Application successfully sent via Brevo! Message ID: ${brevoResult.messageId} (Recipient: ${recipientEmail}, Reply-To: ${user.email})`);
 
         return {
           status: 'sent',
-          message: `Application email successfully sent to ${companyName} (${recipientEmail}) from your connected Outlook account (${senderEmail}).`,
-          senderEmail,
+          message: `Application email successfully sent to ${companyName} (${recipientEmail}) via RecruitX Verified Service. Replies will be delivered directly to your email (${user.email}).`,
+          senderEmail: brevoResult.senderEmail || process.env.BREVO_SENDER_EMAIL || 'recruitxproject@gmail.com',
           recipientEmail,
-          provider: 'outlook',
-          messageId: sendResult.messageId,
-          viewSentEmailUrl: sendResult.viewUrl || 'https://outlook.live.com/mail/0/sentitems',
+          provider: 'brevo',
+          messageId: brevoResult.messageId,
           sentAt: new Date(),
-          resumeAttached: Boolean(resumeAttachment),
-          resumeFileName: resumeAttachment?.fileName,
-          resumeFileSize: resumeAttachment?.fileSize,
-          rawResponse: sendResult,
+          resumeAttached: true,
+          resumeFileName: resumeAttachment.fileName,
+          resumeFileSize: resumeAttachment.fileSize,
+          rawResponse: brevoResult,
         };
       } else {
-        // Test / Sandbox token fallback
-        const mockMessageId = `test_msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
         return {
-          status: 'sent',
-          message: `Application email transmitted to ${companyName} (${recipientEmail}) via test sandbox account (${senderEmail}).`,
-          senderEmail,
+          status: 'failed',
+          message: brevoResult.error || 'Failed to dispatch email application via Brevo.',
+          error: brevoResult.error,
+          senderEmail: brevoResult.senderEmail || process.env.BREVO_SENDER_EMAIL || 'recruitxproject@gmail.com',
           recipientEmail,
-          provider: 'gateway',
-          messageId: mockMessageId,
-          viewSentEmailUrl: `https://mail.google.com/mail/u/0/#sent`,
-          sentAt: new Date(),
-          resumeAttached: Boolean(resumeAttachment),
-          resumeFileName: resumeAttachment?.fileName,
-          resumeFileSize: resumeAttachment?.fileSize,
+          provider: 'brevo',
         };
       }
     } catch (err: any) {
-      console.error(`[CandidateApplicationEmail] ❌ Failed to dispatch email via ${provider}:`, err.message);
+      console.error('[CandidateApplicationEmail] ❌ Failed to dispatch email via Brevo:', err.message);
       return {
         status: 'failed',
         message: `Failed to transmit application email: ${err.message}`,
-        senderEmail,
         recipientEmail,
-        provider,
+        provider: 'brevo',
         error: err.message,
       };
     }
@@ -285,26 +268,48 @@ export class CandidateApplicationEmailService {
     contentType: string;
     contentBase64: string;
     fileSize: number;
-  } | undefined> {
+  }> {
     const candidateName = user.name || 'Candidate';
     const safeName = candidateName.replace(/[^a-zA-Z0-9]/g, '_');
     const defaultFileName = `Resume_${safeName}.pdf`;
 
     let resume = resumeData;
-    if (!resume || (!resume.fileData && !resume.resumeUrl)) {
-      try {
-        resume = await Resume.findOne({ student: user._id });
-      } catch (e) {
-        // continue
+
+    // Strict ownership validation: ensure resume belongs exclusively to authenticated student
+    if (resume && resume.student) {
+      const studentId = typeof resume.student === 'object' && resume.student._id
+        ? resume.student._id.toString()
+        : resume.student.toString();
+
+      if (studentId !== user._id.toString()) {
+        throw new Error('Resume ownership validation failed: The specified resume belongs to another student account.');
       }
     }
 
-    // 1. Direct Base64 File Data stored in Resume database document
-    if (resume?.fileData && typeof resume.fileData === 'string') {
+    // If resume was not provided or lacks data, fetch from student's own record in database
+    if (!resume || (!resume.fileData && !resume.resumeUrl)) {
+      resume = await Resume.findOne({ student: user._id });
+    }
+
+    if (!resume || (!resume.fileData && !resume.resumeUrl)) {
+      throw new Error('No uploaded resume found for this account. Please upload your PDF resume in the Resume section before applying.');
+    }
+
+    // 1. Direct Base64 File Data stored in Resume document
+    if (resume.fileData && typeof resume.fileData === 'string') {
       const cleanBase64 = resume.fileData.includes(';base64,')
         ? resume.fileData.split(';base64,')[1]
         : resume.fileData;
       const buffer = Buffer.from(cleanBase64, 'base64');
+
+      // Validate PDF magic bytes: '%PDF'
+      if (buffer.length < 4 || buffer.slice(0, 4).toString('ascii') !== '%PDF') {
+        throw new Error('The uploaded resume is not a valid PDF file. Please upload a genuine PDF document.');
+      }
+      if (buffer.length > 10 * 1024 * 1024) {
+        throw new Error('Resume file exceeds maximum allowed size of 10MB.');
+      }
+
       const declaredName = resume.fileName || defaultFileName;
       const safeDocName = declaredName.toLowerCase().endsWith('.pdf') ? declaredName : `${declaredName}.pdf`;
 
@@ -317,10 +322,13 @@ export class CandidateApplicationEmailService {
     }
 
     // 2. Check if disk file exists in uploads/
-    if (resume?.resumeUrl && typeof resume.resumeUrl === 'string' && resume.resumeUrl.startsWith('/uploads')) {
+    if (resume.resumeUrl && typeof resume.resumeUrl === 'string' && resume.resumeUrl.startsWith('/uploads')) {
       const diskPath = path.resolve(process.cwd(), resume.resumeUrl.replace(/^\//, ''));
       if (fs.existsSync(diskPath)) {
         const buffer = fs.readFileSync(diskPath);
+        if (buffer.length < 4 || buffer.slice(0, 4).toString('ascii') !== '%PDF') {
+          throw new Error('The uploaded resume file on disk is not a valid PDF document.');
+        }
         return {
           fileName: path.basename(diskPath) || defaultFileName,
           contentType: 'application/pdf',
@@ -331,52 +339,24 @@ export class CandidateApplicationEmailService {
     }
 
     // 3. Remote URL
-    if (resume?.resumeUrl && typeof resume.resumeUrl === 'string' && (resume.resumeUrl.startsWith('http://') || resume.resumeUrl.startsWith('https://'))) {
-      try {
-        const remoteRes = await fetch(resume.resumeUrl);
-        if (remoteRes.ok) {
-          const ab = await remoteRes.arrayBuffer();
-          const buffer = Buffer.from(ab);
-          return {
-            fileName: resume.fileName || defaultFileName,
-            contentType: remoteRes.headers.get('content-type') || 'application/pdf',
-            contentBase64: buffer.toString('base64'),
-            fileSize: buffer.length,
-          };
+    if (resume.resumeUrl && typeof resume.resumeUrl === 'string' && (resume.resumeUrl.startsWith('http://') || resume.resumeUrl.startsWith('https://'))) {
+      const remoteRes = await fetch(resume.resumeUrl);
+      if (remoteRes.ok) {
+        const ab = await remoteRes.arrayBuffer();
+        const buffer = Buffer.from(ab);
+        if (buffer.length < 4 || buffer.slice(0, 4).toString('ascii') !== '%PDF') {
+          throw new Error('The remote resume file is not a valid PDF document.');
         }
-      } catch (err) {
-        // fallback to standard generator
+        return {
+          fileName: resume.fileName || defaultFileName,
+          contentType: remoteRes.headers.get('content-type') || 'application/pdf',
+          contentBase64: buffer.toString('base64'),
+          fileSize: buffer.length,
+        };
       }
     }
 
-    // 4. Synthesize a clean, authentic PDF document from candidate profile
-    const summaryText = resume?.summary || user.description || 'Verified Candidate Profile on RecruitX';
-    const skillsList = (resume?.skills || []).join(', ');
-    const resumeLines = [
-      `${candidateName.toUpperCase()} - RESUME`,
-      `Email: ${user.email}  |  Phone: ${user.phone || 'N/A'}  |  Location: ${resume?.location || user.location || 'India'}`,
-      `Role: ${resume?.headline || user.title || 'Professional'}  |  Discipline: ${resume?.fieldOfInterest || user.profession || 'Domain Expert'}`,
-      `----------------------------------------------------------------------------------------------------------------`,
-      `PROFESSIONAL SUMMARY:`,
-      `${summaryText.slice(0, 180)}`,
-      `----------------------------------------------------------------------------------------------------------------`,
-      `CORE COMPETENCIES & SKILLS:`,
-      `${skillsList || 'Technical Expertise, Problem Solving, Team Collaboration'}`,
-      `----------------------------------------------------------------------------------------------------------------`,
-      `VERIFIED LINKS:`,
-      `LinkedIn: ${user.linkedin || 'Available on request'}`,
-      `Portfolio / GitHub: ${user.portfolio || user.github || 'https://recruitx-eosin.vercel.app'}`,
-      `----------------------------------------------------------------------------------------------------------------`,
-      `Generated by RecruitX Verified Career Platform - Candidate ID: ${user._id}`,
-    ];
-
-    const pdfBuffer = this.generateStandardResumePdf(resumeLines);
-    return {
-      fileName: defaultFileName,
-      contentType: 'application/pdf',
-      contentBase64: pdfBuffer.toString('base64'),
-      fileSize: pdfBuffer.length,
-    };
+    throw new Error('Unable to retrieve resume content. Please re-upload your PDF resume in the Resume section.');
   }
 
   /**

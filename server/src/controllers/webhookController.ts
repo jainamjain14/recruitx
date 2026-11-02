@@ -131,3 +131,160 @@ export const handleEmployerAtsWebhook = async (req: Request, res: Response): Pro
   }
 };
 
+
+
+/**
+ * Inbound authenticated Brevo transactional email event webhook
+ * Tracks genuine delivery lifecycle: sent, delivered, bounced, rejected, blocked
+ */
+export const handleBrevoWebhook = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const configuredSecret = process.env.BREVO_WEBHOOK_SECRET;
+    if (configuredSecret) {
+      const headerSecret = req.headers['x-brevo-webhook-secret'] || req.headers['x-webhook-secret'] || req.query.secret;
+      if (headerSecret !== configuredSecret) {
+        sendError(res, 'Unauthorized Brevo webhook request: Invalid secret token', null, 401);
+        return;
+      }
+    }
+
+    const payload = req.body;
+    if (!payload) {
+      sendError(res, 'Missing webhook body', null, 400);
+      return;
+    }
+
+    const events = Array.isArray(payload) ? payload : [payload];
+    let processedCount = 0;
+
+    for (const evt of events) {
+      const eventType = (evt.event || '').toLowerCase();
+      const rawMsgId = evt['message-id'] || evt.messageId || evt.msg_id;
+      const recipientEmail = evt.email;
+
+      if (!rawMsgId && !recipientEmail) {
+        continue;
+      }
+
+      let application: any = null;
+      if (rawMsgId) {
+        const cleanMsgId = rawMsgId.replace(/^[<]+/, '').replace(/[>]+$/, '');
+        const withBrackets = `<${cleanMsgId}>`;
+
+        application = await Application.findOne({ emailMessageId: rawMsgId })
+          || await Application.findOne({ emailMessageId: withBrackets })
+          || await Application.findOne({ emailMessageId: cleanMsgId });
+      }
+
+      if (!application && recipientEmail) {
+        const recentApps = await Application.find({ recipientEmail, emailProvider: 'brevo' }).limit(5);
+        if (recentApps.length > 0) {
+          application = recentApps[0];
+        }
+      }
+
+      if (!application) {
+        console.warn(`[BrevoWebhook] No matching application found for MessageId: ${rawMsgId}, Recipient: ${recipientEmail}`);
+        continue;
+      }
+
+      const eventDate = evt.date ? new Date(evt.date) : new Date();
+
+      if (eventType === 'delivered') {
+        if (application.emailDeliveryStatus === 'delivered') {
+          continue; // Idempotent check: skip duplicate processing
+        }
+
+        application.emailDeliveryStatus = 'delivered';
+        application.status = 'email_delivered';
+        application.primaryStatus = 'email_delivered';
+        application.statusHistory.push({
+          status: 'email_delivered',
+          changedAt: eventDate,
+          note: `Confirmed delivered to recipient mail server via Brevo (${recipientEmail || application.recipientEmail}).`,
+        });
+        await application.save();
+        processedCount++;
+
+        const studentId = typeof application.student === 'object' && application.student?._id
+          ? application.student._id
+          : application.student;
+
+        if (studentId) {
+          try {
+            const notif = await Notification.create({
+              recipient: studentId,
+              title: 'Application Email Delivered',
+              message: `Your application email for "${application.jobTitle}" was confirmed delivered to ${application.companyName}.`,
+              type: 'application_update',
+              priority: 'normal',
+              format: 'toast',
+              actionUrl: '/student/applications',
+              link: '/student/applications',
+            });
+            emitToUser(studentId.toString(), 'notification:new', { notification: notif });
+          } catch (e) {}
+        }
+      } else if (eventType === 'sent' || eventType === 'request') {
+        if (application.emailDeliveryStatus !== 'delivered') {
+          application.emailDeliveryStatus = 'sent';
+          if (application.status !== 'email_delivered') {
+            application.status = 'email_sent';
+            application.primaryStatus = 'email_sent';
+          }
+          await application.save();
+          processedCount++;
+        }
+      } else if (eventType === 'hard_bounce' || eventType === 'soft_bounce' || eventType === 'hardbounce' || eventType === 'softbounce') {
+        application.emailDeliveryStatus = 'bounced';
+        application.status = 'submission_failed';
+        application.primaryStatus = 'submission_failed';
+        application.submissionStatus = 'submission_failed';
+        application.statusHistory.push({
+          status: 'submission_failed',
+          changedAt: eventDate,
+          note: `Email bounced by recipient mail server: ${evt.reason || 'Address unavailable or rejected by destination server.'}`,
+        });
+        await application.save();
+        processedCount++;
+
+        const studentId = typeof application.student === 'object' && application.student?._id
+          ? application.student._id
+          : application.student;
+
+        if (studentId) {
+          try {
+            const notif = await Notification.create({
+              recipient: studentId,
+              title: 'Application Delivery Failed',
+              message: `The application email for "${application.jobTitle}" bounced at ${application.companyName}. Please verify company details.`,
+              type: 'application_update',
+              priority: 'high',
+              format: 'toast',
+            });
+            emitToUser(studentId.toString(), 'notification:new', { notification: notif });
+          } catch (e) {}
+        }
+      } else if (eventType === 'blocked' || eventType === 'invalid_email' || eventType === 'spam' || eventType === 'error') {
+        application.emailDeliveryStatus = 'failed';
+        application.status = 'submission_failed';
+        application.primaryStatus = 'submission_failed';
+        application.submissionStatus = 'submission_failed';
+        application.statusHistory.push({
+          status: 'submission_failed',
+          changedAt: eventDate,
+          note: `Email delivery blocked or rejected: ${evt.reason || eventType}.`,
+        });
+        await application.save();
+        processedCount++;
+      }
+    }
+
+    sendSuccess(res, `Brevo webhook processed successfully (${processedCount} events updated)`, {
+      processedCount,
+    });
+  } catch (error: any) {
+    console.error('[BrevoWebhook] ❌ Webhook error:', error.message);
+    sendError(res, error.message || 'Failed to process Brevo webhook', null, 500);
+  }
+};

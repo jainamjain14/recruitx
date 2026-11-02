@@ -32,3 +32,4 @@ Thumbs.db
 
 # Local runner wrapper
 powershell.cmd
+scratch/

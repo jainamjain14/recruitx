@@ -7,34 +7,68 @@ import { User } from '../models/User.js';
 import { Application, PrimaryApplicationStatus } from '../models/Application.js';
 import { Notification } from '../models/Notification.js';
 import { PlacementEligibilityRule } from '../models/PlacementEligibilityRule.js';
-import { emitToUser } from '../socket.js';
-import { LinkedInService, getVerifiedCompanyHrEmail } from '../services/linkedinService.js';
+import { emitToUser, broadcastEvent } from '../socket.js';
+import { LinkedInService, getVerifiedCompanyHrEmail, INDIAN_CITIES_COORDINATES } from '../services/linkedinService.js';
 import { EmailService } from '../services/emailService.js';
 import { CandidateApplicationEmailService } from '../services/candidateApplicationEmailService.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
+import { logger } from '../utils/logger.js';
 
 export const createJob = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user || req.user.role !== 'recruiter') {
-      sendError(res, 'Only recruiters can post jobs', null, 403);
+    if (!req.user || (req.user.role !== 'recruiter' && req.user.role !== 'admin')) {
+      sendError(res, 'Only recruiters and administrators can post jobs', null, 403);
       return;
     }
 
-    const { title, company, location, jobType, workMode, salary, description, requirements, skillsRequired, experienceLevel } = req.body;
+    const { title, company, location, jobType, workMode, salary, description, requirements, skillsRequired, experienceLevel, status } = req.body;
 
+    if (!title || !title.trim()) {
+      sendError(res, 'Job title is required', null, 400);
+      return;
+    }
+
+    const resolvedCompany = (company || (req.user as any).company || req.user.name || '').trim();
+
+    // Auto-sync company into recruiter's user profile if empty
+    if (req.user.role === 'recruiter' && !(req.user as any).company && resolvedCompany) {
+      try {
+        const u = await User.findById(req.user._id);
+        if (u && !u.company) {
+          u.company = resolvedCompany;
+          await u.save();
+        }
+      } catch (err) {
+        logger.warn('Could not auto-sync recruiter company profile:', err);
+      }
+    }
+
+    // Ownership is strictly derived from authenticated session, never client params
     const job = await Job.create({
-      recruiter: req.user._id,
-      title,
-      company: company || req.user.name,
-      location,
-      jobType,
-      workMode,
-      salary,
-      description,
+      recruiter: req.user._id.toString(),
+      title: title.trim(),
+      company: resolvedCompany,
+      location: (location || 'Remote').trim(),
+      jobType: jobType || 'Full-Time',
+      workMode: workMode || 'On-site',
+      salary: salary || 'Competitive',
+      description: description || '',
       requirements: Array.isArray(requirements) ? requirements : (requirements ? requirements.split(',').map((s: string) => s.trim()) : []),
       skillsRequired: Array.isArray(skillsRequired) ? skillsRequired : (skillsRequired ? skillsRequired.split(',').map((s: string) => s.trim()) : []),
-      experienceLevel,
-      status: 'active',
+      experienceLevel: experienceLevel || 'Entry-Level',
+      status: status || 'active',
+    });
+
+    // Invalidate semantic job matching caches to guarantee immediate visibility
+    UniversalJobMatchingService.clearJobMatchingCache();
+
+    // Broadcast real-time job publication event to all connected clients
+    broadcastEvent('job:published', {
+      jobId: job._id.toString(),
+      title: job.title,
+      company: job.company,
+      location: job.location,
+      status: job.status,
     });
 
     sendSuccess(res, 'Job posted successfully', { job }, 201);
@@ -49,8 +83,10 @@ export const getJobs = async (req: AuthenticatedRequest, res: Response): Promise
     const filter: any = {};
 
     if (req.user?.role === 'recruiter') {
-      filter.recruiter = req.user._id;
+      // Recruiter sees ONLY their own jobs
+      filter.recruiter = req.user._id.toString();
     } else if (req.user?.role === 'student') {
+      // Students see all active published jobs across all recruiters
       filter.status = 'active';
     }
 
@@ -70,7 +106,7 @@ export const getJobs = async (req: AuthenticatedRequest, res: Response): Promise
     if (jobType) filter.jobType = jobType;
     if (workMode) filter.workMode = workMode;
 
-    const jobs = await Job.find(filter).sort({ createdAt: -1 }).populate('recruiter', 'name email');
+    const jobs = await Job.find(filter).sort({ createdAt: -1 }).populate('recruiter', 'name email company');
     sendSuccess(res, 'Jobs retrieved successfully', { jobs, count: jobs.length });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to fetch jobs', null, 500);
@@ -80,11 +116,22 @@ export const getJobs = async (req: AuthenticatedRequest, res: Response): Promise
 export const getJobById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const job = await Job.findById(id).populate('recruiter', 'name email');
+    const job = await Job.findById(id).populate('recruiter', 'name email company');
     if (!job) {
       sendError(res, 'Job not found', null, 404);
       return;
     }
+
+    const recruiterId = (job.recruiter?._id || job.recruiter)?.toString();
+    const isOwner = recruiterId && recruiterId === req.user?._id.toString();
+    const isAdmin = req.user?.role === 'admin';
+
+    // Inactive/draft jobs are only visible to the owner or an admin
+    if (job.status !== 'active' && !isAdmin && !isOwner) {
+      sendError(res, 'This job posting is not currently available', null, 404);
+      return;
+    }
+
     sendSuccess(res, 'Job details retrieved', { job });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to fetch job', null, 500);
@@ -122,33 +169,57 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
     // 2. Fetch live opportunities using the candidate's actual profession
     const liveLinkedInJobs = await LinkedInService.fetchLiveJobs(searchKeyword, lat, lng);
 
-    // 3. Format recruiter jobs on the platform
-    const formattedPlatformJobs = recruiterJobs.map((j) => ({
-      _id: j._id,
-      id: j._id,
-      company: j.company,
-      logo: `https://logo.clearbit.com/${j.company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
-      title: j.title,
-      description: j.description || '',
-      location: j.location,
-      workMode: j.workMode,
-      salary: j.salary,
-      posted: 'Posted by Platform Verified Recruiter',
-      jobUrl: `/student/jobs`,
-      requiredSkills: Array.isArray(j.skillsRequired) && j.skillsRequired.length > 0 ? j.skillsRequired : (j.requirements || []),
-      skillsRequired: Array.isArray(j.skillsRequired) ? j.skillsRequired : [],
-      requirements: Array.isArray(j.requirements) ? j.requirements : [],
-      lat: 19.0760,
-      lng: 72.8777,
-      isPlatformJob: true,
-      recruiterId: (j.recruiter as any)?._id || j.recruiter,
-      hrEmail: (j.recruiter as any)?.email || '',
-    }));
+    // 3. Format recruiter jobs on the platform with accurate coordinates based on location
+    const formattedPlatformJobs = recruiterJobs.map((j) => {
+      const locLower = (j.location || '').toLowerCase().trim();
+      let coords = { lat: 19.0760, lng: 72.8777 }; // Default fallback
+
+      // Resolve city coordinates dynamically
+      for (const [cityKey, cityCoord] of Object.entries(INDIAN_CITIES_COORDINATES)) {
+        if (locLower.includes(cityKey)) {
+          coords = cityCoord;
+          break;
+        }
+      }
+
+      // If remote, use user's coordinates if available so it's always considered local/accessible
+      if (j.workMode === 'Remote' || locLower.includes('remote')) {
+        if (lat !== undefined && lng !== undefined) {
+          coords = { lat, lng };
+        }
+      }
+
+      const recruiterId = (j.recruiter as any)?._id?.toString() || j.recruiter?.toString() || '';
+      const hrEmail = (j.recruiter as any)?.email || '';
+
+      return {
+        _id: j._id,
+        id: j._id,
+        company: j.company,
+        logo: `https://logo.clearbit.com/${j.company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+        title: j.title,
+        description: j.description || '',
+        location: j.location,
+        workMode: j.workMode,
+        salary: j.salary,
+        posted: 'Platform Verified Recruiter Opening',
+        jobUrl: `/student/jobs`,
+        requiredSkills: Array.isArray(j.skillsRequired) && j.skillsRequired.length > 0 ? j.skillsRequired : (j.requirements || []),
+        skillsRequired: Array.isArray(j.skillsRequired) ? j.skillsRequired : [],
+        requirements: Array.isArray(j.requirements) ? j.requirements : [],
+        lat: coords.lat,
+        lng: coords.lng,
+        isPlatformJob: true,
+        recruiterId,
+        hrEmail,
+        createdAt: j.createdAt,
+      };
+    });
 
     const allCandidateJobs = [...formattedPlatformJobs, ...liveLinkedInJobs];
 
     // 4. Match and rank opportunities using the Universal Job Matching Engine
-    const { matchedJobs, candidateIdentity: analyzedIdentity } = await UniversalJobMatchingService.matchJobsForCandidate(
+    const { matchedJobs, allOpenings, candidateIdentity: analyzedIdentity } = await UniversalJobMatchingService.matchJobsForCandidate(
       candidateData,
       allCandidateJobs,
       lat,
@@ -159,9 +230,11 @@ export const getCompanyJobMatches = async (req: AuthenticatedRequest, res: Respo
       targetDomain: analyzedIdentity.primaryProfession || analyzedIdentity.functionalDiscipline,
       functionalDiscipline: analyzedIdentity.functionalDiscipline,
       primaryProfession: analyzedIdentity.primaryProfession,
-      totalVacantJobs: matchedJobs.length,
+      totalVacantJobs: allOpenings.length,
+      platformJobsCount: formattedPlatformJobs.length,
       userLocation: (lat !== undefined && lng !== undefined) ? { lat, lng } : null,
-      companies: matchedJobs,
+      companies: allOpenings, // All active openings available for discovery and browsing
+      recommendedJobs: matchedJobs, // Highly compatible recommendations
     });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to fetch universal job matches', null, 500);
@@ -178,13 +251,37 @@ export const updateJob = async (req: AuthenticatedRequest, res: Response): Promi
     }
 
     const recruiterId = (job.recruiter?._id || job.recruiter)?.toString();
-    if (req.user?.role !== 'admin' && recruiterId !== req.user?._id.toString()) {
-      sendError(res, 'Not authorized to edit this job', null, 403);
+    const isOwner = recruiterId && recruiterId === req.user?._id.toString();
+    const isAdmin = req.user?.role === 'admin';
+
+    if (!isAdmin && !isOwner) {
+      sendError(res, 'Not authorized to edit this job posting', null, 403);
       return;
     }
 
-    Object.assign(job, req.body);
+    // Strip protected fields so client cannot reassign ownership or IDs
+    const { recruiter: _rec, _id: _i, createdAt: _c, ...allowedUpdates } = req.body;
+    Object.assign(job, allowedUpdates);
+
+    // Guarantee immutable ownership
+    if (recruiterId) {
+      job.recruiter = recruiterId;
+    }
+
     await job.save();
+
+    // Invalidate semantic job matching caches
+    UniversalJobMatchingService.clearJobMatchingCache(job._id.toString());
+
+    // Broadcast real-time job update event
+    broadcastEvent('job:updated', {
+      jobId: job._id.toString(),
+      title: job.title,
+      company: job.company,
+      location: job.location,
+      status: job.status,
+    });
+
     sendSuccess(res, 'Job updated successfully', { job });
   } catch (error: any) {
     sendError(res, error.message || 'Failed to update job', null, 500);
@@ -201,12 +298,24 @@ export const deleteJob = async (req: AuthenticatedRequest, res: Response): Promi
     }
 
     const recruiterId = (job.recruiter?._id || job.recruiter)?.toString();
-    if (req.user?.role !== 'admin' && recruiterId !== req.user?._id.toString()) {
-      sendError(res, 'Not authorized to delete this job', null, 403);
+    const isOwner = recruiterId && recruiterId === req.user?._id.toString();
+    const isAdmin = req.user?.role === 'admin';
+
+    if (!isAdmin && !isOwner) {
+      sendError(res, 'Not authorized to delete this job posting', null, 403);
       return;
     }
 
     await job.deleteOne();
+
+    // Invalidate semantic job matching caches
+    UniversalJobMatchingService.clearJobMatchingCache(id.toString());
+
+    // Broadcast real-time job deletion event
+    broadcastEvent('job:deleted', {
+      jobId: id.toString(),
+    });
+
     sendSuccess(res, 'Job deleted successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to delete job', null, 500);
@@ -435,7 +544,7 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
 
       let senderEmail: string | undefined;
       let recipientEmail: string | undefined;
-      let emailProvider: 'gmail' | 'outlook' | 'gateway' | undefined;
+      let emailProvider: 'gmail' | 'outlook' | 'gateway' | 'brevo' | undefined;
       let emailMessageId: string | undefined;
       let emailSentAt: Date | undefined;
       let emailDeliveryStatus: 'sent' | 'delivered' | 'bounced' | 'failed' | undefined;
@@ -480,7 +589,7 @@ export const autoApplyJobs = async (req: AuthenticatedRequest, res: Response): P
         };
       } else {
         // 2. Resolve genuine destination: company recruitment email vs official portal
-        const destination = CandidateApplicationEmailService.resolveApplicationDestination({
+        const destination = await CandidateApplicationEmailService.resolveApplicationDestination({
           companyName: item.company,
           targetHrEmail: verifiedHrEmail,
           jobUrl: item.jobUrl,

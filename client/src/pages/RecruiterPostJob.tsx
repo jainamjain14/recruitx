@@ -1,22 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { api } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import { Plus, Briefcase } from 'lucide-react';
 
 export const RecruiterPostJob: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [title, setTitle] = useState('');
-  const [company, setCompany] = useState('');
-  const [location, setLocation] = useState('');
+  const [company, setCompany] = useState(user?.company || '');
+  const [location, setLocation] = useState((user as any)?.location || '');
   const [salary, setSalary] = useState('');
   const [jobType, setJobType] = useState('Full-Time');
   const [workMode, setWorkMode] = useState('On-site');
   const [skillsRequired, setSkillsRequired] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (user?.company && !company) {
+      setCompany(user.company);
+    }
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

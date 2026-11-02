@@ -43,7 +43,6 @@ const baseStudentNav: NavItem[] = [
   { label: 'My Resume', icon: <FileText className="w-4 h-4" />, path: '/student/resume' },
   { label: 'Career Roadmap & Skills', icon: <Map className="w-4 h-4" />, path: '/student/roadmap' },
   { label: 'Job Matches', icon: <Briefcase className="w-4 h-4" />, path: '/student/jobs' },
-  { label: 'Applications', icon: <ClipboardList className="w-4 h-4" />, path: '/student/applications' },
   { label: 'Messages', icon: <MessageSquare className="w-4 h-4" />, path: '/student/messages' },
   { label: 'Notifications', icon: <Bell className="w-4 h-4" />, path: '/student/notifications', isNotification: true },
   { label: 'Settings', icon: <Settings className="w-4 h-4" />, path: '/student/settings' },

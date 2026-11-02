@@ -99,7 +99,8 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
 
   try {
     const { resetToken, user } = await AuthService.forgotPassword(email);
-    const clientUrl = process.env.CLIENT_URL || 'https://recruitx-eosin.vercel.app';
+    const origin = (req.headers.origin as string) || (req.headers.referer ? (() => { try { return new URL(req.headers.referer as string).origin; } catch { return ''; } })() : '');
+    const clientUrl = origin || process.env.CLIENT_URL || 'https://recruitx-eosin.vercel.app';
     const resetUrl = `${clientUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
     await EmailService.sendPasswordResetEmail({

@@ -134,10 +134,9 @@ export class UniversalJobMatchingService {
     experience?: any[];
     education?: any[];
   }): Promise<CandidateProfessionalIdentity> {
-    const cacheKey = candidateData.studentId || 
-      crypto.createHash('sha256')
-        .update(`${candidateData.headline || ''}|${candidateData.fieldOfInterest || ''}|${(candidateData.skills || []).join(',')}`)
-        .digest('hex');
+    const cacheKey = crypto.createHash('sha256')
+      .update(`${candidateData.studentId || ''}|${candidateData.headline || ''}|${candidateData.fieldOfInterest || ''}|${(candidateData.skills || []).join(',')}`)
+      .digest('hex');
 
     const cached = candidateProfileCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
@@ -369,6 +368,17 @@ Return ONLY a valid JSON object matching this schema:
     }
 
     return profile;
+  }
+
+  /**
+   * Clears the semantic job matching cache to ensure real-time visibility of newly posted or updated jobs
+   */
+  static clearJobMatchingCache(jobId?: string): void {
+    if (jobId) {
+      jobProfileCache.delete(jobId);
+    } else {
+      jobProfileCache.clear();
+    }
   }
 
   /**
@@ -635,13 +645,15 @@ Return ONLY a valid JSON:
   ): Promise<{
     candidateIdentity: CandidateProfessionalIdentity;
     matchedJobs: any[];
+    allOpenings: any[];
     incompatibleCount: number;
   }> {
-    // 1. Analyze candidate
+    // 1. Analyze candidate dynamically
     const candidateIdentity = await this.analyzeCandidateProfile(candidateData);
 
     // 2. Analyze all jobs (utilizes caching)
-    const evaluatedJobs: any[] = [];
+    const matchedJobs: any[] = [];
+    const allEvaluatedJobs: any[] = [];
     let incompatibleCount = 0;
 
     for (const rawJob of rawJobs) {
@@ -658,22 +670,27 @@ Return ONLY a valid JSON:
         // 3. Evaluate multi-dimensional compatibility
         const compatibility = await this.evaluateCompatibility(candidateIdentity, jobProfile);
 
+        const evaluatedJob = {
+          ...rawJob,
+          matchPercentage: compatibility.compatibilityScore,
+          atsMatchScore: compatibility.compatibilityScore,
+          compatibilityScore: compatibility.compatibilityScore,
+          functionalAlignment: compatibility.functionalAlignment,
+          competencyCoverage: compatibility.competencyCoverage,
+          matchedSkills: compatibility.matchedSkills,
+          missingSkills: compatibility.missingSkills,
+          transferableSkills: compatibility.transferableSkills,
+          matchReason: compatibility.matchReason,
+          employerIndustry: jobProfile.employerIndustry,
+          functionalRole: jobProfile.functionalRole,
+          isCrossIndustry: jobProfile.isCrossIndustryOpportunity,
+          isCompatible: compatibility.isCompatible,
+        };
+
+        allEvaluatedJobs.push(evaluatedJob);
+
         if (compatibility.isCompatible) {
-          evaluatedJobs.push({
-            ...rawJob,
-            matchPercentage: compatibility.compatibilityScore,
-            atsMatchScore: compatibility.compatibilityScore,
-            compatibilityScore: compatibility.compatibilityScore,
-            functionalAlignment: compatibility.functionalAlignment,
-            competencyCoverage: compatibility.competencyCoverage,
-            matchedSkills: compatibility.matchedSkills,
-            missingSkills: compatibility.missingSkills,
-            transferableSkills: compatibility.transferableSkills,
-            matchReason: compatibility.matchReason,
-            employerIndustry: jobProfile.employerIndustry,
-            functionalRole: jobProfile.functionalRole,
-            isCrossIndustry: jobProfile.isCrossIndustryOpportunity,
-          });
+          matchedJobs.push(evaluatedJob);
         } else {
           incompatibleCount++;
         }
@@ -682,16 +699,24 @@ Return ONLY a valid JSON:
       }
     }
 
-    // 4. Sort compatible jobs: highest compatibility score first (or by distance if location provided)
+    // 4. Sort: highest compatibility score first (or by distance if location provided)
     if (userLat !== undefined && userLng !== undefined && !isNaN(userLat) && !isNaN(userLng)) {
-      evaluatedJobs.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity));
+      matchedJobs.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity));
+      allEvaluatedJobs.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity));
     } else {
-      evaluatedJobs.sort((a, b) => b.matchPercentage - a.matchPercentage);
+      matchedJobs.sort((a, b) => b.matchPercentage - a.matchPercentage);
+      // Under all openings, sort platform jobs and high matches to top, then remaining
+      allEvaluatedJobs.sort((a, b) => {
+        if (a.isPlatformJob && !b.isPlatformJob) return -1;
+        if (!a.isPlatformJob && b.isPlatformJob) return 1;
+        return b.matchPercentage - a.matchPercentage;
+      });
     }
 
     return {
       candidateIdentity,
-      matchedJobs: evaluatedJobs,
+      matchedJobs,
+      allOpenings: allEvaluatedJobs,
       incompatibleCount,
     };
   }

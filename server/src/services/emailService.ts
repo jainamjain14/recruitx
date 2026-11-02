@@ -1,5 +1,26 @@
 import { getVerifiedCompanyHrEmail } from './linkedinService.js';
 
+export interface BrevoApplicationPayload {
+  candidateName: string;
+  candidateEmail: string;
+  candidatePhone?: string;
+  jobTitle: string;
+  companyName: string;
+  recipientEmail: string;
+  subject: string;
+  htmlBody: string;
+  textBody?: string;
+  resumeAttachment?: {
+    fileName: string;
+    contentType: string;
+    contentBase64: string;
+    fileSize: number;
+  };
+  applicationId?: string;
+  studentId?: string;
+  jobId?: string;
+}
+
 export interface ApplicationEmailPayload {
   candidateName: string;
   candidateEmail: string;
@@ -108,6 +129,140 @@ export class EmailService {
     } catch (networkErr: any) {
       console.error('[EmailService] ❌ Network request to Brevo API failed:', networkErr.message || networkErr);
       return { success: false, error: 'Could not connect to email service: ' + (networkErr.message || 'Network error') };
+    }
+  }
+
+  /**
+   * Dispatches a candidate's job application email and attached PDF resume
+   * using Brevo Transactional HTTPS API (Port 443).
+   * 
+   * Strict email configuration:
+   * - From: Verified RecruitX sender identity
+   * - Display Name: "${candidateName} via RecruitX"
+   * - To: Verified employer recruitment email
+   * - Reply-To: Student's actual contact email
+   * - Subject: Job-specific subject
+   * - Body: Personalized application content
+   * - Attachment: Student's actual resume PDF in base64
+   */
+  static async sendApplicationViaBrevo(options: BrevoApplicationPayload): Promise<{
+    success: boolean;
+    messageId?: string;
+    senderEmail?: string;
+    replyTo?: string;
+    error?: string;
+  }> {
+    const {
+      candidateName,
+      candidateEmail,
+      jobTitle,
+      companyName,
+      recipientEmail,
+      subject,
+      htmlBody,
+      textBody,
+      resumeAttachment,
+      applicationId,
+      studentId,
+      jobId,
+    } = options;
+
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    const verifiedSenderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_FROM_ADDRESS || 'recruitxproject@gmail.com').trim();
+    const senderDisplayName = `${candidateName} via RecruitX`;
+
+    if (!brevoKey) {
+      const errMsg = 'Email dispatch aborted: BREVO_API_KEY is not configured on the server. Please set BREVO_API_KEY in Render environment variables.';
+      console.error(`[EmailService] ❌ ${errMsg}`);
+      return { success: false, error: errMsg };
+    }
+
+    console.log(`[EmailService] 🚀 Dispatching job application email for "${jobTitle}" at ${companyName} via Brevo HTTPS API...`);
+    console.log(`[EmailService] ✉️ From: "${senderDisplayName}" <${verifiedSenderEmail}> | To: <${recipientEmail}> | Reply-To: <${candidateEmail}>`);
+
+    try {
+      const payload: any = {
+        sender: {
+          name: senderDisplayName,
+          email: verifiedSenderEmail,
+        },
+        to: [
+          {
+            email: recipientEmail,
+            name: `${companyName} Recruiting Team`,
+          },
+        ],
+        replyTo: {
+          email: candidateEmail,
+          name: candidateName,
+        },
+        subject,
+        htmlContent: htmlBody,
+        headers: {
+          'X-RecruitX-Application-ID': applicationId || '',
+          'X-RecruitX-Student-ID': studentId || '',
+          'X-RecruitX-Job-ID': jobId || '',
+        },
+        tags: ['recruitx-job-application'],
+      };
+
+      if (textBody) {
+        payload.textContent = textBody;
+      }
+
+      if (resumeAttachment && resumeAttachment.contentBase64) {
+        payload.attachment = [
+          {
+            name: resumeAttachment.fileName,
+            content: resumeAttachment.contentBase64,
+          },
+        ];
+        console.log(`[EmailService] 📎 Attached candidate resume: ${resumeAttachment.fileName} (${resumeAttachment.fileSize} bytes)`);
+      }
+
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': brevoKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData: any = await response.json().catch(() => ({}));
+
+      if (response.ok && resData.messageId) {
+        console.log(`[EmailService] ✨ Live application email accepted by Brevo! MessageId: ${resData.messageId}`);
+        return {
+          success: true,
+          messageId: resData.messageId,
+          senderEmail: verifiedSenderEmail,
+          replyTo: candidateEmail,
+        };
+      }
+
+      const status = response.status;
+      const apiCode = resData.code || 'UNKNOWN_ERROR';
+      const apiMsg = resData.message || response.statusText || 'Unknown Brevo API error';
+
+      console.error(`[EmailService] ❌ Brevo API error (HTTP ${status}) [${apiCode}]: ${apiMsg}`);
+
+      let userFriendlyError = 'Failed to dispatch application email to employer.';
+      if (status === 401 || status === 403) {
+        userFriendlyError = 'Brevo API key is invalid or unauthorized. Please verify BREVO_API_KEY in Render.';
+      } else if (status === 400 && apiMsg.toLowerCase().includes('sender')) {
+        userFriendlyError = `Sender email "${verifiedSenderEmail}" is not verified in your Brevo account. Please verify it in Brevo Senders & IPs.`;
+      } else if (status === 400 && apiMsg.toLowerCase().includes('recipient')) {
+        userFriendlyError = `Recipient address "${recipientEmail}" was rejected by Brevo: ${apiMsg}`;
+      } else if (apiMsg) {
+        userFriendlyError = apiMsg;
+      }
+
+      return { success: false, error: userFriendlyError };
+    } catch (networkErr: any) {
+      console.error('[EmailService] ❌ Network request to Brevo API failed:', networkErr.message || networkErr);
+      return { success: false, error: 'Could not connect to Brevo email service: ' + (networkErr.message || 'Network error') };
     }
   }
 

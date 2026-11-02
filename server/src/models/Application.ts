@@ -116,10 +116,10 @@ export interface IApplicationDocument {
   // Genuine Candidate Email Transmission Fields (Parts 1, 4, 8)
   senderEmail?: string;
   recipientEmail?: string;
-  emailProvider?: 'gmail' | 'outlook' | 'gateway';
+  emailProvider?: 'gmail' | 'outlook' | 'gateway' | 'brevo';
   emailMessageId?: string;
   emailSentAt?: Date;
-  emailDeliveryStatus?: 'sent' | 'delivered' | 'bounced' | 'failed';
+  emailDeliveryStatus?: 'preparing' | 'sending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'delivery_failed';
   resumeAttached?: boolean;
   resumeFileName?: string;
   resumeFileSize?: number;
@@ -171,10 +171,10 @@ export class ApplicationDoc implements IApplicationDocument {
   // Email Transmission & Audit
   declare senderEmail?: string;
   declare recipientEmail?: string;
-  declare emailProvider?: 'gmail' | 'outlook' | 'gateway';
+  declare emailProvider?: 'gmail' | 'outlook' | 'gateway' | 'brevo';
   declare emailMessageId?: string;
   declare emailSentAt?: Date;
-  declare emailDeliveryStatus?: 'sent' | 'delivered' | 'bounced' | 'failed';
+  declare emailDeliveryStatus?: 'preparing' | 'sending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'delivery_failed';
   declare resumeAttached?: boolean;
   declare resumeFileName?: string;
   declare resumeFileSize?: number;
@@ -473,10 +473,10 @@ export class Application {
     isIndependentlyAuthenticated?: boolean;
     senderEmail?: string;
     recipientEmail?: string;
-    emailProvider?: 'gmail' | 'outlook' | 'gateway';
+    emailProvider?: 'gmail' | 'outlook' | 'gateway' | 'brevo';
     emailMessageId?: string;
     emailSentAt?: Date;
-    emailDeliveryStatus?: 'sent' | 'delivered' | 'bounced' | 'failed';
+    emailDeliveryStatus?: 'preparing' | 'sending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'delivery_failed';
     resumeAttached?: boolean;
     resumeFileName?: string;
     resumeFileSize?: number;

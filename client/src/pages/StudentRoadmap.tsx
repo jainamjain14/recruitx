@@ -473,7 +473,7 @@ function generateRoleAndCompanyRoadmap(company: string, roleTitle: string, domai
     {
       title: `${normComp} Placement Application & Offer Finalization`,
       desc: `Submit your verified candidate profile through ${normComp}'s hiring pipeline on RecruitX, complete final evaluations, and secure your offer.`,
-      actionUrl: '/student/applications',
+      actionUrl: '/student/jobs',
       actionLabel: 'View Applications',
     },
   ];

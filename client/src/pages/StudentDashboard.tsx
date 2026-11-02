@@ -30,29 +30,34 @@ export const StudentDashboard: React.FC = () => {
   const [resumeData, setResumeData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Email connection status
-  const [emailStatus, setEmailStatus] = useState<{
-    isAuthorized: boolean;
-    email: string | null;
-    provider: string | null;
-  }>({
-    isAuthorized: false,
-    email: null,
-    provider: null,
-  });
+  const [companiesHiringCount, setCompaniesHiringCount] = useState<number>(0);
 
   useEffect(() => {
     fetchDashboardData();
+
+    // Listen for real-time job updates broadcasted via Socket.io
+    const handleRealtimeJobEvent = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener('recruitx:job-published', handleRealtimeJobEvent);
+    window.addEventListener('recruitx:job-updated', handleRealtimeJobEvent);
+    window.addEventListener('recruitx:job-deleted', handleRealtimeJobEvent);
+
+    return () => {
+      window.removeEventListener('recruitx:job-published', handleRealtimeJobEvent);
+      window.removeEventListener('recruitx:job-updated', handleRealtimeJobEvent);
+      window.removeEventListener('recruitx:job-deleted', handleRealtimeJobEvent);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
     try {
-      const [appRes, intRes, resRes, jobRes, emailRes] = await Promise.allSettled([
+      const [appRes, intRes, resRes, jobRes, allJobsRes] = await Promise.allSettled([
         api.get('/applications'),
         api.get('/interviews'),
         api.get('/resume'),
         api.get('/jobs/company-matches'),
-        api.get('/candidate-email/status'),
+        api.get('/jobs'),
       ]);
 
       if (appRes.status === 'fulfilled' && appRes.value.data?.data?.applications) {
@@ -71,13 +76,13 @@ export const StudentDashboard: React.FC = () => {
         setRecommendedJobs(jobRes.value.data.data.companies.slice(0, 4));
       }
 
-      if (emailRes.status === 'fulfilled' && emailRes.value.data?.data) {
-        const d = emailRes.value.data.data;
-        setEmailStatus({
-          isAuthorized: Boolean(d.isEmailSendingAuthorized),
-          email: d.authorizedSendingEmail || null,
-          provider: d.authorizedSendingProvider || null,
-        });
+      if (allJobsRes.status === 'fulfilled' && allJobsRes.value.data?.data?.jobs) {
+        const jobsList = allJobsRes.value.data.data.jobs;
+        const distinctCompanies = new Set(jobsList.map((j: any) => (j.company || '').trim().toLowerCase()).filter(Boolean));
+        setCompaniesHiringCount(distinctCompanies.size);
+      } else if (jobRes.status === 'fulfilled' && jobRes.value.data?.data?.companies) {
+        const distinct = new Set(jobRes.value.data.data.companies.map((j: any) => (j.company || '').trim().toLowerCase()).filter(Boolean));
+        setCompaniesHiringCount(distinct.size);
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -87,15 +92,22 @@ export const StudentDashboard: React.FC = () => {
   };
 
   const targetDomain = resumeData?.fieldOfInterest || user?.profession || 'All Disciplines';
-  const applicationsCount = applications.length;
+  // Applications Sent: Count genuine application records accepted by Brevo or submitted
+  const applicationsSentCount = applications.filter(
+    (a) => Boolean(a.emailMessageId || a.status === 'email_sent' || a.status === 'email_delivered' || a.submissionStatus === 'submitted')
+  ).length;
+  // Emails Sent: Count actual successful application email events
   const emailsSentCount = applications.filter(
-    (a) => Boolean(a.senderEmail || a.emailMessageId || a.emailSentAt || a.status === 'email_sent' || a.status === 'email_delivered')
+    (a) => Boolean(a.emailMessageId && (a.status === 'email_sent' || a.status === 'email_delivered' || a.emailDeliveryStatus === 'sent' || a.emailDeliveryStatus === 'delivered'))
   ).length;
+  // Employer Confirmed: Count only applications explicitly confirmed through genuine recruiter action or verified source
   const employerConfirmedCount = applications.filter(
-    (a) => (a.authoritativeStatus || a.primaryStatus) === 'employer_receipt_confirmed' || a.employerReceipt
+    (a) => (a.status === 'employer_receipt_confirmed' || a.primaryStatus === 'employer_receipt_confirmed' || (a.employerReceipt && a.employerReceipt.receiptSource !== 'candidate_self_reported'))
   ).length;
+  // Interviews: Count actual interview records
   const interviewsCount = interviews.length;
-  const offersCount = applications.filter((a) => a.status === 'offered').length;
+  // Offers: Count actual offers recorded
+  const offersCount = applications.filter((a) => a.status === 'offered' || a.hiringStage === 'offered').length;
 
   return (
     <div className="space-y-6">
@@ -116,68 +128,26 @@ export const StudentDashboard: React.FC = () => {
             <Zap className="w-3.5 h-3.5 text-amber-300" /> Apply Automatically
           </Button>
           <Button
-            onClick={() => navigate('/student/applications')}
+            onClick={() => navigate('/student/jobs')}
             variant="outline"
             size="sm"
             className="flex items-center gap-1.5 text-xs"
           >
-            <Briefcase className="w-3.5 h-3.5" /> Track Applications ({applicationsCount})
+            <Briefcase className="w-3.5 h-3.5" /> Applied Jobs ({applicationsSentCount})
           </Button>
         </div>
-      </div>
-
-      {/* Connected Sending Account Banner */}
-      <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-        emailStatus.isAuthorized
-          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-          : 'bg-indigo-50/70 border-indigo-200 text-indigo-950'
-      }`}>
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg shrink-0 ${emailStatus.isAuthorized ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
-            <Mail className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-xs font-bold">
-                {emailStatus.isAuthorized
-                  ? `Connected Account: ${emailStatus.email}`
-                  : 'Connect Your Gmail or Outlook Account'}
-              </h3>
-              {emailStatus.isAuthorized && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
-                  {emailStatus.provider?.toUpperCase()} ACTIVE ✓
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-neutral-600 mt-0.5">
-              {emailStatus.isAuthorized
-                ? 'When you apply automatically, applications and your resume are dispatched directly from your email address and appear in your Sent folder.'
-                : 'Connect your Gmail or Outlook account once so RecruitX can send job applications directly from your email address with 1-click.'}
-            </p>
-          </div>
-        </div>
-
-        {!emailStatus.isAuthorized && (
-          <Button
-            size="sm"
-            onClick={() => navigate('/student/settings')}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0"
-          >
-            Connect Account →
-          </Button>
-        )}
       </div>
 
       {/* 6 Clean KPI Counters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3.5 bg-white border-neutral-200">
           <span className="text-[10.5px] font-semibold text-neutral-500 block">Companies Hiring</span>
-          <span className="text-xl font-bold text-neutral-900 mt-1 block">50+</span>
+          <span className="text-xl font-bold text-neutral-900 mt-1 block">{companiesHiringCount}</span>
         </Card>
 
         <Card className="p-3.5 bg-white border-neutral-200">
           <span className="text-[10.5px] font-semibold text-neutral-500 block">Applications Sent</span>
-          <span className="text-xl font-bold text-neutral-900 mt-1 block">{applicationsCount}</span>
+          <span className="text-xl font-bold text-neutral-900 mt-1 block">{applicationsSentCount}</span>
         </Card>
 
         <Card className="p-3.5 bg-indigo-50/50 border-indigo-200">
@@ -262,10 +232,10 @@ export const StudentDashboard: React.FC = () => {
             <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
               <h2 className="text-sm font-semibold text-neutral-900">Recent Applications</h2>
               <button
-                onClick={() => navigate('/student/applications')}
+                onClick={() => navigate('/student/jobs')}
                 className="text-xs text-neutral-500 hover:text-neutral-900 flex items-center gap-1 font-semibold"
               >
-                View Full Tracker ({applicationsCount}) <ChevronRight className="w-3 h-3" />
+                Explore All Vacancies <ChevronRight className="w-3 h-3" />
               </button>
             </div>
 
@@ -308,14 +278,7 @@ export const StudentDashboard: React.FC = () => {
                             <ExternalLink className="w-2.5 h-2.5" />
                           </a>
                         ) : null}
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => navigate('/student/applications')}
-                          className="text-xs"
-                        >
-                          Tracker
-                        </Button>
+                        <span className="text-[10.5px] font-semibold text-neutral-600 px-2 py-1 rounded bg-neutral-100 border border-neutral-200">Dispatched</span>
                       </div>
                     </div>
                   );
@@ -337,7 +300,7 @@ export const StudentDashboard: React.FC = () => {
               <div className="p-6 text-center space-y-1.5">
                 <p className="text-xs font-semibold text-neutral-700">No Interviews Scheduled</p>
                 <p className="text-[11px] text-neutral-400">
-                  RecruitX monitors your connected email for interview invitations and schedules them here automatically.
+                  Your interview schedule will appear here when an interview is added by a recruiter or recorded by you.
                 </p>
               </div>
             ) : (

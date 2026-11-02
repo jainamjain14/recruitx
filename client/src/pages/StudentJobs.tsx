@@ -36,6 +36,8 @@ export type { LocalityItem };
 export { ALL_INDIA_LOCALITIES, REGIONAL_CATEGORIES, MUMBAI_NEIGHBORHOODS };
 
 interface CompanyJob {
+  _id?: string;
+  id?: string;
   company: string;
   logo: string;
   title: string;
@@ -53,6 +55,8 @@ interface CompanyJob {
   distanceMiles?: number;
   hrEmail?: string;
   isPlatformJob?: boolean;
+  recruiterId?: string;
+  isCompatible?: boolean;
   isVerifiedActive?: boolean;
   verificationSource?: string;
   applicationType?: string;
@@ -133,7 +137,7 @@ export const StudentJobs: React.FC = () => {
   const [targetDomain, setTargetDomain] = useState('Marketing & Growth Management');
   const [companyJobs, setCompanyJobs] = useState<CompanyJob[]>([]);
   const [search, setSearch] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'nearby' | 'high_match' | 'remote'>('nearby');
+  const [filterMode, setFilterMode] = useState<'recommended' | 'all' | 'nearby' | 'high_match' | 'remote'>('recommended');
   const [nearbyRadius, setNearbyRadius] = useState<number>(50); // 50 km default radius
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [appliedCompany, setAppliedCompany] = useState<string[]>([]);
@@ -223,6 +227,20 @@ export const StudentJobs: React.FC = () => {
       fetchCompanyMatches();
     }
     fetchExistingApplications();
+
+    // Listen for real-time job updates broadcasted via Socket.io
+    const handleRealtimeJobEvent = () => {
+      fetchCompanyMatches();
+    };
+    window.addEventListener('recruitx:job-published', handleRealtimeJobEvent);
+    window.addEventListener('recruitx:job-updated', handleRealtimeJobEvent);
+    window.addEventListener('recruitx:job-deleted', handleRealtimeJobEvent);
+
+    return () => {
+      window.removeEventListener('recruitx:job-published', handleRealtimeJobEvent);
+      window.removeEventListener('recruitx:job-updated', handleRealtimeJobEvent);
+      window.removeEventListener('recruitx:job-deleted', handleRealtimeJobEvent);
+    };
   }, []);
 
   const handleManualLocationChange = (lat: number, lng: number) => {
@@ -352,29 +370,61 @@ export const StudentJobs: React.FC = () => {
     }
   };
 
-  const handleNativeApply = async (company: string, title: string, hrEmail?: string, jobUrl?: string, isPlatformJob?: boolean) => {
+  const handleNativeApply = async (
+    company: string,
+    title: string,
+    hrEmail?: string,
+    jobUrl?: string,
+    isPlatformJob?: boolean,
+    jobId?: string,
+    recruiterId?: string
+  ) => {
     const key = `${company}-${title}`;
     setApplyingKey(key);
 
     try {
       const res = await api.post('/applications/apply-direct', {
+        jobId,
+        recruiterId,
         companyName: decodeHtmlEntities(company),
         jobTitle: decodeHtmlEntities(title),
         hrEmail,
         jobUrl,
       });
 
-      setAppliedCompany((prev) => [...prev, key]);
-      
-      if (res.data?.data?.requiresManualAction && res.data.data.officialApplyUrl) {
-        window.open(res.data.data.officialApplyUrl, '_blank', 'noopener,noreferrer');
-        alert(`📋 Application tracker established for ${title} at ${company}. We have opened the official employer portal in a new tab so you can complete your submission!`);
+      if (res.data?.success && (res.data?.data?.emailSent || isPlatformJob || res.data?.data?.application)) {
+        setAppliedCompany((prev) => [...prev, key]);
+        alert(`🎉 ${res.data?.message || `Application for ${title} at ${company} submitted successfully!`}`);
+        await fetchExistingApplications();
+      } else if (res.data?.data?.requiresManualAction || res.data?.requiresManualAction) {
+        const portalUrl = res.data?.data?.officialApplyUrl || res.data?.officialApplyUrl || jobUrl;
+        const confirmOpen = window.confirm(
+          `ℹ️ ${res.data?.message || 'This employer does not provide a verified recruitment email for direct applications. We could not submit your application automatically.'}\n\nWould you like to open the official employer career portal in a new tab?`
+        );
+        if (confirmOpen && portalUrl) {
+          window.open(portalUrl, '_blank', 'noopener,noreferrer');
+        }
       } else {
-        alert(`🎉 ${res.data?.message || `Application for ${title} at ${company} submitted successfully with verified delivery confirmation!`}`);
+        alert(res.data?.message || 'Unable to submit application automatically.');
       }
-      await fetchExistingApplications();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to submit application');
+      if (err.response?.data?.requiresEmailConnection) {
+        const goToSettings = window.confirm(
+          `✉️ ${err.response.data.message}\n\nWould you like to open Settings now to connect your Gmail or Outlook account?`
+        );
+        if (goToSettings) {
+          navigate('/student/settings');
+        }
+      } else if (err.response?.data?.requiresResume) {
+        const goToResume = window.confirm(
+          `📄 ${err.response.data.message}\n\nWould you like to open the Resume page now?`
+        );
+        if (goToResume) {
+          navigate('/student/resume');
+        }
+      } else {
+        alert(err.response?.data?.message || 'Failed to submit application');
+      }
     } finally {
       setApplyingKey(null);
     }
@@ -422,6 +472,9 @@ export const StudentJobs: React.FC = () => {
 
     if (!matchesSearch) return false;
 
+    if (filterMode === 'recommended') {
+      return job.isCompatible !== false && (job.matchPercentage ?? 0) >= 45;
+    }
     if (filterMode === 'nearby') {
       if (deviceLat === null || deviceLng === null) {
         return true;
@@ -431,7 +484,7 @@ export const StudentJobs: React.FC = () => {
         : (userLat !== null && userLng !== null
             ? (job.distanceMiles ?? calculateDistance(userLat, userLng, job.lat, job.lng))
             : (job.distanceMiles ?? 0));
-      return dist <= nearbyRadius;
+      return dist <= nearbyRadius || job.workMode?.toLowerCase().includes('remote');
     }
     if (filterMode === 'high_match') return job.matchPercentage >= 70;
     if (filterMode === 'remote') return job.workMode.toLowerCase().includes('remote') || cleanLocation.includes('remote');
@@ -908,15 +961,15 @@ export const StudentJobs: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-neutral-100 pb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setFilterMode('nearby')}
+            onClick={() => setFilterMode('recommended')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
-              filterMode === 'nearby'
+              filterMode === 'recommended'
                 ? 'bg-neutral-900 text-white'
                 : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
             }`}
           >
-            <MapPin className="w-3 h-3 text-emerald-400" />
-            Nearby ({nearbyRadius} km Radius)
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            Recommended For You
           </button>
 
           <button
@@ -927,7 +980,19 @@ export const StudentJobs: React.FC = () => {
                 : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
             }`}
           >
-            All India Openings ({companyJobs.length})
+            Browse All Openings ({companyJobs.length})
+          </button>
+
+          <button
+            onClick={() => setFilterMode('nearby')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+              filterMode === 'nearby'
+                ? 'bg-neutral-900 text-white'
+                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+            }`}
+          >
+            <MapPin className="w-3 h-3 text-emerald-400" />
+            Nearby ({nearbyRadius} km Radius)
           </button>
 
           <button
@@ -1022,13 +1087,9 @@ export const StudentJobs: React.FC = () => {
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 border border-neutral-200">
                           {job.workMode}
                         </span>
-                        {job.isPlatformJob ? (
+                        {job.isPlatformJob && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
                             <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" /> Platform Verified Recruiter
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
-                            <CheckCircle2 className="w-2.5 h-2.5 text-blue-600" /> LinkedIn Live Verified (Active & Hiring)
                           </span>
                         )}
                         {isNearby && distFromDevice !== null && (
@@ -1187,17 +1248,20 @@ export const StudentJobs: React.FC = () => {
                       if (existingApp && (appStatus === 'email_sent' || appStatus === 'email_delivered')) {
                         return (
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-indigo-50 text-indigo-900 border-indigo-300 flex items-center gap-1 font-bold">
-                              <span>✉️</span> Email Sent
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-indigo-50 text-indigo-900 border-indigo-300 flex items-center gap-1.5">
+                              <span>✉️</span> Application Sent
                             </span>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => navigate('/student/applications')}
-                              className="text-xs text-indigo-800 border-indigo-300 bg-indigo-50"
-                            >
-                              View in Tracker
-                            </Button>
+                            {existingApp.viewSentEmailUrl && (
+                              <a
+                                href={existingApp.viewSentEmailUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-indigo-700 hover:underline flex items-center gap-1 font-semibold px-2 py-1 rounded bg-indigo-50 border border-indigo-200"
+                              >
+                                <span>View Email</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
                           </div>
                         );
                       }
@@ -1205,17 +1269,9 @@ export const StudentJobs: React.FC = () => {
                       if (existingApp && appStatus === 'awaiting_employer_verification') {
                         return (
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-sky-50 text-sky-900 border-sky-300 flex items-center gap-1">
-                              <span>⏳</span> Awaiting Response
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-sky-50 text-sky-900 border-sky-300 flex items-center gap-1.5">
+                              <span>⏳</span> Awaiting Recruiter Review
                             </span>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => navigate('/student/applications')}
-                              className="text-xs"
-                            >
-                              View in Tracker
-                            </Button>
                           </div>
                         );
                       }
@@ -1223,17 +1279,9 @@ export const StudentJobs: React.FC = () => {
                       if (existingApp && appStatus === 'employer_receipt_confirmed') {
                         return (
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-emerald-50 text-emerald-900 border-emerald-300 flex items-center gap-1 font-bold">
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-900 border-emerald-300 flex items-center gap-1.5 font-bold">
                               <span>✓</span> Employer Confirmed
                             </span>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => navigate('/student/applications')}
-                              className="text-xs text-emerald-800 border-emerald-300 bg-emerald-50"
-                            >
-                              View in Tracker
-                            </Button>
                           </div>
                         );
                       }
@@ -1241,24 +1289,16 @@ export const StudentJobs: React.FC = () => {
                       if (existingApp && appStatus === 'employer_status_updated') {
                         return (
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-2 py-1 rounded-full border bg-purple-50 text-purple-900 border-purple-300 flex items-center gap-1">
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-purple-50 text-purple-900 border-purple-300 flex items-center gap-1.5">
                               <span>⚡</span> {(existingApp.hiringStage || existingApp.status || '').replace('_', ' ').toUpperCase()}
                             </span>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => navigate('/student/applications')}
-                              className="text-xs text-purple-800 border-purple-300 bg-purple-50"
-                            >
-                              Pipeline View
-                            </Button>
                           </div>
                         );
                       }
 
                       return (
                         <Button
-                          onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, job.jobUrl, job.isPlatformJob)}
+                          onClick={() => handleNativeApply(job.company, job.title, job.hrEmail, job.jobUrl, job.isPlatformJob, job._id || job.id, job.recruiterId)}
                           disabled={isApplied || isApplying}
                           size="sm"
                           className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold shadow-xs text-xs"
@@ -1266,8 +1306,8 @@ export const StudentJobs: React.FC = () => {
                         >
                           {isApplied ? (
                             <>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-neutral-600" />
-                              Tracked in Applications
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Applied
                             </>
                           ) : (
                             <>

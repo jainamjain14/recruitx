@@ -51,8 +51,10 @@ export class CandidateEmailAuthService {
    * Generates Google OAuth authorization URL for candidate email sending
    */
   static getGoogleAuthUrl(userId: string, hostUrl?: string): { url: string; state: string } {
-    const config = this.getProviderConfigStatus().google;
-    const clientId = process.env.GOOGLE_CLIENT_ID || '';
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId || clientId.trim().length === 0) {
+      throw new Error('Google Gmail OAuth is not configured on this server. GOOGLE_CLIENT_ID is missing from server environment variables.');
+    }
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${hostUrl || process.env.SERVER_URL || 'https://recruitx-api-7cn6.onrender.com'}/api/candidate-email/connect/google/callback`;
 
     // Secure state token containing userId, timestamp and HMAC signature
@@ -84,7 +86,10 @@ export class CandidateEmailAuthService {
    * Generates Microsoft OAuth authorization URL for candidate email sending
    */
   static getMicrosoftAuthUrl(userId: string, hostUrl?: string): { url: string; state: string } {
-    const clientId = process.env.MICROSOFT_CLIENT_ID || '';
+    const clientId = process.env.MICROSOFT_CLIENT_ID;
+    if (!clientId || clientId.trim().length === 0) {
+      throw new Error('Microsoft Outlook OAuth is not configured on this server. MICROSOFT_CLIENT_ID is missing from server environment variables.');
+    }
     const redirectUri = process.env.MICROSOFT_REDIRECT_URI || `${hostUrl || process.env.SERVER_URL || 'https://recruitx-api-7cn6.onrender.com'}/api/candidate-email/connect/microsoft/callback`;
 
     const statePayload = JSON.stringify({ userId, ts: Date.now() });
@@ -335,6 +340,10 @@ export class CandidateEmailAuthService {
     // If token is still valid with 2-minute safety margin
     if (expiresAt.getTime() > now.getTime() + 2 * 60 * 1000) {
       const decrypted = decryptToken(targetAccount.accessTokenEncrypted);
+      if (decrypted.startsWith('test_access_token_')) {
+        console.warn(`[CandidateEmailAuthService] Excluding test sandbox token for ${targetAccount.email}`);
+        return null;
+      }
       return {
         accessToken: decrypted,
         provider: targetAccount.provider as 'gmail' | 'outlook',
@@ -459,14 +468,16 @@ export class CandidateEmailAuthService {
   /**
    * Revokes and disconnects an authorized email account
    */
-  static async disconnectAccount(userId: string, email: string): Promise<boolean> {
+  static async disconnectAccount(userId: string, targetIdentifier: string): Promise<boolean> {
     const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
 
-    const cleanEmail = email.toLowerCase().trim();
-    user.connectedEmailAccounts = (user.connectedEmailAccounts || []).filter((a) => a.email.toLowerCase() !== cleanEmail);
+    const clean = targetIdentifier.toLowerCase().trim();
+    user.connectedEmailAccounts = (user.connectedEmailAccounts || []).filter(
+      (a) => a.email.toLowerCase() !== clean && a.provider !== clean
+    );
 
-    if (user.authorizedSendingEmail?.toLowerCase() === cleanEmail) {
+    if (user.authorizedSendingEmail?.toLowerCase() === clean || user.authorizedSendingProvider === clean) {
       const remainingActive = (user.connectedEmailAccounts || []).find((a) => a.status === 'active');
       if (remainingActive) {
         user.authorizedSendingEmail = remainingActive.email;

@@ -15,6 +15,7 @@ import { ApplicationEvent } from '../models/ApplicationEvent.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import { User } from '../models/User.js';
 import { emitToUser } from '../socket.js';
+import { logger } from '../utils/logger.js';
 
 export const applyForJob = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -177,7 +178,7 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       return;
     }
 
-    const { companyName, jobTitle, coverLetter, hrEmail, jobUrl } = req.body;
+    const { jobId, companyName, jobTitle, coverLetter, hrEmail, jobUrl, recruiterId: suppliedRecruiterId } = req.body;
     if (!companyName || !jobTitle) {
       sendError(res, 'Company name and job title are required', null, 400);
       return;
@@ -197,13 +198,42 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       return;
     }
 
-    // Resolve recruiter ONLY if a recruiter is registered on RecruitX for this specific company
-    const recruiters = await User.find({ role: 'recruiter' });
-    const matchedRecruiter = recruiters.find(
-      (r) => r.company && companyName && r.company.toLowerCase().trim() === companyName.toLowerCase().trim()
-    );
+    // 1. Resolve authentic platform Job if jobId is provided or by companyName & title
+    let authenticJob: any = null;
+    if (jobId) {
+      authenticJob = await Job.findById(jobId);
+    }
+    if (!authenticJob) {
+      const activePlatformJobs = await Job.find({ status: 'active' });
+      authenticJob = activePlatformJobs.find(
+        (j) =>
+          j.company.toLowerCase().trim() === companyName.toLowerCase().trim() &&
+          j.title.toLowerCase().trim() === jobTitle.toLowerCase().trim()
+      );
+    }
 
-    const recruiterId = matchedRecruiter?._id || null;
+    // 2. Resolve owning recruiter from the authentic Job document
+    let resolvedRecruiterId: string | null = null;
+    let matchedRecruiter: any = null;
+
+    if (authenticJob) {
+      const rawRecruiter = authenticJob.recruiter;
+      resolvedRecruiterId = (rawRecruiter?._id || rawRecruiter)?.toString() || null;
+      if (resolvedRecruiterId) {
+        matchedRecruiter = await User.findById(resolvedRecruiterId);
+      }
+    } else {
+      // Fallback: Check if a registered recruiter owns this exact company
+      const recruiters = await User.find({ role: 'recruiter' });
+      matchedRecruiter = recruiters.find(
+        (r) => r.company && r.company.toLowerCase().trim() === companyName.toLowerCase().trim()
+      );
+      if (matchedRecruiter) {
+        resolvedRecruiterId = matchedRecruiter._id.toString();
+      }
+    }
+
+    const recruiterId = resolvedRecruiterId;
 
     // Check whether direct transmission is actually possible
     let submissionStatus: ApplicationSubmissionStatus = 'requires_manual_application';
@@ -217,7 +247,7 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
     const user = await User.findById(req.user._id);
     let senderEmail: string | undefined;
     let recipientEmail: string | undefined;
-    let emailProvider: 'gmail' | 'outlook' | 'gateway' | undefined;
+    let emailProvider: 'gmail' | 'outlook' | 'gateway' | 'brevo' | undefined;
     let emailMessageId: string | undefined;
     let emailSentAt: Date | undefined;
     let emailDeliveryStatus: 'sent' | 'delivered' | 'bounced' | 'failed' | undefined;
@@ -300,74 +330,95 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
         }
       } else {
         // ROUTE B: Resolve genuine destination: company recruitment email vs official portal
-        const destination = CandidateApplicationEmailService.resolveApplicationDestination({
+        const destination = await CandidateApplicationEmailService.resolveApplicationDestination({
           companyName,
           targetHrEmail: hrEmail,
           jobUrl: destinationUrl || jobUrl,
+          jobDescription: req.body.jobDescription,
         });
 
         if (destination.method === 'email' && destination.destinationEmail) {
           const userDoc = user || (await User.findById(req.user._id));
 
-          if (userDoc) {
-            const emailDispatch = await CandidateApplicationEmailService.dispatchApplication({
-              user: userDoc,
-              resumeData: resume,
-              companyName,
-              jobTitle,
-              targetHrEmail: destination.destinationEmail,
-              coverLetter,
-              jobUrl: destinationUrl || jobUrl,
-            });
+          if (!userDoc) {
+            sendError(res, 'Candidate user record not found', null, 404);
+            return;
+          }
 
-            if (emailDispatch.status === 'sent') {
-              submissionStatus = 'submitted';
-              submissionType = 'direct_hr_dispatch';
-              senderEmail = emailDispatch.senderEmail;
-              recipientEmail = emailDispatch.recipientEmail;
-              emailProvider = emailDispatch.provider;
-              emailMessageId = emailDispatch.messageId;
-              emailSentAt = emailDispatch.sentAt || new Date();
-              emailDeliveryStatus = 'sent';
-              viewSentEmailUrl = emailDispatch.viewSentEmailUrl;
-              resumeAttached = emailDispatch.resumeAttached;
-              resumeFileName = emailDispatch.resumeFileName;
-              resumeFileSize = emailDispatch.resumeFileSize;
-              applicationDestination = `Verified Company Recruitment Inbox (${recipientEmail})`;
-              confirmationDetails = {
-                confirmationId: emailDispatch.messageId || `EMAIL-${Date.now()}`,
-                recipient: recipientEmail || destination.destinationEmail,
-                timestamp: emailDispatch.sentAt || new Date(),
-                dispatchMethod: `Connected ${emailDispatch.provider === 'gmail' ? 'Google Gmail' : (emailDispatch.provider === 'outlook' ? 'Microsoft Outlook' : 'OAuth')} API`,
-                messageId: emailDispatch.messageId,
-                verifiedAt: new Date(),
-              };
-              resumeTransmitted = Boolean(emailDispatch.resumeAttached);
-              candidateContactTransmitted = true;
-              statusNote = emailDispatch.message;
-            } else if (emailDispatch.status === 'requires_connected_account') {
-              submissionStatus = 'requires_manual_application';
-              submissionType = 'external_portal';
-              applicationDestination = destination.destinationEmail
-                ? `Company Recruitment Contact (${destination.destinationEmail})`
-                : (companyName ? `Company Official Portal (${companyName})` : 'Employer Official Career Portal');
-              destinationUrl = destination.portalUrl || destinationUrl;
-              statusNote = 'To email this company directly from your personal address, connect your Gmail or Outlook in Settings with 1-click, or apply via their official career portal.';
-            } else {
-              submissionStatus = 'submission_failed';
-              submissionType = 'direct_hr_dispatch';
-              statusNote = emailDispatch.error || 'Failed to dispatch email application to employer.';
-            }
+          if (!resume) {
+            sendError(
+              res,
+              'A valid PDF resume is required before applying. Please upload your resume in the Resume section.',
+              { requiresResume: true },
+              400
+            );
+            return;
+          }
+
+          const emailDispatch = await CandidateApplicationEmailService.dispatchApplication({
+            user: userDoc,
+            resumeData: resume,
+            companyName,
+            jobTitle,
+            targetHrEmail: destination.destinationEmail,
+            coverLetter,
+            jobUrl: destinationUrl || jobUrl,
+            jobDescription: req.body.jobDescription,
+            jobId: req.body.jobId,
+          });
+
+          if (emailDispatch.status === 'sent') {
+            submissionStatus = 'submitted';
+            submissionType = 'direct_hr_dispatch';
+            senderEmail = emailDispatch.senderEmail;
+            recipientEmail = emailDispatch.recipientEmail;
+            emailProvider = 'brevo';
+            emailMessageId = emailDispatch.messageId;
+            emailSentAt = emailDispatch.sentAt || new Date();
+            emailDeliveryStatus = 'sent';
+            resumeAttached = emailDispatch.resumeAttached;
+            resumeFileName = emailDispatch.resumeFileName;
+            resumeFileSize = emailDispatch.resumeFileSize;
+            applicationDestination = `Verified Recruitment Desk (${recipientEmail})`;
+            confirmationDetails = {
+              confirmationId: emailDispatch.messageId || `BREVO-${Date.now()}`,
+              recipient: recipientEmail || destination.destinationEmail,
+              timestamp: emailDispatch.sentAt || new Date(),
+              dispatchMethod: 'RecruitX Verified Email Service (Brevo HTTPS API)',
+              messageId: emailDispatch.messageId,
+              verifiedAt: new Date(),
+            };
+            resumeTransmitted = Boolean(emailDispatch.resumeAttached);
+            candidateContactTransmitted = true;
+            statusNote = emailDispatch.message;
+          } else if (emailDispatch.status === 'missing_resume') {
+            sendError(
+              res,
+              emailDispatch.message || 'Please upload a valid PDF resume before applying.',
+              { requiresResume: true },
+              400
+            );
+            return;
+          } else {
+            sendError(
+              res,
+              emailDispatch.error || emailDispatch.message || 'Failed to dispatch email application to employer.',
+              { officialApplyUrl: destination.portalUrl || destinationUrl },
+              400
+            );
+            return;
           }
         } else {
-          // Destination is portal
-          submissionStatus = 'requires_manual_application';
-          submissionType = 'external_portal';
-          applicationDestination = destination.portalUrl || 'Employer Official Career Portal';
-          destinationUrl = destination.portalUrl || destinationUrl;
-          statusNote = 'Third-party employer requires direct submission through their official career portal. Direct application link provided.';
-          resumeTransmitted = false;
-          candidateContactTransmitted = false;
+          // Employer does not provide a verified recruitment email
+          // DO NOT create an application record. DO NOT pretend an email was sent.
+          sendSuccess(res, destination.reason || `This employer does not provide a verified recruitment email for direct applications. We could not submit your application automatically.`, {
+            requiresManualAction: true,
+            officialApplyUrl: destination.portalUrl || destinationUrl,
+            companyName,
+            jobTitle,
+            emailSent: false,
+          }, 200);
+          return;
         }
       }
     }
@@ -377,8 +428,6 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       initialStatus = 'email_sent';
     } else if (submissionStatus === 'requires_manual_application') {
       initialStatus = 'external_application_required';
-    } else if (submissionStatus === 'submission_failed') {
-      initialStatus = 'submission_failed';
     } else {
       initialStatus = 'awaiting_employer_verification';
     }
@@ -388,9 +437,10 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       : (submissionType === 'direct_hr_dispatch' ? 'external_system_response' : 'internal_recruitx');
 
     const application = await Application.create({
+      job: authenticJob ? authenticJob._id : undefined,
       student: req.user._id,
-      companyName,
-      jobTitle,
+      companyName: authenticJob ? authenticJob.company : companyName,
+      jobTitle: authenticJob ? authenticJob.title : jobTitle,
       recruiter: recruiterId,
       coverLetter: coverLetter || `Application for ${jobTitle} at ${companyName}`,
       resumeUrl: resume?.headline ? `Uploaded Resume Profile (${resume.fieldOfInterest || 'Student Profile'})` : 'Uploaded Resume',
@@ -420,34 +470,38 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
       statusHistory: [{ status: initialStatus, note: statusNote }],
     });
 
-    // Create notification for student
-    const notifTitle = initialStatus === 'email_sent'
-      ? 'Application Email Dispatched!'
-      : (submissionStatus === 'submitted'
-          ? 'Application Submitted!'
-          : (submissionStatus === 'requires_manual_application'
-              ? 'Application Tracker Initialized'
-              : 'Submission Failed'));
+    // If linked to an authentic platform job, increment applicationsCount
+    if (authenticJob) {
+      try {
+        authenticJob.applicationsCount = (authenticJob.applicationsCount || 0) + 1;
+        await authenticJob.save();
+      } catch (err) {
+        logger.warn('Could not increment applicationsCount on job:', err);
+      }
+    }
 
-    const notifMsg = initialStatus === 'email_sent'
-      ? `Your application for "${jobTitle}" was sent directly to ${companyName} (${recipientEmail}) with your attached resume.`
-      : (submissionStatus === 'submitted'
-          ? `Your application for "${jobTitle}" at ${companyName} was submitted successfully with verified delivery confirmation.`
-          : (submissionStatus === 'requires_manual_application'
-              ? `This role requires submission on ${companyName}'s official portal. We have generated your application tracker and prepared your link.`
-              : `Automated dispatch failed for ${companyName}. Please apply manually via their career portal.`));
+    // Create notification for student ONLY on real events
+    if (initialStatus === 'email_sent' || submissionStatus === 'submitted') {
+      const notifTitle = initialStatus === 'email_sent'
+        ? 'Application Email Dispatched!'
+        : 'Application Submitted!';
 
-    const studentNotif = await Notification.create({
-      recipient: req.user._id,
-      title: notifTitle,
-      message: notifMsg,
-      type: 'application_update',
-      format: 'toast',
-      actionText: 'View Applications',
-      actionUrl: '/student/applications',
-      link: '/student/applications',
-    });
-    emitToUser(req.user._id.toString(), 'notification:new', { notification: studentNotif });
+      const notifMsg = initialStatus === 'email_sent'
+        ? `Your application for "${jobTitle}" was sent directly to ${companyName} (${recipientEmail}) with your attached resume.`
+        : `Your application for "${jobTitle}" at ${companyName} was submitted successfully with verified delivery confirmation.`;
+
+      const studentNotif = await Notification.create({
+        recipient: req.user._id,
+        title: notifTitle,
+        message: notifMsg,
+        type: 'application_update',
+        format: 'toast',
+        actionText: 'View Applications',
+        actionUrl: '/student/applications',
+        link: '/student/applications',
+      });
+      emitToUser(req.user._id.toString(), 'notification:new', { notification: studentNotif });
+    }
 
     const responseMsg = initialStatus === 'email_sent'
       ? `Application for ${jobTitle} at ${companyName} sent directly to ${recipientEmail} with your verified resume attached!`
@@ -460,6 +514,9 @@ export const applyDirectCompanyJob = async (req: AuthenticatedRequest, res: Resp
     sendSuccess(res, responseMsg, {
       application,
       submissionStatus,
+      emailSent: initialStatus === 'email_sent',
+      messageId: emailMessageId,
+      recipientEmail,
       requiresManualAction: submissionStatus === 'requires_manual_application',
       officialApplyUrl: destinationUrl,
     }, 201);
@@ -665,8 +722,8 @@ export const linkEmployerReceipt = async (req: AuthenticatedRequest, res: Respon
  */
 export const acknowledgeEmployerReceipt = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user || req.user.role !== 'recruiter') {
-      sendError(res, 'Only recruiters can acknowledge application receipt', null, 403);
+    if (!req.user || (req.user.role !== 'recruiter' && req.user.role !== 'admin')) {
+      sendError(res, 'Only recruiters and administrators can acknowledge application receipt', null, 403);
       return;
     }
 
@@ -678,13 +735,18 @@ export const acknowledgeEmployerReceipt = async (req: AuthenticatedRequest, res:
       return;
     }
 
+    const recruiterIdStr = req.user._id.toString();
+    const appRecruiterId = (application.recruiter?._id || application.recruiter)?.toString();
+    const jobRecruiterId = (application.job?.recruiter?._id || application.job?.recruiter || application.job?.postedBy?._id || application.job?.postedBy)?.toString();
     const recCompany = ((req.user as any)?.company || '').toLowerCase().trim();
-    const appCompany = (application.companyName || '').toLowerCase().trim();
-    const appRecruiterId = typeof application.recruiter === 'object' && application.recruiter?._id
-      ? application.recruiter._id.toString()
-      : application.recruiter?.toString();
+    const appCompany = (application.companyName || application.job?.company || '').toLowerCase().trim();
 
-    const isAuthorized = appRecruiterId === req.user._id.toString() || (recCompany && recCompany === appCompany);
+    const isAuthorized =
+      req.user.role === 'admin' ||
+      appRecruiterId === recruiterIdStr ||
+      jobRecruiterId === recruiterIdStr ||
+      (recCompany && recCompany === appCompany && application.job);
+
     if (!isAuthorized) {
       sendError(res, 'Not authorized to review this application', null, 403);
       return;
@@ -746,22 +808,24 @@ export const getApplications = async (req: AuthenticatedRequest, res: Response):
       .filter((app: any) => {
         // If logged-in user is a recruiter, only show applications that strictly belong to their company or their jobs
         if (req.user?.role === 'recruiter') {
-          const appRecruiterId = typeof app.recruiter === 'object' && app.recruiter?._id
-            ? app.recruiter._id.toString()
-            : app.recruiter?.toString();
-          const appJobPosterId = typeof app.job === 'object' && app.job?.postedBy
-            ? (typeof app.job.postedBy === 'object' ? app.job.postedBy._id?.toString() : app.job.postedBy.toString())
-            : null;
+          const appRecruiterId = (app.recruiter?._id || app.recruiter)?.toString();
+          const jobRecruiterId = (app.job?.recruiter?._id || app.job?.recruiter || app.job?.postedBy?._id || app.job?.postedBy)?.toString();
 
           const isDirectRecruiter = appRecruiterId === req.user._id.toString();
-          const ownsJob = appJobPosterId === req.user._id.toString();
+          const ownsJob = jobRecruiterId === req.user._id.toString();
           const companyMatches = recruiterCompany && app.companyName && app.companyName.toLowerCase().trim() === recruiterCompany;
 
-          // Recruiter must ONLY see applications belonging to their company or jobs they posted
-          if (recruiterCompany) {
-            return companyMatches || ownsJob;
+          // Recruiter must ONLY see applications belonging to their posted jobs or their direct assigned applicants
+          if (isDirectRecruiter || ownsJob) {
+            return true;
           }
-          return isDirectRecruiter || ownsJob;
+
+          // Shared enterprise access: only if recruiter has a verified company and this is a platform job for that exact company
+          if (recruiterCompany && companyMatches && app.job) {
+            return true;
+          }
+
+          return false;
         }
         return true;
       })
@@ -819,6 +883,26 @@ export const updateApplicationStatus = async (req: AuthenticatedRequest, res: Re
     const application = await Application.findById(id).populate('job');
     if (!application) {
       sendError(res, 'Application not found', null, 404);
+      return;
+    }
+
+    // Backend Authorization Check:
+    const recruiterIdStr = req.user?._id?.toString();
+    const appRecruiterId = (application.recruiter?._id || application.recruiter)?.toString();
+    const jobRecruiterId = (application.job?.recruiter?._id || application.job?.recruiter || application.job?.postedBy?._id || application.job?.postedBy)?.toString();
+    const recruiterCompany = ((req.user as any)?.company || '').toLowerCase().trim();
+    const appCompany = (application.companyName || application.job?.company || '').toLowerCase().trim();
+
+    const isAuthorized =
+      req.user?.role === 'admin' ||
+      (req.user?.role === 'recruiter' && (
+        appRecruiterId === recruiterIdStr ||
+        jobRecruiterId === recruiterIdStr ||
+        (recruiterCompany && recruiterCompany === appCompany && application.job)
+      ));
+
+    if (!isAuthorized) {
+      sendError(res, 'Not authorized to update this candidate application', null, 403);
       return;
     }
 

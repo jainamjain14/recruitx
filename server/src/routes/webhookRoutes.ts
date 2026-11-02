@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { handleEmployerAtsWebhook } from '../controllers/webhookController.js';
+import { handleEmployerAtsWebhook, handleBrevoWebhook } from '../controllers/webhookController.js';
 
 const router = Router();
 
@@ -8,3 +8,6 @@ router.post('/employer-ats', handleEmployerAtsWebhook);
 
 export default router;
 
+
+// Inbound Brevo transactional email event webhook
+router.post('/brevo', handleBrevoWebhook);

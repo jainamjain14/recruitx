@@ -1,3 +1,4 @@
+import { decryptToken } from '../utils/tokenEncryption.js';
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -25,7 +26,19 @@ export const getEmailStatus = asyncHandler(async (req: AuthenticatedRequest, res
 
   const providerConfigs = CandidateEmailAuthService.getProviderConfigStatus();
 
-  const connectedAccounts = (user.connectedEmailAccounts || []).map((acc) => ({
+  // Exclude test sandbox tokens so only genuine OAuth authorizations are shown
+  const genuineAccounts = (user.connectedEmailAccounts || []).filter((acc) => {
+    try {
+      if (!acc.accessTokenEncrypted) return false;
+      const decrypted = decryptToken(acc.accessTokenEncrypted);
+      if (decrypted.startsWith('test_access_token_')) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  const connectedAccounts = genuineAccounts.map((acc) => ({
     provider: acc.provider,
     email: acc.email,
     name: acc.name,
@@ -35,14 +48,19 @@ export const getEmailStatus = asyncHandler(async (req: AuthenticatedRequest, res
     lastError: acc.lastError,
   }));
 
+  const hasActiveGenuine = connectedAccounts.some((a) => a.status === 'active');
+  const authorizedSendingEmail = hasActiveGenuine ? user.authorizedSendingEmail : undefined;
+  const authorizedSendingProvider = hasActiveGenuine ? user.authorizedSendingProvider : undefined;
+  const isEmailSendingAuthorized = hasActiveGenuine && Boolean(user.isEmailSendingAuthorized);
+
   sendSuccess(res, 'Email management status retrieved successfully', {
     primaryAccountEmail: user.email,
     contactEmail: user.contactEmail || (user.emailVerified ? user.email : undefined),
     contactEmailVerified: user.contactEmailVerified || user.emailVerified,
     connectedAccounts,
-    authorizedSendingEmail: user.authorizedSendingEmail,
-    authorizedSendingProvider: user.authorizedSendingProvider,
-    isEmailSendingAuthorized: user.isEmailSendingAuthorized ?? false,
+    authorizedSendingEmail,
+    authorizedSendingProvider,
+    isEmailSendingAuthorized,
     providerConfigs,
   });
 });
@@ -158,10 +176,24 @@ export const getGoogleConnectUrl = asyncHandler(async (req: AuthenticatedRequest
     return;
   }
 
-  const hostUrl = `${req.protocol}://${req.get('host')}`;
-  const { url } = CandidateEmailAuthService.getGoogleAuthUrl(req.user._id.toString(), hostUrl);
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId || clientId.trim().length === 0) {
+    sendError(
+      res,
+      'Google Gmail OAuth is not configured on this server. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the server environment variables.',
+      null,
+      400
+    );
+    return;
+  }
 
-  sendSuccess(res, 'Google OAuth URL generated', { url });
+  try {
+    const hostUrl = `${req.protocol}://${req.get('host')}`;
+    const { url } = CandidateEmailAuthService.getGoogleAuthUrl(req.user._id.toString(), hostUrl);
+    sendSuccess(res, 'Google OAuth URL generated', { url });
+  } catch (err: any) {
+    sendError(res, err.message || 'Failed to generate Google OAuth URL', null, 400);
+  }
 });
 
 /**
@@ -207,10 +239,24 @@ export const getMicrosoftConnectUrl = asyncHandler(async (req: AuthenticatedRequ
     return;
   }
 
-  const hostUrl = `${req.protocol}://${req.get('host')}`;
-  const { url } = CandidateEmailAuthService.getMicrosoftAuthUrl(req.user._id.toString(), hostUrl);
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  if (!clientId || clientId.trim().length === 0) {
+    sendError(
+      res,
+      'Microsoft Outlook OAuth is not configured on this server. Please set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET in the server environment variables.',
+      null,
+      400
+    );
+    return;
+  }
 
-  sendSuccess(res, 'Microsoft OAuth URL generated', { url });
+  try {
+    const hostUrl = `${req.protocol}://${req.get('host')}`;
+    const { url } = CandidateEmailAuthService.getMicrosoftAuthUrl(req.user._id.toString(), hostUrl);
+    sendSuccess(res, 'Microsoft OAuth URL generated', { url });
+  } catch (err: any) {
+    sendError(res, err.message || 'Failed to generate Microsoft OAuth URL', null, 400);
+  }
 });
 
 /**
@@ -259,14 +305,15 @@ export const disconnectEmailAccount = asyncHandler(async (req: AuthenticatedRequ
     return;
   }
 
-  const { email } = req.body;
-  if (!email) {
-    sendError(res, 'Email address to disconnect is required.', null, 400);
+  const { email, provider } = req.body;
+  const target = email || provider;
+  if (!target) {
+    sendError(res, 'Email address or provider to disconnect is required.', null, 400);
     return;
   }
 
-  await CandidateEmailAuthService.disconnectAccount(req.user._id.toString(), email);
-  sendSuccess(res, `Account ${email} disconnected successfully. Sending permissions revoked.`);
+  await CandidateEmailAuthService.disconnectAccount(req.user._id.toString(), target);
+  sendSuccess(res, `Account (${target}) disconnected successfully. Sending permissions revoked.`);
 });
 
 /**

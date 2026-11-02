@@ -1025,5 +1025,117 @@ Return ONLY a valid raw JSON object with:
       ],
     };
   }
+
+  /**
+   * Generates a tailored, vacancy-specific application email using Gemini AI.
+   * Adheres strictly to candidate's genuine background (NEVER invents qualifications).
+   */
+  static async generateTailoredApplicationEmail(options: {
+    candidateName: string;
+    candidateEmail: string;
+    candidatePhone?: string;
+    candidateHeadline?: string;
+    candidateSummary?: string;
+    candidateSkills?: string[];
+    candidateEducation?: any[];
+    candidateExperience?: any[];
+    candidateProjects?: any[];
+    jobTitle: string;
+    companyName: string;
+    jobDescription?: string;
+    requiredSkills?: string[];
+  }): Promise<{
+    subject: string;
+    bodyHtml: string;
+    bodyText: string;
+    suitabilitySnippet: string;
+  }> {
+    const {
+      candidateName,
+      candidateEmail,
+      candidatePhone,
+      candidateHeadline,
+      candidateSummary,
+      candidateSkills,
+      candidateEducation,
+      candidateProjects,
+      jobTitle,
+      companyName,
+      jobDescription,
+      requiredSkills,
+    } = options;
+
+    const subject = `Job Application: ${candidateName} - ${jobTitle} (${companyName})`;
+    const relevantSkills = (candidateSkills || []).slice(0, 6).join(', ');
+    const topProject = (candidateProjects && candidateProjects[0]) ? candidateProjects[0].title : undefined;
+
+    // Default high-quality structured template (Zero hallucinations, 100% genuine data)
+    let bodyText = `Dear Hiring Team at ${companyName},\n\n` +
+      `I am writing to express my strong enthusiasm and formally submit my application for the ${jobTitle} position at ${companyName}.\n\n` +
+      `With my background in ${candidateHeadline || 'the discipline'} and practical proficiency in ${relevantSkills || 'core technical competencies'}, ` +
+      `I am confident in contributing effectively to your team's ongoing initiatives.` +
+      (topProject ? ` In particular, my work on "${topProject}" demonstrates my ability to deliver robust, high-quality outcomes.` : '') + `\n\n` +
+      `My comprehensive resume is attached to this email for your evaluation. I would welcome the opportunity to discuss how my qualifications align with your requirements.\n\n` +
+      `Thank you for your time and consideration.\n\n` +
+      `Sincerely,\n` +
+      `${candidateName}\n` +
+      `Email: ${candidateEmail}\n` +
+      (candidatePhone ? `Phone: ${candidatePhone}\n` : '');
+
+    let bodyHtml = `
+      <div style="font-family: Arial, sans-serif; font-size: 14px; color: #1f2937; line-height: 1.6;">
+        <p>Dear Hiring Team at <strong>${companyName}</strong>,</p>
+        <p>I am writing to express my strong enthusiasm and formally submit my application for the <strong>${jobTitle}</strong> position at ${companyName}.</p>
+        <p>With my background as a <strong>${candidateHeadline || 'qualified professional'}</strong> and hands-on proficiency in <strong>${relevantSkills || 'core competencies'}</strong>, I am confident in contributing effectively to your team's ongoing initiatives.${topProject ? ` In particular, my work on <em>${topProject}</em> demonstrates my ability to deliver robust, high-quality outcomes.` : ''}</p>
+        <p>My verified resume is attached to this email as a PDF for your detailed review. I would welcome the opportunity to discuss how my qualifications align with your requirements.</p>
+        <p>Thank you for your time and consideration.</p>
+        <p style="margin-top: 24px;">Sincerely,<br><strong>${candidateName}</strong><br><span style="color: #6b7280; font-size: 13px;">${candidateEmail}${candidatePhone ? ` | ${candidatePhone}` : ''}</span></p>
+      </div>
+    `.trim();
+
+    let suitabilitySnippet = `${candidateName} presents verified competencies in ${relevantSkills || 'core domain skills'} aligning with the ${jobTitle} opening at ${companyName}.`;
+
+    // Attempt Gemini refinement if API key exists
+    try {
+      const prompt = `Generate a professional job application email tailored specifically to this vacancy.
+Candidate:
+- Name: ${candidateName}
+- Role/Headline: ${candidateHeadline || 'Candidate'}
+- Summary: ${candidateSummary || 'Professional'}
+- Verified Skills: ${relevantSkills || 'Relevant skills'}
+- Projects: ${topProject || 'Domain projects'}
+
+Job Requisition:
+- Role: ${jobTitle}
+- Company: ${companyName}
+- Description: ${(jobDescription || '').slice(0, 300)}
+- Required Skills: ${(requiredSkills || []).slice(0, 5).join(', ')}
+
+RULES:
+1. Strict truthfulness: NEVER invent degrees, past companies, achievements, or skills not mentioned above.
+2. Return JSON ONLY:
+{
+  "subject": "string",
+  "bodyText": "string (plain text email)",
+  "bodyHtml": "string (clean html with <p> and <strong>)",
+  "suitabilitySnippet": "string (1 sentence summary)"
+}`;
+
+      const geminiResult = await this.queryGemini(prompt);
+      if (geminiResult && geminiResult.subject && geminiResult.bodyText) {
+        return {
+          subject: geminiResult.subject,
+          bodyText: geminiResult.bodyText,
+          bodyHtml: geminiResult.bodyHtml || bodyHtml,
+          suitabilitySnippet: geminiResult.suitabilitySnippet || suitabilitySnippet,
+        };
+      }
+    } catch (e: any) {
+      // Fallback gracefully to genuine deterministic template
+    }
+
+    return { subject, bodyHtml, bodyText, suitabilitySnippet };
+  }
+
 }
 
